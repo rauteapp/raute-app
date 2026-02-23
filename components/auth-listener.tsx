@@ -134,12 +134,16 @@ export function AuthListener() {
                     const currentHref = window.location.href
                     console.log('🔍 SIGNED_IN path check:', { currentPath, currentHref })
                     // Static export may use /login.html, /login/, or /login
-                    if (currentPath === '/login' || currentPath === '/' ||
+                    const isOnLogin = currentPath === '/login' || currentPath === '/' ||
                         currentPath === '/login.html' || currentPath === '/login/' ||
-                        currentPath.startsWith('/login')) {
+                        currentPath.startsWith('/login')
+                    if (isOnLogin) {
                         console.log('🔄 SIGNED_IN on login page — redirecting to dashboard')
+                        // Use router.push for client-side navigation to preserve
+                        // the Supabase session in memory (avoids redirect loop from
+                        // full page reload where _initialize() hasn't completed yet)
                         setTimeout(() => {
-                            window.location.href = '/dashboard'
+                            router.push('/dashboard')
                         }, 500)
                     }
                 }
@@ -163,9 +167,9 @@ export function AuthListener() {
             }
         })
 
-        // Helper: verify session is persisted, then hard-navigate to dashboard
-        // Uses window.location.href (NOT router.push) to force a full page reload.
-        // This ensures auth-check starts fresh with the session already in storage.
+        // Helper: verify session is persisted, then navigate to dashboard
+        // Uses router.push for client-side navigation to preserve Supabase
+        // session in memory (avoids redirect loop from full page reload).
         async function waitForSessionAndNavigate() {
             for (let i = 0; i < 5; i++) {
                 await new Promise(resolve => setTimeout(resolve, 400))
@@ -177,7 +181,7 @@ export function AuthListener() {
                         description: 'Successfully logged in.',
                         type: 'success'
                     })
-                    window.location.href = '/dashboard'
+                    router.push('/dashboard')
                     return true
                 }
             }
@@ -246,7 +250,7 @@ export function AuthListener() {
                             await backupSession(data.session.access_token, data.session.refresh_token)
                             await clearCodeVerifierBackup()
                             await new Promise(resolve => setTimeout(resolve, 800))
-                            window.location.href = '/dashboard'
+                            router.push('/dashboard')
                             return
                         }
                         lastError = sessionError?.message || 'Unknown error'
@@ -275,7 +279,7 @@ export function AuthListener() {
                                 console.log('✅ [PKCE] Exchange succeeded on attempt 2 (restored verifier)!')
                                 await backupSession(data.session.access_token, data.session.refresh_token)
                                 await clearCodeVerifierBackup()
-                                window.location.href = '/dashboard'
+                                router.push('/dashboard')
                                 return
                             }
                             lastError = sessionError?.message || 'Unknown error'
@@ -297,7 +301,7 @@ export function AuthListener() {
                         console.log('✅ [PKCE] Session found via onAuthStateChange!')
                         await backupSession(sessionData.session.access_token, sessionData.session.refresh_token)
                         await clearCodeVerifierBackup()
-                        window.location.href = '/dashboard'
+                        router.push('/dashboard')
                         return
                     }
 
@@ -330,7 +334,7 @@ export function AuthListener() {
                             description: 'Successfully logged in.',
                             type: 'success'
                         })
-                        window.location.href = '/dashboard'
+                        router.push('/dashboard')
                     } else {
                         console.error('❌ setSession failed:', setError?.message)
                         toast({
