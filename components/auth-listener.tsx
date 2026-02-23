@@ -118,11 +118,6 @@ export function AuthListener() {
     const router = useRouter()
 
     useEffect(() => {
-        // Flag to indicate PKCE exchange is in progress.
-        // When true, the SIGNED_IN handler should NOT redirect — the PKCE handler
-        // with its timeout will do the redirect (using window.location.href if needed).
-        let pkceExchangeActive = false
-
         // Listen to ALL auth state changes to backup/clear session
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log('🔔 AuthListener event:', event, 'hasSession:', !!session)
@@ -132,9 +127,9 @@ export function AuthListener() {
                 await backupSession(session.access_token, session.refresh_token)
 
                 // Safety net: If SIGNED_IN fires while on login page (OAuth flow),
-                // redirect to dashboard. Skip if PKCE exchange is active — the PKCE
-                // handler with its timeout will handle the redirect itself.
-                if (event === 'SIGNED_IN' && Capacitor.isNativePlatform() && !pkceExchangeActive) {
+                // redirect to dashboard. This catches cases where the PKCE exchange
+                // handler's redirect doesn't execute (e.g. promise hangs after internal processing).
+                if (event === 'SIGNED_IN' && Capacitor.isNativePlatform()) {
                     const currentPath = window.location.pathname
                     const currentHref = window.location.href
                     console.log('🔍 SIGNED_IN path check:', { currentPath, currentHref })
@@ -148,8 +143,6 @@ export function AuthListener() {
                             router.push('/dashboard')
                         }, 500)
                     }
-                } else if (event === 'SIGNED_IN' && pkceExchangeActive) {
-                    console.log('🔍 SIGNED_IN during PKCE exchange — skipping redirect (PKCE handler will redirect)')
                 }
             } else if (event === 'INITIAL_SESSION' && !session && Capacitor.isNativePlatform()) {
                 // Cold start after force-stop: Supabase's _initialize() may have failed
@@ -232,31 +225,15 @@ export function AuthListener() {
 
                 // PKCE code exchange
                 if (code) {
-                    pkceExchangeActive = true
                     console.log('🔐 [PKCE] Step 1: Got authorization code, starting exchange...')
                     console.log('🔐 [PKCE] Code prefix:', code.substring(0, 12) + '...')
                     let lastError = ''
-
-                    // Helper: race exchangeCodeForSession with a timeout.
-                    // On Capacitor iOS, this promise is known to hang even after the HTTP
-                    // call succeeds. When it hangs, the session IS set internally and
-                    // SIGNED_IN fires, but Supabase's internal lock is never released,
-                    // blocking ALL future getSession()/setSession()/refreshSession() calls.
-                    const EXCHANGE_TIMEOUT_MS = 5000
-                    async function exchangeWithTimeout(authCode: string) {
-                        return Promise.race([
-                            supabase.auth.exchangeCodeForSession(authCode),
-                            new Promise<never>((_, reject) =>
-                                setTimeout(() => reject(new Error('EXCHANGE_TIMEOUT')), EXCHANGE_TIMEOUT_MS)
-                            )
-                        ])
-                    }
 
                     // Attempt 1: Direct code exchange (verifier should be in Supabase storage)
                     console.log('🔐 [PKCE] Step 2: Attempting direct exchangeCodeForSession...')
                     try {
                         const startTime = Date.now()
-                        const { data, error: sessionError } = await exchangeWithTimeout(code)
+                        const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
                         const elapsed = Date.now() - startTime
                         console.log(`🔐 [PKCE] Step 2 result (${elapsed}ms):`, {
                             success: !sessionError && !!data.session,
@@ -267,21 +244,11 @@ export function AuthListener() {
                             console.log('✅ [PKCE] Exchange succeeded on attempt 1!')
                             await backupSession(data.session.access_token, data.session.refresh_token)
                             await clearCodeVerifierBackup()
-                            // Exchange resolved normally → lock is released → router.push is safe
                             router.push('/dashboard')
                             return
                         }
                         lastError = sessionError?.message || 'Unknown error'
                     } catch (err: any) {
-                        if (err?.message === 'EXCHANGE_TIMEOUT') {
-                            // Promise hung but SIGNED_IN already fired and session was backed up.
-                            // Supabase's internal lock is stuck — only a full page reload
-                            // can create a fresh client without the deadlocked lock.
-                            console.warn('⚠️ [PKCE] exchangeCodeForSession timed out — lock stuck, using full page reload')
-                            await clearCodeVerifierBackup()
-                            window.location.href = '/dashboard'
-                            return
-                        }
                         lastError = err?.message || 'Exception'
                         console.error('🔐 [PKCE] Step 2 exception:', lastError)
                     }
@@ -295,7 +262,7 @@ export function AuthListener() {
                         console.log('🔐 [PKCE] Step 4: Retrying exchange with restored verifier...')
                         try {
                             const startTime = Date.now()
-                            const { data, error: sessionError } = await exchangeWithTimeout(code)
+                            const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
                             const elapsed = Date.now() - startTime
                             console.log(`🔐 [PKCE] Step 4 result (${elapsed}ms):`, {
                                 success: !sessionError && !!data.session,
@@ -310,40 +277,24 @@ export function AuthListener() {
                             }
                             lastError = sessionError?.message || 'Unknown error'
                         } catch (err: any) {
-                            if (err?.message === 'EXCHANGE_TIMEOUT') {
-                                console.warn('⚠️ [PKCE] exchangeCodeForSession timed out on attempt 2 — using full page reload')
-                                await clearCodeVerifierBackup()
-                                window.location.href = '/dashboard'
-                                return
-                            }
                             lastError = err?.message || 'Exception'
                             console.error('🔐 [PKCE] Step 4 exception:', lastError)
                         }
                     }
 
-                    // Attempt 3: Session may have been set by the SIGNED_IN handler already.
-                    // Use a short timeout since getSession() may also hang if the lock is stuck.
-                    console.log('🔐 [PKCE] Step 5: Checking if session exists...')
+                    // Attempt 3: Check if session was set by onAuthStateChange
+                    console.log('🔐 [PKCE] Step 5: Waiting 1.5s for onAuthStateChange...')
                     await new Promise(resolve => setTimeout(resolve, 1500))
-                    try {
-                        const { data: sessionData } = await Promise.race([
-                            supabase.auth.getSession(),
-                            new Promise<never>((_, reject) =>
-                                setTimeout(() => reject(new Error('GET_SESSION_TIMEOUT')), 3000)
-                            )
-                        ])
-                        if (sessionData.session) {
-                            console.log('✅ [PKCE] Session found!')
-                            await backupSession(sessionData.session.access_token, sessionData.session.refresh_token)
-                            await clearCodeVerifierBackup()
-                            router.push('/dashboard')
-                            return
-                        }
-                    } catch {
-                        // getSession also hung — lock is stuck, use full page reload
-                        console.warn('⚠️ [PKCE] getSession timed out — using full page reload')
+                    const { data: sessionData } = await supabase.auth.getSession()
+                    console.log('🔐 [PKCE] Step 5: Session check result:', {
+                        hasSession: !!sessionData.session,
+                        userId: sessionData.session?.user?.id?.substring(0, 8) || null,
+                    })
+                    if (sessionData.session) {
+                        console.log('✅ [PKCE] Session found via onAuthStateChange!')
+                        await backupSession(sessionData.session.access_token, sessionData.session.refresh_token)
                         await clearCodeVerifierBackup()
-                        window.location.href = '/dashboard'
+                        router.push('/dashboard')
                         return
                     }
 
