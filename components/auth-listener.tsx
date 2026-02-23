@@ -125,6 +125,19 @@ export function AuthListener() {
             if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
                 // Backup session on every auth event
                 await backupSession(session.access_token, session.refresh_token)
+
+                // Safety net: If SIGNED_IN fires while on login page (OAuth flow),
+                // redirect to dashboard. This catches cases where the PKCE exchange
+                // handler's redirect doesn't execute (e.g. promise hangs after internal processing).
+                if (event === 'SIGNED_IN' && Capacitor.isNativePlatform()) {
+                    const currentPath = window.location.pathname
+                    if (currentPath === '/login' || currentPath === '/') {
+                        console.log('🔄 SIGNED_IN on login page — redirecting to dashboard')
+                        setTimeout(() => {
+                            window.location.href = '/dashboard'
+                        }, 500)
+                    }
+                }
             } else if (event === 'INITIAL_SESSION' && !session && Capacitor.isNativePlatform()) {
                 // Cold start after force-stop: Supabase's _initialize() may have failed
                 // to read from Capacitor Preferences (bridge not ready yet).
