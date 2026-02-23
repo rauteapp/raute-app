@@ -40,6 +40,17 @@ function createSupabaseClient() {
                 debug: false, // Set to true for debugging
                 // Add storage key to avoid conflicts
                 storageKey: 'sb-raute-auth',
+                // CRITICAL: Disable navigator.locks on native (Capacitor).
+                // Supabase uses Web Locks API to coordinate between browser tabs.
+                // On Capacitor there's only ONE WebView — no tab coordination needed.
+                // The lock causes a deadlock when exchangeCodeForSession() promise hangs
+                // on iOS: the session IS set internally, but the promise never resolves,
+                // holding the lock forever and blocking ALL subsequent auth operations
+                // (getSession, setSession, refreshSession, onAuthStateChange initial).
+                // This no-op lock bypasses the issue entirely.
+                lock: async (name: string, acquireTimeout: number, fn: () => Promise<any>) => {
+                    return await fn()
+                },
             },
             // Add global error handler
             global: {
