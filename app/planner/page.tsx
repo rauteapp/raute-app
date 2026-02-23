@@ -73,7 +73,7 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
 
     const style: React.CSSProperties = isDragging
         ? { opacity: 0.4, willChange: 'transform', touchAction: 'none' }
-        : { touchAction: 'none' }
+        : {} // Don't set touchAction: 'none' when not dragging — it blocks page scrolling
 
     return (
         <Card
