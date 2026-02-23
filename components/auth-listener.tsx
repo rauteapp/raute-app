@@ -131,7 +131,12 @@ export function AuthListener() {
                 // handler's redirect doesn't execute (e.g. promise hangs after internal processing).
                 if (event === 'SIGNED_IN' && Capacitor.isNativePlatform()) {
                     const currentPath = window.location.pathname
-                    if (currentPath === '/login' || currentPath === '/') {
+                    const currentHref = window.location.href
+                    console.log('🔍 SIGNED_IN path check:', { currentPath, currentHref })
+                    // Static export may use /login.html, /login/, or /login
+                    if (currentPath === '/login' || currentPath === '/' ||
+                        currentPath === '/login.html' || currentPath === '/login/' ||
+                        currentPath.startsWith('/login')) {
                         console.log('🔄 SIGNED_IN on login page — redirecting to dashboard')
                         setTimeout(() => {
                             window.location.href = '/dashboard'
