@@ -29,44 +29,42 @@ export default function AuthCallback() {
         return
       }
 
-      setStatus('Setting up your account...')
-
-      // Check if user has a complete profile (role + company)
-      // Wrap in a timeout so we don't hang forever if the DB query is slow
-      try {
-        const profileCheck = async (): Promise<boolean> => {
-          const { data: userProfile } = await supabase
-            .from('users')
-            .select('role, company_id')
-            .eq('id', userId)
-            .single()
-
-          if (!userProfile || !userProfile.role || !userProfile.company_id) {
-            console.warn('⚠️ User has no complete profile, redirecting to login')
-            hasRedirected.current = true
-            window.location.href = '/login?message=verified'
-            return false
-          }
-
-          // Sync role from DB to session metadata (best-effort, don't block redirect)
-          try { await authenticatedFetch('/api/sync-user-role') } catch {}
-          return true
-        }
-
-        // 8s timeout — if profile check hangs, still redirect to dashboard
-        const result = await Promise.race([
-          profileCheck(),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 8000))
-        ])
-
-        if (hasRedirected.current) return // profileCheck redirected to /login
-      } catch {
-        // If profile check fails, still try to go to dashboard
-      }
-
-      if (hasRedirected.current) return
+      // Redirect to dashboard immediately — don't block on profile check or role sync.
+      // The dashboard page handles role loading with its own fallback/timeout.
+      // Profile check and role sync happen in the background (best-effort).
       hasRedirected.current = true
       setStatus('Redirecting to dashboard...')
+
+      // Fire-and-forget: sync role in background before redirect
+      try {
+        const profilePromise = supabase
+          .from('users')
+          .select('role, company_id')
+          .eq('id', userId)
+          .single()
+
+        // Give profile check 2s — if it responds quickly and user has no profile,
+        // redirect to login instead. Otherwise, just go to dashboard.
+        const result = await Promise.race([
+          profilePromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
+        ])
+
+        if (result && 'data' in result) {
+          const { data: userProfile } = result
+          if (!userProfile || !userProfile.role || !userProfile.company_id) {
+            console.warn('⚠️ User has no complete profile, redirecting to login')
+            window.location.href = '/login?message=verified'
+            return
+          }
+        }
+
+        // Best-effort role sync — don't await, don't block redirect
+        authenticatedFetch('/api/sync-user-role').catch(() => {})
+      } catch {
+        // Profile check failed — still go to dashboard
+      }
+
       window.location.href = '/dashboard'
     }
 
