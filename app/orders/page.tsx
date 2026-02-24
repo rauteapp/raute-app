@@ -1119,9 +1119,9 @@ export default function OrdersPage() {
                             )}
                         </div>
                     ) : (
-                        // MAP VIEW
+                        // MAP VIEW — include incomplete orders so the map shows all relevant stops
                         <div className="h-[600px] rounded-2xl overflow-hidden border border-border shadow-md">
-                            <DriverRouteMap orders={filteredOrders.filter(o => o.latitude != null && o.longitude != null)} />
+                            <DriverRouteMap orders={[...filteredOrders, ...(showIncomplete ? incompleteOrders : [])].filter(o => o.latitude != null && o.longitude != null)} />
                         </div>
                     )}
                 </div>
