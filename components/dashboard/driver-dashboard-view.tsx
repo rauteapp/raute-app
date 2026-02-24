@@ -37,7 +37,7 @@ export function DriverDashboardView({ userId }: { userId: string }) {
     const [ordersList, setOrdersList] = useState<any[]>([])
     const [isOnline, setIsOnline] = useState(() => {
         if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('driver_is_online')
+            const saved = localStorage.getItem('driver_online_status')
             return saved === 'true'
         }
         return false
@@ -92,7 +92,7 @@ export function DriverDashboardView({ userId }: { userId: string }) {
             // Get Driver ID linked to this User ID
             const { data: driverData } = await supabase
                 .from('drivers')
-                .select('id, name, is_online')
+                .select('id, name, is_online, last_location_update')
                 .eq('user_id', userId)
                 .single()
 
@@ -104,11 +104,12 @@ export function DriverDashboardView({ userId }: { userId: string }) {
 
             setDriverId(driverData.id)
 
-            // Priority: Local Storage -> DB
-            if (typeof window !== 'undefined' && localStorage.getItem('driver_is_online') !== null) {
-                setIsOnline(localStorage.getItem('driver_is_online') === 'true')
-            } else {
-                setIsOnline(driverData.is_online || false)
+            // Use isDriverOnline() as source of truth (checks is_online + last_location_update freshness)
+            const { isDriverOnline } = await import('@/lib/driver-status')
+            const actualOnline = isDriverOnline(driverData)
+            setIsOnline(actualOnline)
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('driver_online_status', String(actualOnline))
             }
 
             const startStr = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
@@ -250,7 +251,7 @@ export function DriverDashboardView({ userId }: { userId: string }) {
         const newStatus = !isOnline
         setIsOnline(newStatus) // Optimistic
         if (typeof window !== 'undefined') {
-            localStorage.setItem('driver_is_online', String(newStatus))
+            localStorage.setItem('driver_online_status', String(newStatus))
         }
 
         try {
@@ -264,13 +265,16 @@ export function DriverDashboardView({ userId }: { userId: string }) {
             })
 
             toast({ title: newStatus ? "You are ONLINE 🟢" : "You are OFFLINE ⚫", type: "success" })
-        } catch (error) {
+        } catch (error: any) {
             console.error(error)
-            // setIsOnline(!newStatus) // DON'T REVERT - Keep local state active so user can work
+            setIsOnline(!newStatus) // Revert on failure
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('driver_online_status', String(!newStatus))
+            }
             toast({
-                title: "Status active locally",
-                description: "Server sync issues detected, but local mode enabled.",
-                type: "success"
+                title: "Failed to update status",
+                description: error?.message || "Database permission denied",
+                type: "error"
             })
         }
     }
