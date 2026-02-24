@@ -15,7 +15,7 @@ export function MobileNav() {
     const [userRole, setUserRole] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
 
-    const isActive = (path: string) => pathname === path
+    const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/')
 
     useEffect(() => {
         let mounted = true
@@ -262,14 +262,25 @@ function NavItem({ href, icon: Icon, label, active }: { href: string, icon: any,
             href={href}
             prefetch={false}
             className={cn(
-                "flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-200 select-none touch-manipulation",
+                "flex flex-col items-center justify-center w-full h-full transition-all duration-200 select-none touch-manipulation",
                 active
-                    ? "text-blue-600 dark:text-blue-400 scale-105" // Explicit Active Color
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 active:scale-95" // Explicit Inactive Color
+                    ? "text-blue-600 dark:text-blue-400 scale-105"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 active:scale-95"
             )}
         >
-            <Icon size={26} strokeWidth={active ? 2.5 : 1.5} className={active ? "fill-primary/10 text-primary" : "text-slate-500 dark:text-slate-400"} />
-            <span className={cn("text-[10px] font-medium tracking-tight mt-0.5", active ? "text-primary font-semibold" : "text-slate-500 dark:text-slate-400")}>{label}</span>
+            {/* Active indicator dot */}
+            <div className={cn(
+                "w-1 h-1 rounded-full mb-0.5 transition-all duration-200",
+                active ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"
+            )} />
+            {/* Icon + label with background pill */}
+            <div className={cn(
+                "flex flex-col items-center justify-center px-3 py-1 rounded-xl transition-all duration-200",
+                active ? "bg-blue-50 dark:bg-blue-950/50" : ""
+            )}>
+                <Icon size={26} strokeWidth={active ? 2.5 : 1.5} className={active ? "fill-primary/10 text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400"} />
+                <span className={cn("text-[10px] font-medium tracking-tight mt-0.5", active ? "text-blue-600 dark:text-blue-400 font-semibold" : "text-slate-500 dark:text-slate-400")}>{label}</span>
+            </div>
         </Link>
     )
 }
