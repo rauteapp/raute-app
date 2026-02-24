@@ -288,6 +288,18 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
 
             } catch (error: any) {
                 console.error("❌ Auth check failed:", error)
+
+                // AbortError from navigator.locks — lock held by token refresh, retry
+                if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+                    if (retries > 0) {
+                        console.log('⏳ Lock busy (token refresh), retrying auth check...')
+                        setTimeout(() => {
+                            if (isMountedRef.current && !resolvedRef.current) checkAuth(retries - 1)
+                        }, 1000)
+                        return
+                    }
+                }
+
                 if (error?.message?.includes('string did not match') || error?.message?.includes('pattern')) {
                     try {
                         await supabase.auth.signOut({ scope: 'local' })

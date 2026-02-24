@@ -21,10 +21,10 @@ export default function AuthCallback() {
     // Helper: sync role and redirect to dashboard
     const syncRoleAndRedirect = async (userId: string, emailConfirmedAt: string | null | undefined) => {
       if (hasRedirected.current) return
-      hasRedirected.current = true
 
       // Check email verification
       if (!emailConfirmedAt) {
+        hasRedirected.current = true
         window.location.href = '/verify-email'
         return
       }
@@ -32,31 +32,41 @@ export default function AuthCallback() {
       setStatus('Setting up your account...')
 
       // Check if user has a complete profile (role + company)
-      // If signup happened on mobile app but verification was clicked on web,
-      // the user may have a profile but we're in a web browser without app context.
+      // Wrap in a timeout so we don't hang forever if the DB query is slow
       try {
-        const { data: userProfile } = await supabase
-          .from('users')
-          .select('role, company_id')
-          .eq('id', userId)
-          .single()
+        const profileCheck = async (): Promise<boolean> => {
+          const { data: userProfile } = await supabase
+            .from('users')
+            .select('role, company_id')
+            .eq('id', userId)
+            .single()
 
-        if (!userProfile || !userProfile.role || !userProfile.company_id) {
-          // No profile or incomplete — user signed up but RPC may have failed.
-          // Redirect to login so they can sign in properly (from the app if needed).
-          console.warn('⚠️ User has no complete profile, redirecting to login')
-          window.location.href = '/login?message=verified'
-          return
+          if (!userProfile || !userProfile.role || !userProfile.company_id) {
+            console.warn('⚠️ User has no complete profile, redirecting to login')
+            hasRedirected.current = true
+            window.location.href = '/login?message=verified'
+            return false
+          }
+
+          // Sync role from DB to session metadata (best-effort, don't block redirect)
+          try { await authenticatedFetch('/api/sync-user-role') } catch {}
+          return true
         }
 
-        // Sync role from DB to session metadata
-        await authenticatedFetch('/api/sync-user-role')
+        // 8s timeout — if profile check hangs, still redirect to dashboard
+        const result = await Promise.race([
+          profileCheck(),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 8000))
+        ])
+
+        if (hasRedirected.current) return // profileCheck redirected to /login
       } catch {
         // If profile check fails, still try to go to dashboard
       }
 
+      if (hasRedirected.current) return
+      hasRedirected.current = true
       setStatus('Redirecting to dashboard...')
-
       window.location.href = '/dashboard'
     }
 

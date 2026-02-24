@@ -78,9 +78,19 @@ export async function waitForSession(
         } catch (err: any) {
             console.error('❌ waitForSession exception:', err.message)
 
+            // AbortError = navigator.locks timeout — lock is held by a token refresh.
+            // This is transient on web; retry after a delay.
+            if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+                console.log('⏳ Lock busy (token refresh in progress), retrying...')
+            }
+
             // On exception, wait a bit and try again (unless it's the last attempt)
             if (attempt < maxRetries) {
-                await new Promise(resolve => setTimeout(resolve, delayMs))
+                // Use longer delay for AbortError (lock contention needs more time to resolve)
+                const retryDelay = (err.name === 'AbortError' || err.message?.includes('aborted'))
+                    ? Math.max(delayMs, 1000)
+                    : delayMs
+                await new Promise(resolve => setTimeout(resolve, retryDelay))
             }
         }
     }
