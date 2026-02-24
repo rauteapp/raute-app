@@ -24,6 +24,7 @@ import { DriverSetupGuide } from "@/components/driver-setup-guide"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 import { isValidPhoneNumber } from "react-phone-number-input"
 import { DriverActivityHistory } from "@/components/driver-activity-history"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { format, subDays, startOfMonth, endOfMonth, startOfDay, endOfDay, isToday } from "date-fns"
 import { DateRange } from "react-day-picker"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -51,6 +52,7 @@ export default function OrdersPage() {
     const [statusFilter, setStatusFilter] = useState<string>("all")
     const [isAddOrderOpen, setIsAddOrderOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+    const isDesktop = useMediaQuery('(min-width: 768px)')
     const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false)
     const [userRole, setUserRole] = useState<string | null>(null)
     const [userName, setUserName] = useState<string>('')
@@ -1193,7 +1195,7 @@ export default function OrdersPage() {
                     <Sheet open={isAddOrderOpen} onOpenChange={setIsAddOrderOpen}>
                         <SheetTrigger asChild><Button size="sm" className="gap-2 shadow-lg shadow-blue-200"><Plus size={16} /> Add Order</Button></SheetTrigger>
 
-                        <SheetContent side="bottom" className="h-[90vh] overflow-y-auto safe-area-pt sm:max-w-2xl sm:mx-auto sm:rounded-t-2xl" onInteractOutside={(e) => { if (isLocationPickerOpen) e.preventDefault() }}>
+                        <SheetContent side={isDesktop ? "right" : "bottom"} className={cn("overflow-y-auto safe-area-pt", isDesktop ? "w-full sm:max-w-xl" : "h-[90vh] sm:max-w-2xl sm:mx-auto sm:rounded-t-2xl")} onInteractOutside={(e) => { if (isLocationPickerOpen) e.preventDefault() }}>
                             <SheetHeader className="mb-4"><SheetTitle>Add New Order</SheetTitle><SheetDescription>Choose how you want to add orders</SheetDescription></SheetHeader>
 
                             <Tabs value={formTab} onValueChange={setFormTab} className="w-full">
