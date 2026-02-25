@@ -213,6 +213,10 @@ export type Order = {
     delivery_distance_meters?: number
     delivered_lat?: number | null
     delivered_lng?: number | null
+    cancellation_reason?: string | null
+    cancellation_note?: string | null
+    cancelled_by?: string | null
+    cancelled_at?: string | null
 }
 
 export type ProofImage = {

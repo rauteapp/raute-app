@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, MapPin, Calendar, User as UserIcon, Phone, Package, Edit, Trash2, Clock, Undo2, CheckCircle2, Loader2, Camera as CameraIcon, X } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, User as UserIcon, Phone, Package, Edit, Trash2, Clock, Undo2, CheckCircle2, Loader2, Camera as CameraIcon, X, Navigation, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { supabase, type Order, type ProofImage } from "@/lib/supabase"
@@ -84,6 +84,11 @@ export default function ClientOrderDetails() {
     // Proof Images State
     const [proofImages, setProofImages] = useState<ProofImage[]>([])
     const [isUploadingProof, setIsUploadingProof] = useState(false)
+
+    // Cancellation Dialog State
+    const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false)
+    const [cancelReason, setCancelReason] = useState('')
+    const [cancelNote, setCancelNote] = useState('')
 
     // Controlled Form State
     const [formData, setFormData] = useState<Partial<Order>>({})
@@ -285,6 +290,62 @@ export default function ClientOrderDetails() {
             toast({ title: 'Failed to update status', type: 'error' })
         }
     }
+
+    // Cancellation with reason
+    async function handleCancelOrder() {
+        if (!cancelReason) return
+        if (cancelReason === 'other' && !cancelNote.trim()) return
+
+        try {
+            setIsUpdating(true)
+            const { error } = await supabase
+                .from('orders')
+                .update({
+                    status: 'cancelled',
+                    cancellation_reason: cancelReason,
+                    cancellation_note: cancelNote || null,
+                    cancelled_by: currentUserId,
+                    cancelled_at: new Date().toISOString()
+                })
+                .eq('id', orderId)
+
+            if (error) throw error
+
+            setOrder(prev => prev ? {
+                ...prev,
+                status: 'cancelled' as any,
+                cancellation_reason: cancelReason,
+                cancellation_note: cancelNote || null,
+                cancelled_by: currentUserId,
+                cancelled_at: new Date().toISOString()
+            } : null)
+
+            toast({ title: 'Order cancelled', type: 'success' })
+            setIsCancelDialogOpen(false)
+            setCancelReason('')
+            setCancelNote('')
+        } catch (error) {
+            toast({ title: 'Failed to cancel order', type: 'error' })
+        } finally {
+            setIsUpdating(false)
+        }
+    }
+
+    const DRIVER_CANCEL_REASONS = [
+        { value: 'patient_not_home', label: 'Patient Not Home' },
+        { value: 'patient_refused', label: 'Patient Refused Delivery' },
+        { value: 'address_not_found', label: 'Address Not Found' },
+        { value: 'wrong_equipment', label: 'Wrong Equipment Loaded' },
+        { value: 'other', label: 'Other' },
+    ]
+
+    const MANAGER_CANCEL_REASONS = [
+        ...DRIVER_CANCEL_REASONS.slice(0, -1), // All driver reasons except "other"
+        { value: 'duplicate_order', label: 'Duplicate Order' },
+        { value: 'insurance_issue', label: 'Insurance/Authorization Issue' },
+        { value: 'manager_cancelled', label: 'Cancelled by Manager' },
+        { value: 'other', label: 'Other' },
+    ]
 
     // NEW: Reverse Geocoding when Pin Moves (Using Utility)
     async function handlePinUpdate(lat: number, lng: number) {
@@ -493,7 +554,11 @@ export default function ClientOrderDetails() {
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden divide-y divide-slate-50 dark:divide-slate-800">
                     <div className="p-4 flex gap-4"><div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0"><UserIcon size={20} /></div><div><p className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Customer</p><p className="font-medium text-slate-900 dark:text-slate-100">{order.customer_name}</p>{order.phone && (<a href={`tel:${order.phone}`} className="text-blue-600 dark:text-blue-400 text-sm font-medium flex items-center gap-1 mt-1"><Phone size={12} /> {order.phone}</a>)}</div></div>
                     <div className="p-4 flex gap-4"><div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0"><MapPin size={20} /></div><div><p className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Address</p><p className="font-medium text-slate-900 dark:text-slate-100">{order.address}</p><p className="text-sm text-slate-500 dark:text-slate-400">{[order.city, order.state].filter(Boolean).join(', ')}</p><button
-                        onClick={() => {
+                        onClick={async () => {
+                            // Auto-trigger in_progress when driver navigates from assigned order
+                            if (order.status === 'assigned' && !['manager', 'admin', 'company_admin'].includes(userRole || '')) {
+                                await updateOrderStatus('in_progress')
+                            }
                             const isNative = Capacitor.isNativePlatform()
                             if (isNative) {
                                 // Open native Maps app
@@ -627,9 +692,62 @@ export default function ClientOrderDetails() {
                                 </Button>
                             </div>
                         ) : order.status === 'cancelled' ? (
-                            <div className="bg-red-50 dark:bg-red-950/30 p-4 rounded-xl border border-red-200 dark:border-red-900/50 text-center text-red-700 dark:text-red-400 font-medium">This order is cancelled.</div>
+                            <div className="bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-900/50 p-5 space-y-3 animate-in fade-in slide-in-from-bottom-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-red-100 dark:bg-red-900/40 rounded-full flex items-center justify-center text-red-600 dark:text-red-400 flex-shrink-0">
+                                        <AlertCircle size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-red-800 dark:text-red-300 text-lg">Order Cancelled</h3>
+                                        {order.cancelled_at && (
+                                            <p className="text-sm text-red-600 dark:text-red-400">
+                                                {new Date(order.cancelled_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(order.cancelled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                {order.cancellation_reason && (
+                                    <div className="bg-white/60 dark:bg-slate-900/40 rounded-lg p-3 space-y-1">
+                                        <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                                            Reason: {
+                                                [...(MANAGER_CANCEL_REASONS || [])].find(r => r.value === order.cancellation_reason)?.label
+                                                || order.cancellation_reason
+                                            }
+                                        </p>
+                                        {order.cancellation_note && (
+                                            <p className="text-sm text-red-600 dark:text-red-400 italic">&ldquo;{order.cancellation_note}&rdquo;</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-3">
+                                {/* Start Delivery — prominent button for assigned orders */}
+                                {order.status === 'assigned' && (
+                                    <Button
+                                        className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white text-base font-bold shadow-lg"
+                                        disabled={isUpdating}
+                                        onClick={async () => {
+                                            await updateOrderStatus('in_progress')
+                                            // Open maps navigation
+                                            if (order.latitude && order.longitude) {
+                                                const isNative = Capacitor.isNativePlatform()
+                                                if (isNative) {
+                                                    const url = Capacitor.getPlatform() === 'ios'
+                                                        ? `maps://?q=${order.latitude},${order.longitude}`
+                                                        : `geo:${order.latitude},${order.longitude}?q=${order.latitude},${order.longitude}`
+                                                    window.location.href = url
+                                                } else {
+                                                    window.open(`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`, '_blank')
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        {isUpdating ? <Loader2 className="animate-spin mr-2" size={20} /> : <Navigation size={20} className="mr-2" />}
+                                        Start Delivery
+                                    </Button>
+                                )}
+
                                 {/* Button 1: Capture Proof */}
                                 <Button
                                     variant="outline"
@@ -803,6 +921,15 @@ export default function ClientOrderDetails() {
                                         <span>{isUpdating ? "Processing..." : "Mark Delivered"}</span>
                                     </Button>
                                 </div>
+
+                                {/* Cancel Order — driver */}
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsCancelDialogOpen(true)}
+                                    className="w-full h-12 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/30 font-medium"
+                                >
+                                    <AlertCircle size={16} className="mr-2" /> Cancel Order
+                                </Button>
                             </div>
                         )}
                     </div>
@@ -814,7 +941,13 @@ export default function ClientOrderDetails() {
                         {/* Status Update */}
                         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-4">
                             <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Update Status</label>
-                            <select value={order.status} onChange={(e) => updateOrderStatus(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium bg-slate-50 dark:bg-slate-900 dark:text-slate-100">
+                            <select value={order.status} onChange={(e) => {
+                                if (e.target.value === 'cancelled') {
+                                    setIsCancelDialogOpen(true)
+                                } else {
+                                    updateOrderStatus(e.target.value)
+                                }
+                            }} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium bg-slate-50 dark:bg-slate-900 dark:text-slate-100">
                                 <option value="pending">🟡 Pending</option>
                                 <option value="assigned">🔵 Assigned</option>
                                 <option value="in_progress">🟣 In Progress</option>
@@ -898,6 +1031,68 @@ export default function ClientOrderDetails() {
             </AlertDialog>
 
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Order?</AlertDialogTitle><AlertDialogDescription>Permanently remove #{order.order_number}?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-red-600">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+
+            {/* Cancel Order Dialog */}
+            <AlertDialog open={isCancelDialogOpen} onOpenChange={(open) => {
+                setIsCancelDialogOpen(open)
+                if (!open) { setCancelReason(''); setCancelNote('') }
+            }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-red-600 dark:text-red-400 flex items-center gap-2">
+                            <AlertCircle size={20} /> Cancel Order
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Select a reason for cancelling order <b>#{order.order_number}</b>.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {/* Reason Selection */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Reason *</label>
+                            <select
+                                value={cancelReason}
+                                onChange={(e) => setCancelReason(e.target.value)}
+                                className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-slate-50 dark:bg-slate-900 dark:text-slate-100"
+                            >
+                                <option value="">Select a reason...</option>
+                                {(['manager', 'admin', 'company_admin'].includes(userRole || '')
+                                    ? MANAGER_CANCEL_REASONS
+                                    : DRIVER_CANCEL_REASONS
+                                ).map(r => (
+                                    <option key={r.value} value={r.value}>{r.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Note */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Note {cancelReason === 'other' ? '*' : '(optional)'}
+                            </label>
+                            <textarea
+                                value={cancelNote}
+                                onChange={(e) => setCancelNote(e.target.value)}
+                                placeholder={cancelReason === 'other' ? 'Please provide details...' : 'Add additional details...'}
+                                className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-slate-50 dark:bg-slate-900 dark:text-slate-100 min-h-[80px] resize-none"
+                            />
+                        </div>
+                    </div>
+
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Go Back</AlertDialogCancel>
+                        <button
+                            onClick={handleCancelOrder}
+                            disabled={!cancelReason || (cancelReason === 'other' && !cancelNote.trim()) || isUpdating}
+                            className="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                        >
+                            {isUpdating ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+                            Confirm Cancellation
+                        </button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
                 <SheetContent side="bottom" className="h-[90vh] overflow-y-auto safe-area-pt">
