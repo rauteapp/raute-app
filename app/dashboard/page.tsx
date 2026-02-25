@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/toast-provider"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
+import { PullToRefresh } from "@/components/pull-to-refresh"
 
 export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true)
@@ -171,12 +172,13 @@ export default function DashboardPage() {
 
                     if (companyId) {
                         companyIdRef.current = companyId
-                        // Fetch ALL orders for this company
+                        // Fetch orders for this company (capped at 500 for performance)
                         const { data: ordersData, error: ordersError } = await supabase
                             .from('orders')
                             .select('*')
                             .eq('company_id', companyId)
                             .order('created_at', { ascending: false })
+                            .limit(500)
 
                         if (ordersData && !ordersError) {
                             setOrders(ordersData)
@@ -240,74 +242,64 @@ export default function DashboardPage() {
         }
     }, [])
 
-    // Auto-refresh when user returns to dashboard (for Quick Setup updates)
-    useEffect(() => {
-        const handleFocus = async () => {
-            if (!userId || !['manager', 'dispatcher', 'admin', 'company_admin'].includes(userRole || '')) return
+    // Reusable refresh function for both focus + pull-to-refresh
+    const refreshDashboard = async () => {
+        const companyId = companyIdRef.current
+        if (!companyId) return
 
-            try {
-                // Get company_id via fallback API (avoids RLS recursion on users table)
-                let companyId = null
-                try {
-                    const res = await authenticatedFetch('/api/user-profile')
-                    if (res.ok) {
-                        const apiData = await res.json()
-                        if (apiData.success && apiData.user) {
-                            companyId = apiData.user.company_id
-                        }
-                    }
-                } catch {}
-                if (!companyId) return
+        try {
+            const { data: ordersData } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('company_id', companyId)
+                .order('created_at', { ascending: false })
+                .limit(500)
 
-                // Re-fetch ALL dashboard data
-                const { data: ordersData } = await supabase
-                    .from('orders')
-                    .select('*')
-                    .eq('company_id', companyId)
-                    .order('created_at', { ascending: false })
-
-                if (ordersData) {
-                    setOrders(ordersData)
-
-                    // Recalculate stats
-                    const statsCalc = {
-                        total: ordersData.length,
-                        pending: ordersData.filter(o => o.status === 'pending').length,
-                        assigned: ordersData.filter(o => o.status === 'assigned').length,
-                        inProgress: ordersData.filter(o => o.status === 'in_progress').length,
-                        delivered: ordersData.filter(o => o.status === 'delivered').length,
-                        cancelled: ordersData.filter(o => o.status === 'cancelled').length
-                    }
-                    setStats(statsCalc)
+            if (ordersData) {
+                setOrders(ordersData)
+                const statsCalc = {
+                    total: ordersData.length,
+                    pending: ordersData.filter(o => o.status === 'pending').length,
+                    assigned: ordersData.filter(o => o.status === 'assigned').length,
+                    inProgress: ordersData.filter(o => o.status === 'in_progress').length,
+                    delivered: ordersData.filter(o => o.status === 'delivered').length,
+                    cancelled: ordersData.filter(o => o.status === 'cancelled').length
                 }
-
-                // Re-fetch Drivers
-                const { data: driversData } = await supabase
-                    .from('drivers')
-                    .select('*')
-                    .eq('company_id', companyId)
-
-                if (driversData) {
-                    setTotalDriversCount(driversData.length)
-                    const dMap: Record<string, any> = {}
-                    driversData.forEach(d => {
-                        dMap[d.id] = { name: d.name, vehicle_type: d.vehicle_type, vehicle: d.vehicle_type }
-                    })
-                    setDriversMap(dMap)
-                }
-
-                // Re-fetch Hubs
-                const { data: hubsData } = await supabase
-                    .from('hubs')
-                    .select('id')
-                    .eq('company_id', companyId)
-
-                if (hubsData) {
-                    setHasHubs(hubsData.length > 0)
-                }
-            } catch (error) {
-                console.error('Error refreshing dashboard data:', error)
+                setStats(statsCalc)
             }
+
+            const { data: driversData } = await supabase
+                .from('drivers')
+                .select('*')
+                .eq('company_id', companyId)
+
+            if (driversData) {
+                setTotalDriversCount(driversData.length)
+                const dMap: Record<string, any> = {}
+                driversData.forEach(d => {
+                    dMap[d.id] = { name: d.name, vehicle_type: d.vehicle_type, vehicle: d.vehicle_type }
+                })
+                setDriversMap(dMap)
+            }
+
+            const { data: hubsData } = await supabase
+                .from('hubs')
+                .select('id')
+                .eq('company_id', companyId)
+
+            if (hubsData) {
+                setHasHubs(hubsData.length > 0)
+            }
+        } catch (error) {
+            console.error('Error refreshing dashboard data:', error)
+        }
+    }
+
+    // Auto-refresh when user returns to dashboard
+    useEffect(() => {
+        const handleFocus = () => {
+            if (!userId || !['manager', 'dispatcher', 'admin', 'company_admin'].includes(userRole || '')) return
+            refreshDashboard()
         }
 
         window.addEventListener('focus', handleFocus)
@@ -416,7 +408,8 @@ export default function DashboardPage() {
 
     // 👔 MANAGER VIEW
     return (
-        <div className="p-4 space-y-6 pb-24 max-w-7xl mx-auto min-h-screen bg-slate-50/50 dark:bg-slate-950 transition-colors safe-area-pt">
+        <PullToRefresh onRefresh={refreshDashboard}>
+        <div className="p-4 space-y-6 pb-4 max-w-7xl mx-auto min-h-screen bg-slate-50/50 dark:bg-slate-950 transition-colors safe-area-pt">
             {/* 0. SETUP GUIDE (Conditional - Managers Only) */}
             {showSetup && userRole === 'manager' && (
                 <div className="relative">
@@ -666,6 +659,7 @@ export default function DashboardPage() {
                 </div>
             </div>
         </div>
+        </PullToRefresh>
     )
 }
 

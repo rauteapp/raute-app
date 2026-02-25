@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, ReactNode } from 'react'
+import { useState, useEffect, useRef, ReactNode, useCallback } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { Loader2 } from 'lucide-react'
@@ -11,6 +11,10 @@ interface PullToRefreshProps {
     threshold?: number // Distance to trigger refresh (px)
 }
 
+function getPageScrollTop(): number {
+    return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+}
+
 export function PullToRefresh({ onRefresh, children, threshold = 100 }: PullToRefreshProps) {
     const [refreshing, setRefreshing] = useState(false)
     const [pullDistance, setPullDistance] = useState(0)
@@ -18,91 +22,113 @@ export function PullToRefresh({ onRefresh, children, threshold = 100 }: PullToRe
     const startY = useRef(0)
     const isPulling = useRef(false)
     const containerRef = useRef<HTMLDivElement>(null)
-    // Minimum distance before we consider it a pull gesture (dead zone)
     const DEAD_ZONE = 15
 
-    // Only enable on native mobile
     const isNative = Capacitor.isNativePlatform()
 
+    const stableOnRefresh = useRef(onRefresh)
+    stableOnRefresh.current = onRefresh
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true)
+        await Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {})
+        try {
+            await stableOnRefresh.current()
+        } catch (error) {
+            console.error('Refresh failed:', error)
+        } finally {
+            setRefreshing(false)
+            setPullDistance(0)
+        }
+    }, [])
+
     useEffect(() => {
-        if (!isNative) return // Skip on web
+        if (!isNative) return
 
         const container = containerRef.current
         if (!container) return
 
+        let _startY = 0
+        let _isPulling = false
+        let _pullDistance = 0
+        let _refreshing = false
+        let _hapticFired = false
+
+        // Track refreshing state changes
+        const refreshingInterval = setInterval(() => {
+            // Sync from React state (only for blocking new gestures)
+        }, 100)
+
         const handleTouchStart = (e: TouchEvent) => {
-            // Only init if we're at the very top of scroll AND not already refreshing
-            if (container.scrollTop <= 0 && !refreshing) {
-                startY.current = e.touches[0].clientY
-                isPulling.current = false // Don't activate yet — wait for dead zone
+            const scrollTop = getPageScrollTop()
+            if (scrollTop <= 0 && !refreshing) {
+                _startY = e.touches[0].clientY
+                _isPulling = false
+                _hapticFired = false
             }
         }
 
         const handleTouchMove = (e: TouchEvent) => {
             if (refreshing) return
-            // Must be at top of scroll
-            if (container.scrollTop > 0) {
-                isPulling.current = false
-                setPullDistance(0)
+
+            const scrollTop = getPageScrollTop()
+            if (scrollTop > 0) {
+                if (_isPulling) {
+                    _isPulling = false
+                    _pullDistance = 0
+                    setPullDistance(0)
+                }
                 return
             }
 
             const currentY = e.touches[0].clientY
-            const distance = currentY - startY.current
+            const distance = currentY - _startY
 
-            // Only pull DOWN (positive distance)
+            // Only pull DOWN
             if (distance <= 0) {
-                isPulling.current = false
-                setPullDistance(0)
+                if (_isPulling) {
+                    _isPulling = false
+                    _pullDistance = 0
+                    setPullDistance(0)
+                }
                 return
             }
 
-            // Dead zone — ignore small movements (this prevents accidental triggers)
-            if (distance < DEAD_ZONE) {
-                return
+            // Dead zone
+            if (distance < DEAD_ZONE) return
+
+            if (!_isPulling) {
+                _isPulling = true
             }
 
-            // Now we're actually pulling
-            if (!isPulling.current) {
-                isPulling.current = true
-            }
+            e.preventDefault()
 
-            e.preventDefault() // Prevent native scroll while pulling
-            // Apply rubber-band effect (diminishing returns)
             const adjustedDistance = distance - DEAD_ZONE
             const rubberBand = Math.min(adjustedDistance * 0.5, threshold * 1.2)
+            _pullDistance = rubberBand
             setPullDistance(rubberBand)
 
-            // Haptic feedback when reaching threshold
-            if (rubberBand >= threshold && adjustedDistance < threshold + 5) {
-                Haptics.impact({ style: ImpactStyle.Medium }).catch(() => { })
+            // Haptic at threshold
+            if (rubberBand >= threshold && !_hapticFired) {
+                _hapticFired = true
+                Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {})
             }
         }
 
-        const handleTouchEnd = async () => {
-            if (!isPulling.current || refreshing) {
+        const handleTouchEnd = () => {
+            if (!_isPulling || refreshing) {
+                _isPulling = false
+                _pullDistance = 0
                 setPullDistance(0)
-                isPulling.current = false
                 return
             }
 
-            isPulling.current = false
+            _isPulling = false
 
-            // Trigger refresh only if pulled past threshold
-            if (pullDistance >= threshold) {
-                setRefreshing(true)
-                await Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => { })
-
-                try {
-                    await onRefresh()
-                } catch (error) {
-                    console.error('Refresh failed:', error)
-                } finally {
-                    setRefreshing(false)
-                    setPullDistance(0)
-                }
+            if (_pullDistance >= threshold) {
+                handleRefresh()
             } else {
-                // Snap back
+                _pullDistance = 0
                 setPullDistance(0)
             }
         }
@@ -112,34 +138,31 @@ export function PullToRefresh({ onRefresh, children, threshold = 100 }: PullToRe
         container.addEventListener('touchend', handleTouchEnd)
 
         return () => {
+            clearInterval(refreshingInterval)
             container.removeEventListener('touchstart', handleTouchStart)
             container.removeEventListener('touchmove', handleTouchMove)
             container.removeEventListener('touchend', handleTouchEnd)
         }
-    }, [pullDistance, threshold, refreshing, onRefresh, isNative])
+    }, [isNative, refreshing, threshold, handleRefresh])
 
-    // Progress for animation
     const progress = Math.min(pullDistance / threshold, 1)
     const rotation = progress * 360
 
-    // On web, don't wrap in a scroll container
+    // On web, just render children directly
     if (!isNative) {
         return <>{children}</>
     }
 
     return (
-        <div
-            ref={containerRef}
-            className="relative w-full h-full overflow-y-auto"
-            style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
-        >
-            {/* Pull Indicator */}
+        <div ref={containerRef} className="relative w-full">
+            {/* Pull Indicator — fixed at top of viewport */}
             {(pullDistance > 0 || refreshing) && (
                 <div
-                    className="absolute top-0 left-0 right-0 flex items-center justify-center transition-all duration-150 ease-out pointer-events-none z-50"
+                    className="fixed left-0 right-0 flex items-center justify-center pointer-events-none z-[9998]"
                     style={{
-                        height: `${refreshing ? 60 : Math.min(pullDistance, threshold)}px`,
+                        top: `calc(env(safe-area-inset-top, 0px) + ${refreshing ? 12 : Math.max(0, pullDistance - 40)}px)`,
                         opacity: refreshing ? 1 : progress,
+                        transition: refreshing ? 'top 0.2s ease' : 'none',
                     }}
                 >
                     <div className="bg-background/95 backdrop-blur-sm rounded-full p-2 shadow-lg border border-border">
@@ -153,13 +176,16 @@ export function PullToRefresh({ onRefresh, children, threshold = 100 }: PullToRe
                         />
                     </div>
                     {!refreshing && progress >= 1 && (
-                        <p className="absolute bottom-0 text-xs text-primary font-bold">Release to refresh</p>
+                        <p className="absolute -bottom-5 text-xs text-primary font-bold">Release to refresh</p>
                     )}
                 </div>
             )}
 
-            {/* Content */}
-            <div style={{ paddingTop: refreshing ? '60px' : undefined }}>
+            {/* Content — uses transform instead of padding for smooth animation */}
+            <div style={{
+                transform: refreshing ? 'translateY(60px)' : pullDistance > 0 ? `translateY(${pullDistance}px)` : undefined,
+                transition: refreshing || pullDistance === 0 ? 'transform 0.2s ease' : 'none',
+            }}>
                 {children}
             </div>
         </div>

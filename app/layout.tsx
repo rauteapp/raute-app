@@ -51,7 +51,7 @@ export default function RootLayout({
           <ToastProvider>
             <AuthListener />
             <AuthCheck>
-              <div className="min-h-screen pb-20">
+              <div className="min-h-screen pb-16 safe-area-pb">
                 <main>
                   {children}
                 </main>

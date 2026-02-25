@@ -263,7 +263,7 @@ export default function MapPage() {
         .filter(Boolean)
 
     return (
-        <div className="flex h-[calc(100vh-64px-64px)] md:h-[calc(100vh-64px)] overflow-hidden bg-background relative">
+        <div className="flex overflow-hidden bg-background relative" style={{ height: 'calc(100vh - 4rem - 4rem - var(--safe-area-inset-top, 0px))', minHeight: 0 }} >
             {/* Desktop Sidebar - Only for Managers */}
             {userRole === 'manager' && (
                 <div className="hidden md:block w-80 shrink-0 h-full z-20 shadow-xl border-t">
@@ -280,7 +280,7 @@ export default function MapPage() {
 
             {/* Mobile Sheet Trigger - Only for Managers */}
             {userRole === 'manager' && (
-                <div className="md:hidden absolute top-4 left-4 z-[400]">
+                <div className="md:hidden absolute left-4 z-[400]" style={{ top: 'calc(var(--safe-area-inset-top, 0px) + 1rem)' }}>
                     <Sheet open={isMobilePanelOpen} onOpenChange={setIsMobilePanelOpen}>
                         <SheetTrigger asChild>
                             <Button variant="secondary" size="icon" className="shadow-lg h-12 w-12 rounded-full border border-primary/20">
@@ -303,7 +303,7 @@ export default function MapPage() {
             )}
 
             {/* Map Theme Toggle */}
-            <div className="absolute top-4 right-4 z-[400]">
+            <div className="absolute right-4 z-[400]" style={{ top: 'calc(var(--safe-area-inset-top, 0px) + 1rem)' }}>
                 <Button
                     variant="secondary"
                     size="icon"

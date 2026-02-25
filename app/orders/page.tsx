@@ -60,6 +60,11 @@ export default function OrdersPage() {
     const [isOnline, setIsOnline] = useState(false)
     const [driverId, setDriverId] = useState<string | null>(null)
 
+    // Pagination (manager view)
+    const PAGE_SIZE = 50
+    const [hasMore, setHasMore] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
+
     // For Add Order
     const [pickedLocation, setPickedLocation] = useState<{
         lat: number
@@ -300,8 +305,11 @@ export default function OrdersPage() {
                     .select('*')
                     .eq('company_id', userProfile.company_id)
                     .order('created_at', { ascending: false })
+                    .range(0, PAGE_SIZE - 1)
 
                 if (error) throw error
+
+                setHasMore((data?.length || 0) === PAGE_SIZE)
 
                 // ✅ SUCCESS: Update State & Cache (Managers too)
                 setOrders(data || [])
@@ -330,6 +338,29 @@ export default function OrdersPage() {
             }
         } finally {
             setIsLoading(false)
+        }
+    }
+
+    async function loadMoreOrders() {
+        if (!hasMore || loadingMore || !companyId || userRole === 'driver') return
+        setLoadingMore(true)
+        try {
+            const from = orders.length
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('company_id', companyId)
+                .order('created_at', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1)
+
+            if (!error && data) {
+                setOrders(prev => [...prev, ...data])
+                setHasMore(data.length === PAGE_SIZE)
+            }
+        } catch (e) {
+            console.error('Load more error:', e)
+        } finally {
+            setLoadingMore(false)
         }
     }
 
@@ -816,7 +847,7 @@ export default function OrdersPage() {
 
         return (
             <PullToRefresh onRefresh={fetchData}>
-                <div className="p-4 space-y-6 pb-24 max-w-lg mx-auto bg-background min-h-screen safe-area-pt">
+                <div className="p-4 space-y-6 pb-4 max-w-lg mx-auto bg-background min-h-screen safe-area-pt">
                     {driverId && userId && <DriverTracker driverId={driverId} companyId={companyId || undefined} isOnline={isOnline} userId={userId} />}
 
                     {/* OFFLINE / CACHE INDICATOR */}
@@ -1141,6 +1172,15 @@ export default function OrdersPage() {
                         // MAP VIEW — include incomplete orders so the map shows all relevant stops
                         <div className="h-[600px] rounded-2xl overflow-hidden border border-border shadow-md">
                             <DriverRouteMap orders={[...filteredOrders, ...(showIncomplete ? incompleteOrders : [])].filter(o => o.latitude != null && o.longitude != null)} />
+                        </div>
+                    )}
+
+                    {/* Load More (Pagination) */}
+                    {hasMore && userRole !== 'driver' && (
+                        <div className="flex justify-center pt-4">
+                            <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMore} className="w-full max-w-xs">
+                                {loadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More Orders'}
+                            </Button>
                         </div>
                     )}
                 </div>
@@ -1720,6 +1760,15 @@ export default function OrdersPage() {
                     ))
                 )}
             </div>
+
+            {/* Load More (Pagination) - Manager View */}
+            {hasMore && (
+                <div className="flex justify-center pt-4 pb-4">
+                    <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMore} className="w-full max-w-xs">
+                        {loadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More Orders'}
+                    </Button>
+                </div>
+            )}
 
         </div>
     )
