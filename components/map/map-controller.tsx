@@ -8,10 +8,10 @@ import type { Order, Driver } from "@/lib/supabase"
 export interface MapControllerProps {
     orders: Order[]
     drivers: Driver[]
-    selectedDriverId: string | null
+    selectedDriverIds: Set<string>
 }
 
-export default function MapController({ orders, drivers, selectedDriverId }: MapControllerProps) {
+export default function MapController({ orders, drivers, selectedDriverIds }: MapControllerProps) {
     const map = useMap()
 
     useEffect(() => {
@@ -29,25 +29,24 @@ export default function MapController({ orders, drivers, selectedDriverId }: Map
             if (d.current_lat && d.current_lng) points.push([d.current_lat, d.current_lng])
         })
 
-        if (selectedDriverId) {
-            // -- FOLLOW MODE --
-            // If a specific driver is selected, lock camera to them (Zoom 16)
-            const driver = drivers.find(d => d.id === selectedDriverId)
+        if (selectedDriverIds.size === 1) {
+            // -- FOLLOW MODE (single driver) --
+            const driverId = Array.from(selectedDriverIds)[0]
+            const driver = drivers.find(d => d.id === driverId)
             if (driver?.current_lat && driver?.current_lng) {
                 map.flyTo([driver.current_lat, driver.current_lng], 16, { animate: true, duration: 1.5 })
             }
         } else if (points.length > 0) {
-            // -- GLOBAL OVERVIEW --
-            // If no driver selected, show everything
+            // -- MULTI-SELECT or GLOBAL OVERVIEW --
             const bounds = L.latLngBounds(points)
             map.fitBounds(bounds, {
-                padding: [50, 50],
+                padding: [60, 40],
                 maxZoom: 16,
                 animate: true,
                 duration: 1
             })
         }
-    }, [orders, drivers, selectedDriverId, map])
+    }, [orders, drivers, selectedDriverIds, map])
 
     return null
 }
