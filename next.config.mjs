@@ -2,6 +2,8 @@ import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin('./i18n.ts');
 
+const isDev = process.env.NODE_ENV === 'development';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Only use static export for Capacitor/mobile builds
@@ -9,19 +11,19 @@ const nextConfig = {
   images: { unoptimized: true },
   trailingSlash: true, // Required for reliable Capacitor routing (login/index.html)
   async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'X-DNS-Prefetch-Control', value: 'on' },
-          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' },
-        ],
-      },
+    const securityHeaders = [
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'X-DNS-Prefetch-Control', value: 'on' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' },
     ];
+    // HSTS only in production — on localhost it poisons the browser cache
+    // and forces HTTPS which the dev server doesn't support
+    if (!isDev) {
+      securityHeaders.push({ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' });
+    }
+    return [{ source: '/(.*)', headers: securityHeaders }];
   },
 };
 
