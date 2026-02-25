@@ -259,7 +259,7 @@ export default function MapPage() {
     }
 
     return (
-        <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-background relative safe-area-pl safe-area-pr">
+        <div className="flex h-[calc(100vh-64px)] -mb-20 overflow-hidden bg-background relative safe-area-pl safe-area-pr">
             {/* Desktop Sidebar - Only for Managers */}
             {userRole === 'manager' && (
                 <div className="hidden md:block w-80 shrink-0 h-full z-20 shadow-xl border-t">
