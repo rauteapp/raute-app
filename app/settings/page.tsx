@@ -151,7 +151,7 @@ export default function SettingsPage() {
 
     return (
         <PullToRefresh onRefresh={fetchHubs}>
-            <div className="min-h-screen bg-slate-50 pb-4">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-4">
                 <header className="ios-header sticky top-0 z-10 px-4 py-4 flex items-center justify-between safe-area-pt">
                     <div className="flex items-center gap-3">
                         <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -170,10 +170,10 @@ export default function SettingsPage() {
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
+                                <div className="h-8 w-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center">
                                     <Building2 size={18} />
                                 </div>
-                                <h2 className="text-lg font-bold text-slate-800">Warehouses / Hubs</h2>
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Warehouses / Hubs</h2>
                             </div>
 
                             <Sheet open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -200,7 +200,7 @@ export default function SettingsPage() {
 
                                         <div className="space-y-2">
                                             <label className="text-sm font-medium">Location</label>
-                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                                                 <LocationPicker
                                                     onLocationSelect={async (lat, lng) => {
                                                         setNewHubLoc({ lat, lng })
@@ -217,7 +217,7 @@ export default function SettingsPage() {
                                                     initialPosition={newHubLoc}
                                                 />
                                                 {newHubLoc && (
-                                                    <p className="text-xs text-blue-600 mt-2 flex items-center gap-1 font-medium">
+                                                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 flex items-center gap-1 font-medium">
                                                         <MapPin size={12} />
                                                         Pinned: {newHubLoc.lat.toFixed(5)}, {newHubLoc.lng.toFixed(5)}
                                                     </p>
@@ -289,11 +289,11 @@ export default function SettingsPage() {
                         </div>
 
                         {hubs.length === 0 ? (
-                            <Card className="border-dashed border-2 bg-slate-50/50">
+                            <Card className="border-dashed border-2 bg-slate-50/50 dark:bg-slate-900/30">
                                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                                    <Building2 className="h-12 w-12 text-slate-300 mb-3" />
-                                    <h3 className="text-sm font-bold text-slate-500">No warehouses defined</h3>
-                                    <p className="text-xs text-slate-400 max-w-[200px] mt-1">Add your depots or parking lots to easily assign drivers.</p>
+                                    <Building2 className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
+                                    <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400">No warehouses defined</h3>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[200px] mt-1">Add your depots or parking lots to easily assign drivers.</p>
                                 </CardContent>
                             </Card>
                         ) : (
@@ -301,19 +301,19 @@ export default function SettingsPage() {
                                 {hubs.map(hub => (
                                     <Card key={hub.id} className="group overflow-hidden">
                                         <div className="flex items-center p-4 gap-4">
-                                            <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center shrink-0">
-                                                <Building2 size={20} className="text-slate-600" />
+                                            <div className="h-10 w-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center shrink-0">
+                                                <Building2 size={20} className="text-slate-600 dark:text-slate-400" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h3 className="font-bold text-slate-900 truncate">{hub.name}</h3>
-                                                <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                                                <h3 className="font-bold text-slate-900 dark:text-slate-100 truncate">{hub.name}</h3>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
                                                     <MapPin size={10} /> {hub.address}
                                                 </p>
                                             </div>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="text-slate-300 hover:text-red-500 hover:bg-red-50"
+                                                className="text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                 onClick={() => handleDeleteHub(hub.id)}
                                             >
                                                 <Trash2 size={18} />

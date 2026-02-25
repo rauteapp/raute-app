@@ -653,11 +653,11 @@ export default function DriversPage() {
                                     <p className="text-muted-foreground">
                                         You have reached the limit of <b>{maxDrivers} driver{maxDrivers === 1 ? '' : 's'}</b> for your current plan.
                                     </p>
-                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                                         <p className="font-bold text-lg mb-1">
                                             {maxDrivers === 1 ? 'Upgrade to Pro' : 'Unlock More Drivers'}
                                         </p>
-                                        <p className="text-sm text-slate-500">
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">
                                             {maxDrivers === 1
                                                 ? <><b>Unlock 5 driver slots</b> for <b>$20/month</b>.</>
                                                 : <>Add <b>5 more slots</b> ({maxDrivers} → {maxDrivers + 5}) for <b>$20/month</b>.</>

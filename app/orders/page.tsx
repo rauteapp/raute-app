@@ -32,11 +32,11 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 
 const statusColors = {
-    pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    assigned: "bg-blue-50 text-blue-700 border-blue-200",
-    in_progress: "bg-purple-50 text-purple-700 border-purple-200",
-    delivered: "bg-green-50 text-green-700 border-green-200",
-    cancelled: "bg-red-50 text-red-700 border-red-200",
+    pending: "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+    assigned: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+    in_progress: "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+    delivered: "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+    cancelled: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
 }
 
 const DriverRouteMap = dynamic(() => import('@/components/driver-route-map'), {

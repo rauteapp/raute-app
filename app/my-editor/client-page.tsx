@@ -36,7 +36,7 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
-const SignatureInput = dynamic(() => import('@/components/signature-input'), { ssr: false, loading: () => <div className="h-32 w-full bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs">Loading Signature Pad...</div> })
+const SignatureInput = dynamic(() => import('@/components/signature-input'), { ssr: false, loading: () => <div className="h-32 w-full bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 text-xs">Loading Signature Pad...</div> })
 
 // Fix Leaflet issue
 const fixLeafletIcons = () => {
@@ -54,11 +54,11 @@ const fixLeafletIcons = () => {
 }
 
 const statusColors = {
-    pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    assigned: "bg-blue-50 text-blue-700 border-blue-200",
-    in_progress: "bg-purple-50 text-purple-700 border-purple-200",
-    delivered: "bg-green-50 text-green-700 border-green-200",
-    cancelled: "bg-red-50 text-red-700 border-red-200",
+    pending: "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+    assigned: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+    in_progress: "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+    delivered: "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+    cancelled: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
 }
 
 export default function ClientOrderDetails() {
@@ -421,9 +421,9 @@ export default function ClientOrderDetails() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-50 pb-4">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-4">
                 {/* Header Skeleton */}
-                <div className="bg-white p-4 shadow-sm space-y-2">
+                <div className="bg-white dark:bg-slate-900 p-4 shadow-sm space-y-2">
                     <div className="flex justify-between items-start">
                         <Skeleton className="h-6 w-32" />
                         <Skeleton className="h-6 w-20 rounded-full" />
@@ -432,15 +432,15 @@ export default function ClientOrderDetails() {
                 </div>
 
                 {/* Map Skeleton */}
-                <div className="h-64 w-full bg-slate-200 animate-pulse relative">
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-400">
+                <div className="h-64 w-full bg-slate-200 dark:bg-slate-800 animate-pulse relative">
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-600">
                         <Skeleton className="h-10 w-10 rounded-full" />
                     </div>
                 </div>
 
                 {/* Timeline Skeleton */}
                 <div className="p-4 space-y-6">
-                    <div className="bg-white p-4 rounded-xl shadow-sm space-y-4">
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm space-y-4">
                         <Skeleton className="h-5 w-40" />
                         {[1, 2, 3].map(i => (
                             <div key={i} className="flex gap-4">
@@ -454,7 +454,7 @@ export default function ClientOrderDetails() {
                     </div>
 
                     {/* Action Bar Skeleton */}
-                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t flex gap-2">
+                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-slate-900 border-t dark:border-slate-800 flex gap-2">
                         <Skeleton className="h-12 flex-1 rounded-xl" />
                         <Skeleton className="h-12 flex-1 rounded-xl" />
                     </div>
@@ -462,23 +462,23 @@ export default function ClientOrderDetails() {
             </div>
         )
     }
-    if (!order) return <div className="p-4 flex flex-col items-center justify-center h-screen"><Package className="h-12 w-12 text-slate-300 mb-3" /><p className="text-slate-500">Order not found</p><Button onClick={() => router.push('/orders')} className="mt-4">Back to Orders</Button></div>
+    if (!order) return <div className="p-4 flex flex-col items-center justify-center h-screen"><Package className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" /><p className="text-slate-500 dark:text-slate-400">Order not found</p><Button onClick={() => router.push('/orders')} className="mt-4">Back to Orders</Button></div>
 
     return (
         <PullToRefresh onRefresh={() => fetchOrder(false)}>
-        <div className="min-h-screen bg-slate-50 pb-4">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-4">
             {/* Header */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-10 safe-area-pt">
+            <div className="ios-header sticky top-0 z-10 safe-area-pt">
                 <div className="p-4 flex items-center gap-3">
-                    <Button variant="ghost" size="sm" onClick={() => router.back()} className="h-9 w-9 p-0 rounded-full hover:bg-slate-100"><ArrowLeft size={20} /></Button>
-                    <div className="flex-1"><h1 className="text-base font-bold text-slate-900 leading-tight">#{order.order_number}</h1><p className="text-xs text-slate-500">{order.customer_name}</p></div>
+                    <Button variant="ghost" size="sm" onClick={() => router.back()} className="h-9 w-9 p-0 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft size={20} /></Button>
+                    <div className="flex-1"><h1 className="text-base font-bold text-slate-900 dark:text-slate-100 leading-tight">#{order.order_number}</h1><p className="text-xs text-slate-500 dark:text-slate-400">{order.customer_name}</p></div>
                     <span className={`px-3 py-1 text-xs font-bold rounded-full border uppercase tracking-wider ${statusColors[order.status as keyof typeof statusColors]}`}>{order.status.replace("_", " ")}</span>
                 </div>
             </div>
 
             {/* Map Section */}
             {order.latitude && order.longitude && (
-                <div className="h-56 w-full relative border-b border-slate-200">
+                <div className="h-56 w-full relative border-b border-slate-200 dark:border-slate-800">
                     <MapContainer center={[order.latitude, order.longitude]} zoom={15} style={{ height: '100%', width: '100%' }} className="z-0">
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
                         <Marker position={[order.latitude, order.longitude]} icon={createColoredIcon(order.status)}><Popup>{order.customer_name}</Popup></Marker>
@@ -490,9 +490,9 @@ export default function ClientOrderDetails() {
             <div className="p-4 space-y-4 max-w-lg mx-auto">
 
                 {/* Info Cards */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-50">
-                    <div className="p-4 flex gap-4"><div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 shrink-0"><UserIcon size={20} /></div><div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Customer</p><p className="font-medium text-slate-900">{order.customer_name}</p>{order.phone && (<a href={`tel:${order.phone}`} className="text-blue-600 text-sm font-medium flex items-center gap-1 mt-1"><Phone size={12} /> {order.phone}</a>)}</div></div>
-                    <div className="p-4 flex gap-4"><div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 shrink-0"><MapPin size={20} /></div><div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Address</p><p className="font-medium text-slate-900">{order.address}</p><p className="text-sm text-slate-500">{[order.city, order.state].filter(Boolean).join(', ')}</p><button
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden divide-y divide-slate-50 dark:divide-slate-800">
+                    <div className="p-4 flex gap-4"><div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0"><UserIcon size={20} /></div><div><p className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Customer</p><p className="font-medium text-slate-900 dark:text-slate-100">{order.customer_name}</p>{order.phone && (<a href={`tel:${order.phone}`} className="text-blue-600 dark:text-blue-400 text-sm font-medium flex items-center gap-1 mt-1"><Phone size={12} /> {order.phone}</a>)}</div></div>
+                    <div className="p-4 flex gap-4"><div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0"><MapPin size={20} /></div><div><p className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Address</p><p className="font-medium text-slate-900 dark:text-slate-100">{order.address}</p><p className="text-sm text-slate-500 dark:text-slate-400">{[order.city, order.state].filter(Boolean).join(', ')}</p><button
                         onClick={() => {
                             const isNative = Capacitor.isNativePlatform()
                             if (isNative) {
@@ -506,18 +506,18 @@ export default function ClientOrderDetails() {
                                 window.open(`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`, '_blank')
                             }
                         }}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 border border-blue-200 bg-blue-50 px-3 py-1.5 rounded-full mt-2 hover:bg-blue-100 transition-colors"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full mt-2 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                     >
                         Open in Google Maps
                     </button></div></div>
-                    {order.notes && (<div className="p-4 bg-yellow-50/50"><p className="text-xs text-yellow-600 font-bold uppercase tracking-wider mb-1">Driver Notes</p><p className="text-sm text-slate-700 italic">"{order.notes}"</p></div>)}
+                    {order.notes && (<div className="p-4 bg-yellow-50/50 dark:bg-yellow-950/20"><p className="text-xs text-yellow-600 dark:text-yellow-400 font-bold uppercase tracking-wider mb-1">Driver Notes</p><p className="text-sm text-slate-700 dark:text-slate-300 italic">"{order.notes}"</p></div>)}
 
                     {/* Proof Images Gallery - Only show when order is delivered */}
                     {order.status === 'delivered' && (proofImages.length > 0 || order.proof_url || order.signature_url) && (
-                        <div className="p-4 bg-slate-50">
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50">
                             <div className="flex items-center justify-between mb-3">
-                                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Proof of Delivery</p>
-                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">
+                                <p className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Proof of Delivery</p>
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-full font-bold">
                                     {proofImages.length + (order.proof_url && proofImages.length === 0 ? 1 : 0)} {proofImages.length + (order.proof_url && proofImages.length === 0 ? 1 : 0) === 1 ? 'Photo' : 'Photos'}
                                 </span>
                             </div>
@@ -525,7 +525,7 @@ export default function ClientOrderDetails() {
                             <div className="flex gap-3 overflow-x-auto pb-2">
                                 {/* Show new proof images from proof_images table */}
                                 {proofImages.map((img) => (
-                                    <div key={img.id} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border-2 border-slate-200 bg-white group">
+                                    <div key={img.id} className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 group">
                                         <img
                                             src={img.image_url}
                                             alt="Proof"
@@ -553,7 +553,7 @@ export default function ClientOrderDetails() {
 
                                 {/* Backward compatibility: Show legacy proof_url if no new images */}
                                 {order.proof_url && proofImages.length === 0 && (
-                                    <div className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border-2 border-slate-200 bg-white group">
+                                    <div className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 group">
                                         <img
                                             src={order.proof_url}
                                             alt="Proof"
@@ -572,8 +572,8 @@ export default function ClientOrderDetails() {
 
                                 {/* Signature Card */}
                                 {order.signature_url && (
-                                    <div className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border-2 border-slate-200 bg-white group">
-                                        <div className="absolute top-0 left-0 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 rounded-br border-b border-r border-slate-200 z-10">
+                                    <div className="relative flex-shrink-0 w-40 h-32 rounded-lg overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 group">
+                                        <div className="absolute top-0 left-0 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 rounded-br border-b border-r border-slate-200 dark:border-slate-700 z-10">
                                             Signature
                                         </div>
                                         <img
@@ -596,9 +596,9 @@ export default function ClientOrderDetails() {
                 {!['manager', 'admin', 'company_admin'].includes(userRole || '') && (
                     <div className="space-y-3 pt-2">
                         {order.status === 'delivered' ? (
-                            <div className="bg-green-50 rounded-xl border border-green-200 p-5 text-center space-y-3 animate-in fade-in slide-in-from-bottom-4">
-                                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600"><CheckCircle2 size={24} /></div>
-                                <div><h3 className="font-bold text-green-800 text-lg">Order Delivered!</h3><p className="text-sm text-green-700">Time: {new Date(order.delivered_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
+                            <div className="bg-green-50 dark:bg-green-950/30 rounded-xl border border-green-200 dark:border-green-900/50 p-5 text-center space-y-3 animate-in fade-in slide-in-from-bottom-4">
+                                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mx-auto text-green-600 dark:text-green-400"><CheckCircle2 size={24} /></div>
+                                <div><h3 className="font-bold text-green-800 dark:text-green-300 text-lg">Order Delivered!</h3><p className="text-sm text-green-700 dark:text-green-400">Time: {new Date(order.delivered_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
 
                                 {order.proof_url && (
                                     <div className="flex justify-center">
@@ -607,7 +607,7 @@ export default function ClientOrderDetails() {
                                                 setViewerImageUrl(order.proof_url!)
                                                 setViewerImageTitle('Proof of Delivery')
                                             }}
-                                            className="inline-flex items-center gap-2 text-xs font-bold text-green-700 bg-white border border-green-200 px-4 py-2 rounded-lg hover:bg-green-50 transition-colors shadow-sm"
+                                            className="inline-flex items-center gap-2 text-xs font-bold text-green-700 dark:text-green-400 bg-white dark:bg-slate-900 border border-green-200 dark:border-green-800 px-4 py-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors shadow-sm"
                                         >
                                             <CameraIcon size={14} /> View Proof Photo
                                         </button>
@@ -627,7 +627,7 @@ export default function ClientOrderDetails() {
                                 </Button>
                             </div>
                         ) : order.status === 'cancelled' ? (
-                            <div className="bg-red-50 p-4 rounded-xl border border-red-200 text-center text-red-700 font-medium">This order is cancelled.</div>
+                            <div className="bg-red-50 dark:bg-red-950/30 p-4 rounded-xl border border-red-200 dark:border-red-900/50 text-center text-red-700 dark:text-red-400 font-medium">This order is cancelled.</div>
                         ) : (
                             <div className="grid grid-cols-1 gap-3">
                                 {/* Button 1: Capture Proof */}
@@ -704,7 +704,7 @@ export default function ClientOrderDetails() {
                                             setIsUploadingProof(false)
                                         }
                                     }}
-                                    className="w-full h-12 border-2 border-slate-200 text-slate-700 font-bold hover:bg-slate-50 hover:border-slate-300"
+                                    className="w-full h-12 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600"
                                 >
                                     {isUploadingProof ? (
                                         <>
@@ -720,16 +720,16 @@ export default function ClientOrderDetails() {
                                 </Button>
 
                                 {/* ✍️ SIGNATURE (Optional/Required) */}
-                                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
                                     <div className="flex justify-between items-center">
-                                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                                             ✍️ Customer Signature
                                             {formData.signature_required && <span className="text-red-500 text-xs">*Required</span>}
                                         </label>
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-6 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                                            className="h-6 text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
                                             onClick={() => {
                                                 // clear signature
                                                 const canvas = document.querySelector('canvas.sig-canvas') as HTMLCanvasElement
@@ -745,7 +745,7 @@ export default function ClientOrderDetails() {
                                         </Button>
                                     </div>
 
-                                    <div className="border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 touch-none">
+                                    <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/50 touch-none">
                                         <SignatureInput
                                             key={signatureKey}
                                             onEnd={(dataUrl) => setSignatureData(dataUrl)}
@@ -812,9 +812,9 @@ export default function ClientOrderDetails() {
                 {(userRole === 'manager' || userRole === 'admin' || userRole === 'company_admin') && (
                     <div className="space-y-4 pt-4">
                         {/* Status Update */}
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Update Status</label>
-                            <select value={order.status} onChange={(e) => updateOrderStatus(e.target.value)} className="w-full p-3 border border-slate-200 rounded-lg text-sm font-medium bg-slate-50">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-4">
+                            <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Update Status</label>
+                            <select value={order.status} onChange={(e) => updateOrderStatus(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium bg-slate-50 dark:bg-slate-900 dark:text-slate-100">
                                 <option value="pending">🟡 Pending</option>
                                 <option value="assigned">🔵 Assigned</option>
                                 <option value="in_progress">🟣 In Progress</option>
@@ -824,8 +824,8 @@ export default function ClientOrderDetails() {
                         </div>
 
                         {/* Assign Driver With ONLINE Status */}
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Assign Driver</label>
+                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-4">
+                            <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Assign Driver</label>
                             <select
                                 value={order.driver_id || ''}
                                 onChange={async (e) => {
@@ -833,7 +833,7 @@ export default function ClientOrderDetails() {
                                     const { error } = await supabase.from('orders').update({ driver_id: driverId, status: driverId ? 'assigned' : 'pending' }).eq('id', orderId)
                                     if (!error) fetchOrder()
                                 }}
-                                className="w-full p-3 border border-slate-200 rounded-lg text-sm font-medium bg-slate-50"
+                                className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium bg-slate-50 dark:bg-slate-900 dark:text-slate-100"
                             >
                                 <option value="">Unassigned</option>
                                 {drivers.map((driver) => (
@@ -909,9 +909,9 @@ export default function ClientOrderDetails() {
                         <Input value={formData.order_number || ''} onChange={e => setFormData(prev => ({ ...prev, order_number: e.target.value }))} placeholder="Order #" />
                         <Input value={formData.customer_name || ''} onChange={e => setFormData(prev => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer Name" />
 
-                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
                             <div className="flex justify-between items-center mb-2">
-                                <h3 className="text-xs font-bold text-slate-500 uppercase">GPS Location</h3>
+                                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">GPS Location</h3>
                                 {isGeocodingReversed && <div className="text-xs text-indigo-600 flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Updating Address...</div>}
                             </div>
                             <LocationPicker

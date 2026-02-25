@@ -413,7 +413,7 @@ export default function DashboardPage() {
             {/* 0. SETUP GUIDE (Conditional - Managers Only) */}
             {showSetup && userRole === 'manager' && (
                 <div className="relative">
-                    <button onClick={() => setShowSetup(false)} className="absolute top-2 right-2 p-2 text-slate-400 hover:text-white z-10"><X size={16} /></button>
+                    <button onClick={() => setShowSetup(false)} className="absolute top-2 right-2 p-2 text-slate-400 dark:text-slate-500 hover:text-white z-10"><X size={16} /></button>
                     <SetupGuide
                         hasDrivers={totalDriversCount > 0}
                         hasOrders={stats.total > 0}
@@ -460,11 +460,11 @@ export default function DashboardPage() {
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="end">
                             <div className="p-3 border-b border-slate-100 dark:border-slate-800">
-                                <h4 className="font-bold text-xs text-slate-500 mb-2 uppercase tracking-wider">Quick Select</h4>
+                                <h4 className="font-bold text-xs text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">Quick Select</h4>
                                 <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50 dark:bg-slate-900" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50 dark:bg-slate-900" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50 dark:bg-slate-900" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
                                 </div>
                             </div>
                             <Calendar
@@ -475,7 +475,7 @@ export default function DashboardPage() {
                                 initialFocus
                             />
                             <div className="p-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-center">
-                                <p className="text-[10px] text-slate-500">
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">
                                     💡 Tip: Click start date, then click end date to select a range.
                                 </p>
                             </div>
@@ -592,7 +592,7 @@ export default function DashboardPage() {
                     </h2>
                     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[300px] flex flex-col">
                         <Tabs defaultValue="orders" className="w-full flex-1 flex flex-col">
-                            <div className="px-4 pt-4 pb-2 border-b border-slate-50 dark:border-slate-800">
+                            <div className="px-4 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800">
                                 <TabsList className="grid w-full grid-cols-2">
                                     <TabsTrigger value="orders">Orders</TabsTrigger>
                                     <TabsTrigger value="activity">Driver Logs</TabsTrigger>
@@ -601,7 +601,7 @@ export default function DashboardPage() {
 
                             <TabsContent value="orders" className="flex-1 overflow-y-auto max-h-[400px] p-0 m-0">
                                 {filteredOrders.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-400 text-sm flex flex-col items-center justify-center h-full">
+                                    <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm flex flex-col items-center justify-center h-full">
                                         <Clock className="mb-2 opacity-50" />
                                         No activity recorded
                                     </div>

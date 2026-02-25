@@ -346,7 +346,7 @@ export default function LoginPage() {
                                                 Email
                                             </label>
                                             <div className="relative">
-                                                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="email"
                                                     name="email"
@@ -377,7 +377,7 @@ export default function LoginPage() {
                                                 </Link>
                                             </div>
                                             <div className="relative">
-                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="password"
                                                     name="password"
@@ -393,7 +393,7 @@ export default function LoginPage() {
                                                     type="button"
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600"
+                                                    className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
                                                     onClick={() => setShowPassword(!showPassword)}
                                                     tabIndex={-1}
                                                 >
@@ -424,7 +424,7 @@ export default function LoginPage() {
                                                 <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
                                             </div>
                                             <div className="relative flex justify-center text-xs uppercase">
-                                                <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 rounded-full">Or continue with</span>
+                                                <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 dark:text-slate-400 rounded-full">Or continue with</span>
                                             </div>
                                         </div>
 
@@ -548,7 +548,7 @@ export default function LoginPage() {
                                     </form>
                                 </CardContent>
                                 <CardFooter className="flex flex-col gap-4 text-center pb-6">
-                                    <div className="text-sm text-slate-500">
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">
                                         Don't have an account?{" "}
                                         <Link href="/signup" className="font-semibold text-blue-600 hover:text-blue-500 hover:underline">
                                             Sign up
@@ -611,7 +611,7 @@ export default function LoginPage() {
                                             Email
                                         </label>
                                         <div className="relative">
-                                            <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                            <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                             <Input
                                                 id="email"
                                                 name="email"
@@ -642,7 +642,7 @@ export default function LoginPage() {
                                             </Link>
                                         </div>
                                         <div className="relative">
-                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                             <Input
                                                 id="password"
                                                 name="password"
@@ -658,7 +658,7 @@ export default function LoginPage() {
                                                 type="button"
                                                 variant="ghost"
                                                 size="sm"
-                                                className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600"
+                                                className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
                                                 onClick={() => setShowPassword(!showPassword)}
                                                 tabIndex={-1}
                                             >
@@ -689,7 +689,7 @@ export default function LoginPage() {
                                             <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
                                         </div>
                                         <div className="relative flex justify-center text-xs uppercase">
-                                            <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 rounded-full">Or continue with</span>
+                                            <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 dark:text-slate-400 rounded-full">Or continue with</span>
                                         </div>
                                     </div>
 
