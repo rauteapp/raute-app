@@ -92,15 +92,15 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
                         {/* PRIORITY BADGE */}
                         {(order.priority_level === 'high' || order.priority_level === 'critical') && (
                             <span className={`text-[8px] uppercase font-extrabold px-1 py-0.5 rounded border ${order.priority_level === 'critical'
-                                ? "bg-red-100 text-red-700 border-red-200"
-                                : "bg-orange-100 text-orange-700 border-orange-200"
+                                ? "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800"
+                                : "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800"
                                 }`}>
                                 {order.priority_level === 'critical' ? 'CRIT' : 'HIGH'}
                             </span>
                         )}
                     </span>
                     <div className="flex items-center gap-1">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${order.status === 'cancelled' ? 'bg-red-100 text-red-800 border-red-200 font-bold' : order.status === 'assigned' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-yellow-100 text-yellow-800 border-yellow-200'}`}>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${order.status === 'cancelled' ? 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 font-bold' : order.status === 'assigned' ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' : 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800'}`}>
                             {order.status === 'cancelled' ? 'FAILED' : order.status}
                         </span>
                         {/* Open in New Tab Button */}
@@ -118,24 +118,24 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
                 </div>
                 <p className="text-xs text-muted-foreground line-clamp-1">{order.customer_name}</p>
                 <div className="flex flex-col gap-1 mt-1">
-                    <div className="flex items-center gap-1 text-xs text-slate-500">
+                    <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                         <MapPin size={10} />
                         <span className="truncate">{order.address}</span>
                     </div>
                     {(!order.latitude || !order.longitude) && (
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded w-fit border border-red-100 animate-pulse">
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-1.5 py-0.5 rounded w-fit border border-red-100 dark:border-red-800 animate-pulse">
                             <AlertCircle size={10} />
                             <span>No GPS</span>
                         </div>
                     )}
                     {(order.geocoding_confidence && order.geocoding_confidence !== 'exact') && (
-                        <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded w-fit border ${order.geocoding_confidence === 'failed' ? 'text-red-600 bg-red-50 border-red-100' : 'text-orange-600 bg-orange-50 border-orange-100'}`}>
+                        <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded w-fit border ${order.geocoding_confidence === 'failed' ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-red-100 dark:border-red-800' : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 border-orange-100 dark:border-orange-800'}`}>
                             <AlertTriangle size={10} />
                             <span>{order.geocoding_confidence === 'failed' ? 'GPS Failed' : 'Unverified GPS'}</span>
                         </div>
                     )}
                     {(order.time_window_start || order.time_window_end) && (
-                        <div className="flex items-center gap-1 text-[10px] font-medium text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded w-fit">
+                        <div className="flex items-center gap-1 text-[10px] font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded w-fit">
                             <Clock size={10} />
                             <span>
                                 {order.time_window_start?.slice(0, 5) || 'Any'} - {order.time_window_end?.slice(0, 5) || 'Any'}
@@ -184,7 +184,7 @@ function DroppableDriverContainer({ driver, orders, children, isLocked = false }
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                     {isLocked && <Lock size={14} className="text-red-500" />}
-                    <div className={`w-2 h-2 rounded-full ${driver.status === 'active' ? 'bg-green-500' : 'bg-slate-300'}`} />
+                    <div className={`w-2 h-2 rounded-full ${driver.status === 'active' ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
                     <span className={`font-medium text-sm ${isLocked ? 'text-red-600 dark:text-red-400' : ''}`}>{driver.name}</span>
                     {isLocked && <span className="text-[10px] bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded font-bold">LOCKED</span>}
                 </div>
@@ -365,6 +365,14 @@ export default function PlannerPage() {
 
             if (session?.user) {
                 userId = session.user.id
+            }
+
+            // On web, getSession() may time out due to navigator.locks — fallback to getUser()
+            if (!userId) {
+                try {
+                    const { data: userData } = await supabase.auth.getUser()
+                    if (userData.user) userId = userData.user.id
+                } catch {}
             }
 
             if (!userId) {
@@ -866,7 +874,7 @@ export default function PlannerPage() {
                                                         />
 
                                                         {/* Online Status */}
-                                                        <div className={`w - 1.5 h - 1.5 rounded - full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'
+                                                        <div className={`w - 1.5 h - 1.5 rounded - full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'
                                                             } `} />
 
                                                         <div className="flex-1 min-w-0">
@@ -1016,7 +1024,7 @@ export default function PlannerPage() {
                                             <Popup>
                                                 <div className="p-1">
                                                     <strong className="block text-sm">{driver.name} (Start)</strong>
-                                                    <div className="text-xs text-slate-500">{driver.default_start_address}</div>
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400">{driver.default_start_address}</div>
                                                 </div>
                                             </Popup>
                                         </Marker>
@@ -1076,9 +1084,9 @@ export default function PlannerPage() {
                                             <Popup>
                                                 <div className="p-1">
                                                     <strong className="block text-sm">{order.customer_name}</strong>
-                                                    <div className="text-xs text-slate-500 mb-1">{order.address}</div>
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{order.address}</div>
                                                     <div className="flex gap-1">
-                                                        <div className={`text - [10px] font - bold px - 1 rounded w - fit ${order.driver_id ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'} `}>
+                                                        <div className={`text - [10px] font - bold px - 1 rounded w - fit ${order.driver_id ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'} `}>
                                                             {order.driver_id ? 'Assigned' : 'Unassigned'}
                                                         </div>
                                                         {order.route_index !== null && order.driver_id && (
@@ -1099,7 +1107,7 @@ export default function PlannerPage() {
                     {/* ============================================= */}
                     {/* MOBILE PLANNER UI — Card/List layout           */}
                     {/* ============================================= */}
-                    <div className="md:hidden flex-1 flex flex-col bg-background overflow-y-auto pb-24" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)` }}>
+                    <div className="md:hidden flex-1 flex flex-col bg-background overflow-y-auto pb-4" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)` }}>
                         {/* Header */}
                         <div className="px-4 pt-2 pb-3 border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-30">
                             <h1 className="text-lg font-bold tracking-tight text-foreground">Route Planner</h1>
@@ -1194,7 +1202,7 @@ export default function PlannerPage() {
                                                 }}
                                                 className="h-3.5 w-3.5 rounded border-gray-300 accent-primary"
                                             />
-                                            <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                                            <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'}`} />
                                             <span className={`text-xs font-medium truncate ${isOnline ? 'text-foreground' : 'text-muted-foreground'}`}>
                                                 {driver.name}
                                             </span>
@@ -1318,18 +1326,18 @@ export default function PlannerPage() {
                                 <div className="space-y-1">
                                     <h3 className="text-sm font-medium text-muted-foreground">Customer</h3>
                                     <p className="font-semibold">{selectedOrder.customer_name}</p>
-                                    <p className="text-sm text-slate-600">{selectedOrder.phone}</p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400">{selectedOrder.phone}</p>
                                 </div>
 
                                 <div className="space-y-1">
                                     <h3 className="text-sm font-medium text-muted-foreground">Address</h3>
-                                    <p className="text-sm text-slate-800 bg-slate-50 p-2 rounded">{selectedOrder.address}, {selectedOrder.city}</p>
+                                    <p className="text-sm text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/50 p-2 rounded">{selectedOrder.address}, {selectedOrder.city}</p>
                                 </div>
 
                                 <div className="flex gap-4">
                                     <div className="space-y-1">
                                         <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
-                                        <span className={`inline - block px - 2 py - 1 rounded - full text - xs font - bold ${selectedOrder.status === 'assigned' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'} `}>
+                                        <span className={`inline - block px - 2 py - 1 rounded - full text - xs font - bold ${selectedOrder.status === 'assigned' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'} `}>
                                             {selectedOrder.status}
                                         </span>
                                     </div>
@@ -1340,7 +1348,7 @@ export default function PlannerPage() {
                                 </div>
 
                                 <div className="pt-4 border-t">
-                                    <Button className="w-full" onClick={() => router.push(`/ my - editor ? id = ${selectedOrder.id} `)}>
+                                    <Button className="w-full" onClick={() => router.push(`/my-editor?id=${selectedOrder.id}`)}>
                                         <ExternalLink size={14} className="mr-2" />
                                         Open Full Editor
                                     </Button>
@@ -1515,7 +1523,7 @@ export default function PlannerPage() {
                                 <SheetHeader>
                                     <div className="flex items-center justify-between">
                                         <SheetTitle>Order #{selectedOrder.order_number}</SheetTitle>
-                                        <span className={`text - xs px - 2 py - 1 rounded - full border uppercase font - bold ${selectedOrder.status === 'assigned' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-yellow-100 text-yellow-800 border-yellow-200'} `}>
+                                        <span className={`text - xs px - 2 py - 1 rounded - full border uppercase font - bold ${selectedOrder.status === 'assigned' ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' : 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800'} `}>
                                             {selectedOrder.status}
                                         </span>
                                     </div>
@@ -1531,15 +1539,15 @@ export default function PlannerPage() {
                                         <div className="flex-1 p-3 rounded-lg border bg-muted/20 flex flex-col items-center justify-center gap-1 text-center">
                                             <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Priority</span>
                                             {selectedOrder.priority_level === 'critical' ? (
-                                                <span className="flex items-center gap-1 text-red-600 font-bold bg-red-100 px-2 py-0.5 rounded text-sm">
+                                                <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-bold bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded text-sm">
                                                     <AlertCircle size={14} /> CRITICAL
                                                 </span>
                                             ) : selectedOrder.priority_level === 'high' ? (
-                                                <span className="flex items-center gap-1 text-orange-600 font-bold bg-orange-100 px-2 py-0.5 rounded text-sm">
+                                                <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-bold bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded text-sm">
                                                     <AlertTriangle size={14} /> HIGH
                                                 </span>
                                             ) : (
-                                                <span className="text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded text-sm">NORMAL</span>
+                                                <span className="text-slate-600 dark:text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm">NORMAL</span>
                                             )}
                                         </div>
 
@@ -1589,7 +1597,7 @@ export default function PlannerPage() {
 
                                     {/* ACTION BUTTONS */}
                                     <div className="pt-4 border-t border-border space-y-3">
-                                        <Link href={`/ my - editor ? id = ${selectedOrder.id} `} className="block w-full">
+                                        <Link href={`/my-editor?id=${selectedOrder.id}`} className="block w-full">
                                             <Button variant="outline" className="w-full">
                                                 <Edit className="mr-2 h-4 w-4" /> Edit Order Details
                                             </Button>
@@ -1599,7 +1607,7 @@ export default function PlannerPage() {
                                         {selectedOrder.driver_id && (
                                             <Button
                                                 variant={selectedOrder.is_pinned ? "outline" : "default"}
-                                                className={selectedOrder.is_pinned ? "w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" : "w-full bg-slate-900 text-white hover:bg-slate-800"}
+                                                className={selectedOrder.is_pinned ? "w-full border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300" : "w-full bg-slate-900 text-white hover:bg-slate-800"}
                                                 onClick={async () => {
                                                     const newPinState = !selectedOrder.is_pinned
 

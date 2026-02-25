@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { useSearchParams } from "next/navigation"
 import { Menu, Navigation } from "lucide-react"
@@ -9,7 +9,7 @@ import { isDriverOnline } from "@/lib/driver-status"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
-import { FleetPanel } from "@/components/map/fleet-panel"
+import { FleetPanel, type DriverFilter } from "@/components/map/fleet-panel"
 
 // Dynamically import the map component to avoid SSR issues
 const InteractiveMap = dynamic(
@@ -38,9 +38,13 @@ export default function MapPage() {
     const [userRole, setUserRole] = useState<string | null>(null)
     const [companyId, setCompanyId] = useState<string | null>(null)
 
-    // UI State
-    const [selectedDriverId, setSelectedDriverId] = useState<string | null>(searchParams.get('driverId'))
-    const [userLocation, setUserLocation] = useState<[number, number] | null>([34.0522, -118.2437]) // Default to generic location to avoid loading state
+    // UI State — multi-select drivers + filter
+    const initialDriverId = searchParams.get('driverId')
+    const [selectedDriverIds, setSelectedDriverIds] = useState<Set<string>>(
+        initialDriverId ? new Set([initialDriverId]) : new Set()
+    )
+    const [driverFilter, setDriverFilter] = useState<DriverFilter>('all')
+    const [userLocation, setUserLocation] = useState<[number, number] | null>([34.0522, -118.2437])
     const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false)
 
     // Initial Load & Subscription
@@ -65,6 +69,9 @@ export default function MapPage() {
         })
     }, [])
 
+    // Track last Realtime event for fallback polling
+    const lastRealtimeEventRef = useRef<number>(Date.now())
+
     // Separate effect for Realtime subscriptions (company-scoped for scalability)
     useEffect(() => {
         if (!companyId) return // Wait for company_id
@@ -78,8 +85,11 @@ export default function MapPage() {
                 event: '*',
                 schema: 'public',
                 table: 'orders',
-                filter: companyFilter // ✅ Scalability: Only this company
-            }, () => fetchData())
+                filter: companyFilter
+            }, () => {
+                lastRealtimeEventRef.current = Date.now()
+                fetchData()
+            })
             .subscribe()
 
         const driverSub = supabase
@@ -88,12 +98,13 @@ export default function MapPage() {
                 event: '*',
                 schema: 'public',
                 table: 'drivers',
-                filter: companyFilter // ✅ Scalability: Only this company
+                filter: companyFilter
             }, (payload) => {
+                lastRealtimeEventRef.current = Date.now()
                 if (payload.new && (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT')) {
                     const newDriver = payload.new as Driver
+                    newDriver.is_online = isDriverOnline(newDriver)
                     setDrivers(prev => {
-                        // Optimistic update for smooth animation
                         const exists = prev.find(d => d.id === newDriver.id)
                         if (exists) return prev.map(d => d.id === newDriver.id ? newDriver : d)
                         return [...prev, newDriver]
@@ -102,19 +113,36 @@ export default function MapPage() {
             })
             .subscribe()
 
+        // Fallback polling: if Realtime goes silent for 30s+, poll every 20s
+        const FALLBACK_POLL_INTERVAL = 20_000
+        const REALTIME_STALE_THRESHOLD = 30_000
+
+        const pollIntervalId = setInterval(async () => {
+            const timeSinceLastEvent = Date.now() - lastRealtimeEventRef.current
+            if (timeSinceLastEvent > REALTIME_STALE_THRESHOLD) {
+                console.log('⏳ Realtime stale, fallback polling drivers...')
+                const { data } = await supabase
+                    .from('drivers')
+                    .select('*')
+                    .eq('company_id', companyId)
+                if (data) {
+                    setDrivers(data.map(d => ({ ...d, is_online: isDriverOnline(d) })))
+                }
+            }
+        }, FALLBACK_POLL_INTERVAL)
+
         return () => {
             orderSub.unsubscribe()
             driverSub.unsubscribe()
+            clearInterval(pollIntervalId)
         }
-    }, [companyId]) // Re-subscribe when company changes
+    }, [companyId])
 
     async function fetchData() {
         try {
-
             // 1. Try standard Supabase Auth
             let currentUserId = null
 
-            // Retry logic for Supabase Auth
             let retries = 0
             const maxRetries = 3
             while (!currentUserId && retries < maxRetries) {
@@ -126,8 +154,6 @@ export default function MapPage() {
                     if (retries < maxRetries) await new Promise(r => setTimeout(r, 1000))
                 }
             }
-
-
 
             if (!currentUserId) {
                 setIsLoading(false)
@@ -141,30 +167,24 @@ export default function MapPage() {
                 .maybeSingle()
 
             if (!userProfile) {
-                console.log('❌ Map: No user profile found!');
+                console.log('❌ Map: No user profile found!')
                 return
             }
 
-            console.log('🗺️ Map fetchData:', {
-                userId: currentUserId,
-                role: userProfile.role,
-                companyId: userProfile.company_id
-            });
-
-            setUserRole(userProfile.role) // Store user role
-            setCompanyId(userProfile.company_id) // Store for Realtime filters
+            setUserRole(userProfile.role)
+            setCompanyId(userProfile.company_id)
 
             // Driver: Only see own stuff
             if (userProfile.role === 'driver') {
                 const { data: driverData } = await supabase
                     .from('drivers')
-                    .select('*')  // Get full driver data including location
+                    .select('*')
                     .eq('user_id', currentUserId)
                     .maybeSingle()
 
                 if (driverData) {
-                    setSelectedDriverId(driverData.id) // Auto-select self
-                    setDrivers([driverData]) // Show own location on map
+                    setSelectedDriverIds(new Set([driverData.id]))
+                    setDrivers([driverData])
 
                     const { data } = await supabase
                         .from('orders')
@@ -179,38 +199,20 @@ export default function MapPage() {
                     .select('*')
                     .eq('company_id', userProfile.company_id)
 
-                const { data: driversData, error: driversError } = await supabase
+                const { data: driversData } = await supabase
                     .from('drivers')
                     .select('*')
                     .eq('company_id', userProfile.company_id)
 
-                // Filter logic: Hide delivered orders unless they are scheduled for TODAY
-                // We use the user's local date to determine "Today"
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0');
-                const day = String(now.getDate()).padStart(2, '0');
-                const todayString = `${year}-${month}-${day}`;
-
-                console.log('📅 Date Filter:', todayString);
+                // Filter: Hide delivered orders unless scheduled for TODAY
+                const now = new Date()
+                const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
                 const visibleOrders = (ordersData || []).filter(o => {
-                    // Always show active orders (Pending, Assigned, In Progress)
-                    if (o.status !== 'delivered' && o.status !== 'cancelled') return true;
+                    if (o.status !== 'delivered' && o.status !== 'cancelled') return true
+                    return o.delivery_date === todayString
+                })
 
-                    // For Done orders (Delivered/Cancelled), ONLY show if delivery_date matches Today
-                    // This prevents old history from cluttering the map (even if recently updated)
-                    return o.delivery_date === todayString;
-                });
-
-                console.log('🗺️ Map drivers fetch result:', {
-                    driversCount: driversData?.length || 0,
-                    visibleOrders: visibleOrders.length,
-                    totalOrders: ordersData?.length || 0,
-                    todayString
-                });
-
-                // Derive online status from last_location_update (single source of truth)
                 const processedDrivers = (driversData || []).map(driver => ({
                     ...driver,
                     is_online: isDriverOnline(driver)
@@ -226,30 +228,27 @@ export default function MapPage() {
         }
     }
 
-    const handleDriverSelect = (id: string | null) => {
-        setSelectedDriverId(id)
-        setIsMobilePanelOpen(false) // Close sheet on mobile selection
+    const handleSelectDrivers = (ids: Set<string>) => {
+        setSelectedDriverIds(ids)
+        // Close mobile panel if selecting specific drivers
+        if (ids.size > 0) setIsMobilePanelOpen(false)
     }
 
     // Calculate orders without GPS
     const ordersWithoutGPS = (() => {
-        const displayedOrders = selectedDriverId
-            ? orders.filter(o => o.driver_id === selectedDriverId)
-            : orders
-        return displayedOrders.filter(o => !o.latitude || !o.longitude)
+        if (selectedDriverIds.size > 0) {
+            return orders
+                .filter(o => (o.driver_id && selectedDriverIds.has(o.driver_id)) || !o.driver_id)
+                .filter(o => !o.latitude || !o.longitude)
+        }
+        return orders.filter(o => !o.latitude || !o.longitude)
     })()
 
     // Map Theme State
     const [mapTheme, setMapTheme] = useState<'light' | 'dark'>(() => {
-        // Default to system theme match or light if prefer
         return theme === 'dark' ? 'dark' : 'light'
     })
 
-    // Update map theme when system theme changes, unless user manually toggled? 
-    // Actually simplicity: separate toggle means manual control usually. 
-    // Let's just default to 'light' or match theme initially.
-
-    // Toggle Button Handler
     const toggleMapTheme = () => {
         setMapTheme(prev => prev === 'light' ? 'dark' : 'light')
     }
@@ -258,44 +257,53 @@ export default function MapPage() {
         setOrders(prev => prev.filter(o => o.id !== orderId))
     }
 
+    // Get selected driver names for overlay
+    const selectedDriverNames = Array.from(selectedDriverIds)
+        .map(id => drivers.find(d => d.id === id)?.name)
+        .filter(Boolean)
+
     return (
-        <div className="flex h-[100dvh] -mb-20 overflow-hidden bg-background relative safe-area-pl safe-area-pr">
+        <div className="flex overflow-hidden bg-background relative" style={{ height: 'calc(100vh - 4rem - 4rem - var(--safe-area-inset-top, 0px))', minHeight: 0 }} >
             {/* Desktop Sidebar - Only for Managers */}
             {userRole === 'manager' && (
                 <div className="hidden md:block w-80 shrink-0 h-full z-20 shadow-xl border-t">
                     <FleetPanel
                         drivers={drivers}
                         orders={orders}
-                        selectedDriverId={selectedDriverId}
-                        onSelectDriver={handleDriverSelect}
+                        selectedDriverIds={selectedDriverIds}
+                        onSelectDrivers={handleSelectDrivers}
+                        driverFilter={driverFilter}
+                        onFilterChange={setDriverFilter}
                     />
                 </div>
             )}
 
             {/* Mobile Sheet Trigger - Only for Managers */}
             {userRole === 'manager' && (
-                <div className="md:hidden absolute left-4 z-[400]" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+                <div className="md:hidden absolute left-4 z-[400]" style={{ top: 'calc(var(--safe-area-inset-top, 0px) + 1rem)' }}>
                     <Sheet open={isMobilePanelOpen} onOpenChange={setIsMobilePanelOpen}>
                         <SheetTrigger asChild>
                             <Button variant="secondary" size="icon" className="shadow-lg h-12 w-12 rounded-full border border-primary/20">
                                 <Menu className="h-6 w-6" />
                             </Button>
                         </SheetTrigger>
-                        <SheetContent side="bottom" className="h-[60vh] p-0 rounded-t-xl z-[1000] sm:max-w-2xl mx-auto">
+                        <SheetContent side="bottom" className="h-[60vh] p-0 rounded-t-xl z-[1000] sm:max-w-2xl mx-auto pb-20">
                             <SheetTitle className="sr-only">Fleet Overview</SheetTitle>
                             <FleetPanel
                                 drivers={drivers}
                                 orders={orders}
-                                selectedDriverId={selectedDriverId}
-                                onSelectDriver={handleDriverSelect}
+                                selectedDriverIds={selectedDriverIds}
+                                onSelectDrivers={handleSelectDrivers}
+                                driverFilter={driverFilter}
+                                onFilterChange={setDriverFilter}
                             />
                         </SheetContent>
                     </Sheet>
                 </div>
             )}
 
-            {/* Map Theme Toggle (Separate Button) */}
-            <div className="absolute right-4 z-[400]" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+            {/* Map Theme Toggle */}
+            <div className="absolute right-4 z-[400]" style={{ top: 'calc(var(--safe-area-inset-top, 0px) + 1rem)' }}>
                 <Button
                     variant="secondary"
                     size="icon"
@@ -312,26 +320,30 @@ export default function MapPage() {
                 <InteractiveMap
                     orders={orders}
                     drivers={drivers}
-                    selectedDriverId={selectedDriverId}
+                    selectedDriverIds={selectedDriverIds}
+                    driverFilter={driverFilter}
                     userLocation={userLocation}
                     forceTheme={mapTheme}
                     onOrderDeleted={handleOrderDeleted}
                 />
 
-                {/* Info Overlay (Visible when Driver Selected) */}
-                {selectedDriverId && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 md:left-6 md:translate-x-0 bg-background/90 backdrop-blur border border-border p-3 rounded-lg shadow-lg z-[400] max-w-[90vw] flex items-center gap-4">
+                {/* Info Overlay (Visible when drivers selected) */}
+                {selectedDriverIds.size > 0 && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 md:left-6 md:translate-x-0 bg-background/90 backdrop-blur border border-border p-3 rounded-lg shadow-lg z-[500] max-w-[90vw] flex items-center gap-4">
                         <div className="text-sm">
-                            <span className="text-muted-foreground mr-1">Focusing:</span>
+                            <span className="text-muted-foreground mr-1">Tracking:</span>
                             <span className="font-bold">
-                                {drivers.find(d => d.id === selectedDriverId)?.name || 'Driver'}
+                                {selectedDriverIds.size === 1
+                                    ? selectedDriverNames[0] || 'Driver'
+                                    : `${selectedDriverIds.size} drivers`
+                                }
                             </span>
                         </div>
                         <Button
                             variant="ghost"
                             size="sm"
                             className="h-6 px-2 text-xs hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => setSelectedDriverId(null)}
+                            onClick={() => setSelectedDriverIds(new Set())}
                         >
                             Clear
                         </Button>

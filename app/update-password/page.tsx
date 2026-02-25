@@ -27,10 +27,29 @@ export default function UpdatePasswordPage() {
     }, [])
 
     async function checkRecoverySession() {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        let hasSession = false
+
+        try {
+            // getSession() can hang on web due to navigator.locks — add timeout
+            const { data: { session } } = await Promise.race([
+                supabase.auth.getSession(),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('getSession timeout')), 5000)
+                ),
+            ])
+            hasSession = !!session
+        } catch {
+            // getSession timed out — try getUser() as fallback
+            try {
+                const { data: userData } = await supabase.auth.getUser()
+                hasSession = !!userData.user
+            } catch {
+                hasSession = false
+            }
+        }
 
         // If no session or not a recovery session, redirect to login
-        if (!session) {
+        if (!hasSession) {
             toast({
                 title: 'Invalid Reset Link',
                 description: 'Please request a new password reset link.',

@@ -19,8 +19,25 @@ export function WorkloadDashboard() {
     async function fetchWorkload() {
         setIsLoading(true)
         try {
-            const { data: { session } } = await supabase.auth.getSession()
-            const userId = session?.user?.id
+            // getSession() can hang on web due to navigator.locks — add timeout + fallback
+            let userId: string | undefined
+
+            try {
+                const { data: { session } } = await Promise.race([
+                    supabase.auth.getSession(),
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error('getSession timeout')), 3000)
+                    ),
+                ])
+                userId = session?.user?.id
+            } catch {
+                // Fallback to getUser()
+                try {
+                    const { data: userData } = await supabase.auth.getUser()
+                    userId = userData.user?.id
+                } catch {}
+            }
+
             if (!userId) return
 
             const { data: user } = await supabase

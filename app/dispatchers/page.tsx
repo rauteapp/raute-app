@@ -13,6 +13,7 @@ import { UserCog, Plus, Trash2, Power, Lock, Unlock, ShieldAlert } from 'lucide-
 import { useToast } from '@/components/toast-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { PullToRefresh } from '@/components/pull-to-refresh'
 import {
     AlertDialog,
     AlertDialogAction,
@@ -59,11 +60,19 @@ export default function DispatchersPage() {
     async function fetchDispatchers() {
         setIsLoading(true)
         try {
-            let currentUserId = null
+            let currentUserId: string | null = null
             const session = await waitForSession()
 
             if (session?.user) {
                 currentUserId = session.user.id
+            }
+
+            // On web, getSession() may time out due to navigator.locks — fallback to getUser()
+            if (!currentUserId) {
+                try {
+                    const { data: userData } = await supabase.auth.getUser()
+                    if (userData.user) currentUserId = userData.user.id
+                } catch {}
             }
 
             if (!currentUserId) {
@@ -332,11 +341,12 @@ export default function DispatchersPage() {
     }
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6 pb-20 safe-area-pt">
+        <PullToRefresh onRefresh={fetchDispatchers}>
+        <div className="p-6 max-w-7xl mx-auto space-y-6 pb-4 safe-area-pt">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">Dispatch Team</h1>
-                    <p className="text-slate-500">Manage dispatchers and their access limits.</p>
+                    <p className="text-slate-500 dark:text-slate-400">Manage dispatchers and their access limits.</p>
                 </div>
                 <Sheet open={isAddOpen} onOpenChange={(open) => {
                     setIsAddOpen(open)
@@ -416,30 +426,30 @@ export default function DispatchersPage() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {dispatchers.length === 0 && (
-                    <div className="col-span-full text-center py-12 border-2 border-dashed rounded-xl text-slate-400">
+                    <div className="col-span-full text-center py-12 border-2 border-dashed rounded-xl text-slate-400 dark:text-slate-500 dark:border-slate-700">
                         No dispatchers found.
                     </div>
                 )}
 
                 {dispatchers.map(dispatcher => (
-                    <Card key={dispatcher.id} className={dispatcher.status === 'suspended' ? 'opacity-70 bg-slate-50' : ''}>
+                    <Card key={dispatcher.id} className={dispatcher.status === 'suspended' ? 'opacity-70 bg-slate-50 dark:bg-slate-900/40' : ''}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-base font-bold flex items-center gap-2">
                                 <UserCog size={18} className="text-blue-600" />
                                 {dispatcher.full_name}
                             </CardTitle>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold border ${dispatcher.status === 'suspended' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-green-100 text-green-700 border-green-200'}`}>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold border ${dispatcher.status === 'suspended' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' : 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'}`}>
                                 {dispatcher.status || 'active'}
                             </span>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-sm text-slate-500 mb-4">{dispatcher.email}</div>
+                            <div className="text-sm text-slate-500 dark:text-slate-400 mb-4">{dispatcher.email}</div>
 
                             <div className="space-y-1 mb-4">
-                                <p className="text-xs font-bold uppercase text-slate-400">Permissions:</p>
+                                <p className="text-xs font-bold uppercase text-slate-400 dark:text-slate-500">Permissions:</p>
                                 <div className="flex flex-wrap gap-1">
                                     {Object.entries(dispatcher.permissions || {}).map(([key, val]) => (
-                                        val && <span key={key} className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{key.replace('_', ' ')}</span>
+                                        val && <span key={key} className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">{key.replace('_', ' ')}</span>
                                     ))}
                                     {Object.keys(dispatcher.permissions || {}).length === 0 && <span className="text-xs italic text-red-500">Read Only</span>}
                                 </div>
@@ -449,7 +459,7 @@ export default function DispatchersPage() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className={`flex-1 ${dispatcher.status === 'suspended' ? 'text-green-600 hover:text-green-700 hover:bg-green-50' : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'}`}
+                                    className={`flex-1 ${dispatcher.status === 'suspended' ? 'text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20'}`}
                                     onClick={() => toggleStatus(dispatcher)}
                                 >
                                     {dispatcher.status === 'suspended' ? <Unlock size={14} className="mr-1" /> : <Lock size={14} className="mr-1" />}
@@ -485,5 +495,6 @@ export default function DispatchersPage() {
                 </AlertDialogContent>
             </AlertDialog>
         </div>
+        </PullToRefresh>
     )
 }

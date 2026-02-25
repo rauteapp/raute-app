@@ -191,4 +191,16 @@ body::-webkit-scrollbar,
     padding-left: var(--safe-area-inset-left);
     padding-right: var(--safe-area-inset-right);
   }
+
+  /* iOS-style frosted glass header */
+  .ios-header {
+    @apply bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-700/50;
+  }
+}
+
+/* iOS-native: Remove shadows on mobile for clean flat look */
+@media screen and (max-width: 768px) {
+  .shadow-sm, .shadow-md {
+    box-shadow: none !important;
+  }
 }

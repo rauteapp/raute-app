@@ -2,12 +2,12 @@
 
 import { Home, List, MapPin, User, Truck, Route } from 'lucide-react'
 
-
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { hapticLight } from '@/lib/haptics'
 
 export function MobileNav() {
     const pathname = usePathname()
@@ -15,7 +15,7 @@ export function MobileNav() {
     const [userRole, setUserRole] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
 
-    const isActive = (path: string) => pathname === path
+    const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/')
 
     useEffect(() => {
         let mounted = true
@@ -83,19 +83,44 @@ export function MobileNav() {
             }
         }, 5000) // Increased to 5 seconds to give RLS queries more time
 
-        // Auth Logic
+        // Auth Logic — with timeout to avoid hanging on navigator.locks
         const checkSession = async () => {
-            const { data: { session } } = await supabase.auth.getSession()
+            let userId: string | null = null
+            let userMeta: Record<string, any> = {}
 
-            if (session?.user) {
+            try {
+                // getSession() can hang on web due to navigator.locks
+                const { data: { session } } = await Promise.race([
+                    supabase.auth.getSession(),
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error('getSession timeout')), 3000)
+                    ),
+                ])
+                if (session?.user) {
+                    userId = session.user.id
+                    userMeta = session.user.user_metadata ?? {}
+                }
+            } catch {
+                // getSession timed out or threw — try getUser() as fallback
+                console.log('⏳ MobileNav: getSession blocked, trying getUser() fallback...')
+                try {
+                    const { data: userData } = await supabase.auth.getUser()
+                    if (userData.user) {
+                        userId = userData.user.id
+                        userMeta = userData.user.user_metadata ?? {}
+                    }
+                } catch {
+                    // Both failed
+                }
+            }
 
+            if (userId) {
                 // OPTIMIZATION 1: Check metadata first
-                if (session.user.user_metadata?.role) {
-                    setUserRole(session.user.user_metadata.role)
+                if (userMeta?.role) {
+                    setUserRole(userMeta.role)
                     setLoading(false)
-                    // Clear timeout since we already have the role
                     clearTimeout(timeoutId)
-                    return // ← Skip DB query - we have the role!
+                    return
                 }
 
                 // OPTIMIZATION 2: Check localStorage cache
@@ -106,12 +131,12 @@ export function MobileNav() {
                     setLoading(false)
                     clearTimeout(timeoutId)
                     // Refresh role from DB in background (non-blocking)
-                    fetchRole(session.user.id)
+                    fetchRole(userId)
                     return
                 }
 
                 // OPTIMIZATION 3: Only fetch from DB if no cached role
-                fetchRole(session.user.id)
+                fetchRole(userId)
             } else {
                 // FALLBACK: Check for custom session (Driver Login)
                 const customUserId = typeof window !== 'undefined' ? localStorage.getItem('raute_user_id') : null
@@ -142,7 +167,7 @@ export function MobileNav() {
 
     // Hide on auth pages, landing page, and verification/activation pages
     const cleanPath = pathname.replace(/\/+$/, '') || '/' // Remove trailing slashes
-    const hiddenPaths = ['/login', '/signup', '/', '/verify-email', '/pending-activation', '/privacy', '/terms', '/onboarding']
+    const hiddenPaths = ['/login', '/signup', '/', '/verify-email', '/pending-activation', '/privacy', '/terms', '/onboarding', '/forgot-password', '/update-password']
     const isHidden = hiddenPaths.includes(cleanPath) || pathname.includes('/auth')
 
     if (isHidden) {
@@ -162,7 +187,7 @@ export function MobileNav() {
     // to prevent leaking manager tabs
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-t border-border/50 dark:border-slate-800/50 safe-area-pb shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] transition-all duration-300">
+        <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-700/50 safe-area-pb transition-colors duration-150">
             <div className={`flex items-center justify-around h-16 max-w-lg mx-auto ${isDriver ? 'px-8' : ''}`}>
 
                 {/* 1. Home / Dashboard (Everyone) */}
@@ -236,15 +261,16 @@ function NavItem({ href, icon: Icon, label, active }: { href: string, icon: any,
         <Link
             href={href}
             prefetch={false}
+            onClick={() => { if (!active) hapticLight() }}
             className={cn(
-                "flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-200 select-none touch-manipulation",
+                "flex flex-col items-center justify-center gap-0.5 w-full h-full select-none touch-manipulation",
                 active
-                    ? "text-blue-600 dark:text-blue-400 scale-105" // Explicit Active Color
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 active:scale-95" // Explicit Inactive Color
+                    ? "text-blue-500 dark:text-blue-400"
+                    : "text-slate-400 dark:text-slate-500"
             )}
         >
-            <Icon size={26} strokeWidth={active ? 2.5 : 1.5} className={active ? "fill-primary/10 text-primary" : "text-slate-500 dark:text-slate-400"} />
-            <span className={cn("text-[10px] font-medium tracking-tight mt-0.5", active ? "text-primary font-semibold" : "text-slate-500 dark:text-slate-400")}>{label}</span>
+            <Icon size={22} strokeWidth={active ? 2 : 1.5} />
+            <span className={cn("text-[10px] tracking-tight", active ? "font-semibold" : "font-medium")}>{label}</span>
         </Link>
     )
 }

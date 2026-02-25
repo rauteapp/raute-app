@@ -161,7 +161,7 @@ export default function SignupPage() {
                             <Card className="border-0 shadow-xl sm:border sm:shadow-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm ring-1 ring-slate-200 dark:ring-slate-800">
                                 <CardHeader className="space-y-1 pb-4">
                                     <CardTitle className="text-xl text-center">Create Account</CardTitle>
-                                    <CardDescription className="text-center text-slate-500">
+                                    <CardDescription className="text-center text-slate-500 dark:text-slate-400">
                                         Start managing your deliveries today
                                     </CardDescription>
                                 </CardHeader>
@@ -180,7 +180,7 @@ export default function SignupPage() {
                                                     Full Name
                                                 </label>
                                                 <div className="relative">
-                                                    <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                    <User className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                     <Input
                                                         id="full_name"
                                                         name="full_name"
@@ -196,7 +196,7 @@ export default function SignupPage() {
                                                     Company
                                                 </label>
                                                 <div className="relative">
-                                                    <Building2 className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                    <Building2 className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                     <Input
                                                         id="company_name"
                                                         name="company_name"
@@ -228,7 +228,7 @@ export default function SignupPage() {
                                                 Email
                                             </label>
                                             <div className="relative">
-                                                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="email"
                                                     name="email"
@@ -248,7 +248,7 @@ export default function SignupPage() {
                                                 Password
                                             </label>
                                             <div className="relative">
-                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="password"
                                                     name="password"
@@ -264,7 +264,7 @@ export default function SignupPage() {
                                                     type="button"
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600"
+                                                    className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
                                                     onClick={() => setShowPassword(!showPassword)}
                                                     tabIndex={-1}
                                                 >
@@ -276,7 +276,7 @@ export default function SignupPage() {
                                                     <span className="sr-only">Toggle password visibility</span>
                                                 </Button>
                                             </div>
-                                            <p className="text-xs text-slate-500">
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">
                                                 Must be at least 8 characters
                                             </p>
                                         </div>
@@ -286,7 +286,7 @@ export default function SignupPage() {
                                                 Confirm Password
                                             </label>
                                             <div className="relative">
-                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="confirm_password"
                                                     name="confirm_password"
@@ -302,7 +302,7 @@ export default function SignupPage() {
                                                     type="button"
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600"
+                                                    className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
                                                     onClick={() => setShowPassword(!showPassword)}
                                                     tabIndex={-1}
                                                 >
@@ -333,7 +333,7 @@ export default function SignupPage() {
                                                 <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
                                             </div>
                                             <div className="relative flex justify-center text-xs uppercase">
-                                                <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 rounded-full">Or continue with</span>
+                                                <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 dark:text-slate-400 rounded-full">Or continue with</span>
                                             </div>
                                         </div>
 
@@ -437,7 +437,7 @@ export default function SignupPage() {
                                     </form>
                                 </CardContent>
                                 <CardFooter className="flex flex-col gap-4 text-center pb-6">
-                                    <div className="text-sm text-slate-500">
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">
                                         Already have an account?{" "}
                                         <Link href="/login" className="font-semibold text-blue-600 hover:text-blue-500 hover:underline">
                                             Sign in
@@ -471,7 +471,7 @@ export default function SignupPage() {
                         <Card className="border-0 shadow-xl sm:border sm:shadow-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm ring-1 ring-slate-200 dark:ring-slate-800">
                             <CardHeader className="space-y-1 pb-4">
                                 <CardTitle className="text-xl text-center">Create Account</CardTitle>
-                                <CardDescription className="text-center text-slate-500">
+                                <CardDescription className="text-center text-slate-500 dark:text-slate-400">
                                     Start managing your deliveries today
                                 </CardDescription>
                             </CardHeader>
@@ -490,7 +490,7 @@ export default function SignupPage() {
                                                 Full Name
                                             </label>
                                             <div className="relative">
-                                                <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <User className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="full_name"
                                                     name="full_name"
@@ -506,7 +506,7 @@ export default function SignupPage() {
                                                 Company
                                             </label>
                                             <div className="relative">
-                                                <Building2 className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <Building2 className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="company_name"
                                                     name="company_name"
@@ -538,7 +538,7 @@ export default function SignupPage() {
                                             Email
                                         </label>
                                         <div className="relative">
-                                            <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                            <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                             <Input
                                                 id="email"
                                                 name="email"
@@ -558,7 +558,7 @@ export default function SignupPage() {
                                             Password
                                         </label>
                                         <div className="relative">
-                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                             <Input
                                                 id="password"
                                                 name="password"
@@ -574,7 +574,7 @@ export default function SignupPage() {
                                                 type="button"
                                                 variant="ghost"
                                                 size="sm"
-                                                className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600"
+                                                className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
                                                 onClick={() => setShowPassword(!showPassword)}
                                                 tabIndex={-1}
                                             >
@@ -586,7 +586,7 @@ export default function SignupPage() {
                                                 <span className="sr-only">Toggle password visibility</span>
                                             </Button>
                                         </div>
-                                        <p className="text-xs text-slate-500">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
                                             Must be at least 8 characters
                                         </p>
                                     </div>
@@ -596,7 +596,7 @@ export default function SignupPage() {
                                             Confirm Password
                                         </label>
                                         <div className="relative">
-                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                             <Input
                                                 id="mobile_confirm_password"
                                                 name="confirm_password"
@@ -612,7 +612,7 @@ export default function SignupPage() {
                                                 type="button"
                                                 variant="ghost"
                                                 size="sm"
-                                                className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600"
+                                                className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
                                                 onClick={() => setShowPassword(!showPassword)}
                                                 tabIndex={-1}
                                             >
@@ -643,7 +643,7 @@ export default function SignupPage() {
                                             <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
                                         </div>
                                         <div className="relative flex justify-center text-xs uppercase">
-                                            <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 rounded-full">Or continue with</span>
+                                            <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 dark:text-slate-400 rounded-full">Or continue with</span>
                                         </div>
                                     </div>
 

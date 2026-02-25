@@ -39,9 +39,28 @@ export default function VerifyEmailPage() {
     // On mount: get user email and auto-redirect if already verified
     useEffect(() => {
         async function checkOnMount() {
-            const { data } = await supabase.auth.getSession()
-            if (data.session?.user?.email) {
-                setUserEmail(data.session.user.email)
+            let session: any = null
+
+            try {
+                const { data } = await Promise.race([
+                    supabase.auth.getSession(),
+                    new Promise<{ data: { session: null } }>((resolve) =>
+                        setTimeout(() => resolve({ data: { session: null } }), 3000)
+                    ),
+                ])
+                session = data.session
+            } catch {
+                // getSession blocked — try getUser()
+                try {
+                    const { data: userData } = await supabase.auth.getUser()
+                    if (userData.user) {
+                        session = { user: userData.user }
+                    }
+                } catch {}
+            }
+
+            if (session?.user?.email) {
+                setUserEmail(session.user.email)
             } else {
                 // Supabase doesn't create a session until email is verified,
                 // so fall back to the email saved in sessionStorage during signup
@@ -49,7 +68,7 @@ export default function VerifyEmailPage() {
                 if (saved) setUserEmail(saved)
             }
             // If email is already verified, skip this page entirely
-            if (data.session?.user?.email_confirmed_at) {
+            if (session?.user?.email_confirmed_at) {
                 window.location.href = '/dashboard'
             }
         }
@@ -62,15 +81,22 @@ export default function VerifyEmailPage() {
         setSuccess(null)
 
         try {
-            // Cheap session check first
-            let { data: sessionData } = await supabase.auth.getSession()
+            // Cheap session check first — with timeout to avoid navigator.locks hang
+            let { data: sessionData } = await Promise.race([
+                supabase.auth.getSession(),
+                new Promise<{ data: { session: null } }>((resolve) =>
+                    setTimeout(() => resolve({ data: { session: null } }), 3000)
+                ),
+            ]) as any
 
             // If no session, try refreshing once — picks up cross-tab verification
             if (!sessionData.session) {
-                const { data: refreshed } = await supabase.auth.refreshSession()
-                if (refreshed.session) {
-                    sessionData = refreshed
-                }
+                try {
+                    const { data: refreshed } = await supabase.auth.refreshSession()
+                    if (refreshed.session) {
+                        sessionData = refreshed
+                    }
+                } catch {}
             }
 
             if (sessionData.session) {
@@ -124,7 +150,13 @@ export default function VerifyEmailPage() {
 
         try {
             // Get the email from session, state, or sessionStorage fallback
-            const { data: sessionData } = await supabase.auth.getSession()
+            // Use timeout to avoid navigator.locks hang
+            const { data: sessionData } = await Promise.race([
+                supabase.auth.getSession(),
+                new Promise<{ data: { session: null } }>((resolve) =>
+                    setTimeout(() => resolve({ data: { session: null } }), 3000)
+                ),
+            ]) as any
 
             // Check if already verified via session
             if (sessionData.session?.user?.email_confirmed_at) {

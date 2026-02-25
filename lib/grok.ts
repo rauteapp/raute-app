@@ -1,10 +1,13 @@
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { read, utils } from "xlsx";
 
-// Initialize Gemini
-const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(apiKey);
+// Initialize xAI Grok client (OpenAI-compatible API)
+const apiKey = process.env.NEXT_PUBLIC_XAI_API_KEY || "";
+const client = new OpenAI({
+  apiKey,
+  baseURL: "https://api.x.ai/v1",
+  dangerouslyAllowBrowser: true, // Required for client-side usage in Next.js
+});
 
 export interface ParsedOrder {
   customer_name: string;
@@ -21,12 +24,20 @@ export interface ParsedOrder {
   time_window_end?: string;
 }
 
-// Convert File to Base64 or Text helper
-export async function fileToGenerativePart(file: File): Promise<{ inlineData: { data: string; mimeType: string } } | { text: string }> {
+/**
+ * Convert a File to either a base64 image URL or extracted text (for spreadsheets).
+ * Returns the appropriate content part for the OpenAI messages API.
+ */
+export async function fileToContentPart(
+  file: File
+): Promise<
+  | { type: "image_url"; image_url: { url: string; detail: "high" } }
+  | { type: "text"; text: string }
+> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    // Check if it's an Excel/CSV file
+    // Check if it's an Excel/CSV file — extract text
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
       reader.onload = (e) => {
         try {
@@ -35,20 +46,21 @@ export async function fileToGenerativePart(file: File): Promise<{ inlineData: { 
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           const csvText = utils.sheet_to_csv(worksheet);
-          resolve({ text: csvText });
+          resolve({ type: "text", text: `SPREADSHEET DATA:\n${csvText}` });
         } catch (err) {
           reject(err);
         }
       };
       reader.readAsArrayBuffer(file);
     } else {
-      // Handle Images
+      // Handle images — convert to base64 data URL
       reader.onloadend = () => {
-        const base64Data = (reader.result as string).split(',')[1];
+        const base64DataUrl = reader.result as string;
         resolve({
-          inlineData: {
-            data: base64Data,
-            mimeType: file.type,
+          type: "image_url",
+          image_url: {
+            url: base64DataUrl,
+            detail: "high",
           },
         });
       };
@@ -58,6 +70,8 @@ export async function fileToGenerativePart(file: File): Promise<{ inlineData: { 
   });
 }
 
+// Keep backward compatibility for any code importing the old name
+export const fileToGenerativePart = fileToContentPart;
 
 const SYSTEM_PROMPT = `
 You are an AI assistant for a delivery logistics app.
@@ -102,57 +116,58 @@ RETURN ONLY THE RAW JSON.
 
 export async function parseOrderAI(input: string | File | File[]): Promise<ParsedOrder[]> {
   if (!apiKey) {
-    console.error("Gemini API Key is missing");
-    throw new Error("Configuration Error: Gemini API Key is missing. Please check your .env settings.");
+    console.error("xAI API Key is missing");
+    throw new Error("Configuration Error: xAI API Key is missing. Please check your .env settings.");
   }
 
-  // Reverting to User's preferred model
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
-
   try {
-    let resultPromise;
-    const prompt = `${SYSTEM_PROMPT}\nCurrent Date: ${new Date().toISOString().split('T')[0]}`;
+    // Build the user message content parts
+    const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+    const dateContext = `Current Date: ${new Date().toISOString().split('T')[0]}`;
 
     if (typeof input === 'string') {
-      resultPromise = model.generateContent([prompt, `\nDATA TO EXTRACT FROM:\n\`\`\`text\n${input}\n\`\`\`\n`]);
+      contentParts.push({
+        type: "text",
+        text: `${dateContext}\n\nDATA TO EXTRACT FROM:\n\`\`\`text\n${input}\n\`\`\``,
+      });
     } else if (Array.isArray(input)) {
       // Handle multiple files
-      const parts = await Promise.all(input.map(file => fileToGenerativePart(file)));
-      // Separate text parts (Spreadsheets) from image parts
-      const promptParts: any[] = [prompt];
-      parts.forEach(p => {
-        if ('text' in p) {
-          promptParts.push(`\nSPREADSHEET DATA (${(p as any).filename || 'File'}):\n${p.text}\n`);
-        } else {
-          promptParts.push(p);
-        }
-      });
-      resultPromise = model.generateContent(promptParts);
+      contentParts.push({ type: "text", text: dateContext });
+      const parts = await Promise.all(input.map(file => fileToContentPart(file)));
+      for (const part of parts) {
+        contentParts.push(part);
+      }
     } else {
       // Handle single file
-      const part = await fileToGenerativePart(input);
-      if ('text' in part) {
-        resultPromise = model.generateContent([prompt, `\nSPREADSHEET DATA:\n${part.text}\n`]);
-      } else {
-        resultPromise = model.generateContent([prompt, part]);
-      }
+      contentParts.push({ type: "text", text: dateContext });
+      const part = await fileToContentPart(input);
+      contentParts.push(part);
     }
 
-    // Add 60s Timeout (Pro matches might be slower)
-    const timeoutPromise = new Promise((_, reject) =>
+    // Call xAI Grok via OpenAI-compatible API with 60s timeout
+    const completionPromise = client.chat.completions.create({
+      model: "grok-4-1-fast-reasoning",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: contentParts },
+      ],
+      temperature: 0.1, // Low temperature for consistent structured output
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Request timed out. The AI model took too long to respond.")), 60000)
     );
 
-    const result = await Promise.race([resultPromise, timeoutPromise]) as any;
-    const response = await result.response;
-    const textResponse = response.text();
+    const completion = await Promise.race([completionPromise, timeoutPromise]);
+    const textResponse = completion.choices[0]?.message?.content || "";
 
-    console.log("Gemini Raw Response:", textResponse);
+    console.log("Grok Raw Response:", textResponse);
 
     if (!textResponse) {
       throw new Error("The AI returned an empty response. Please try a different image.");
     }
 
+    // Clean markdown code fences if present
     const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let parsed;
@@ -175,13 +190,13 @@ export async function parseOrderAI(input: string | File | File[]): Promise<Parse
     }
 
     if (orders.length === 0) {
-      throw new Error("Scaling/Parsing Complete, but no valid orders were found. Ensure the image text is legible.");
+      throw new Error("Processing complete, but no valid orders were found. Ensure the image text is legible.");
     }
 
     return orders;
 
   } catch (error: any) {
-    console.error("Gemini AI Error:", error);
+    console.error("Grok AI Error:", error);
     // Propagate the specific error message
     throw new Error(error.message || "An unexpected error occurred during AI processing.");
   }

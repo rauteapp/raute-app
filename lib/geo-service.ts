@@ -305,7 +305,8 @@ class GeoService {
             current_lat: loc.lat,
             current_lng: loc.lng,
             last_location_update: new Date().toISOString(),
-            is_online: true,
+            // NOTE: Do NOT set is_online here — the toggle controls that.
+            // isDriverOnline() derives online status from last_location_update freshness.
             status: 'active',
             idle_since: (this.idleSince && isIdle) ? new Date(this.idleSince).toISOString() : null
         };

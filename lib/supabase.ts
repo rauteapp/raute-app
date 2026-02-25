@@ -209,6 +209,14 @@ export type Order = {
     proof_url?: string | null
     signature_url?: string | null
     signature_required?: boolean
+    was_out_of_range?: boolean
+    delivery_distance_meters?: number
+    delivered_lat?: number | null
+    delivered_lng?: number | null
+    cancellation_reason?: string | null
+    cancellation_note?: string | null
+    cancelled_by?: string | null
+    cancelled_at?: string | null
 }
 
 export type ProofImage = {

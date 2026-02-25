@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { waitForSession } from '@/lib/wait-for-session'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Activity, CheckCircle2, Clock, Package, Truck, AlertCircle, TrendingUp, MapPin, ArrowRight, Calendar as CalendarIcon, Filter, X } from 'lucide-react'
+import { Activity, CheckCircle2, Clock, Package, Truck, AlertCircle, AlertTriangle, TrendingUp, MapPin, ArrowRight, Calendar as CalendarIcon, Filter, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/toast-provider"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
+import { PullToRefresh } from "@/components/pull-to-refresh"
 
 export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true)
@@ -59,6 +60,7 @@ export default function DashboardPage() {
     const [hasHubs, setHasHubs] = useState(false)
     const [driversMap, setDriversMap] = useState<Record<string, any>>({})
     const [showSetup, setShowSetup] = useState(false) // Setup guide disabled - commented out for production
+    const companyIdRef = useRef<string | null>(null)
 
     // Sync date range to URL so it persists on refresh
     useEffect(() => {
@@ -83,22 +85,40 @@ export default function DashboardPage() {
         // Session-aware init with retry for Capacitor async storage
         const initDashboard = async (): Promise<void> => {
             try {
-                const session = await waitForSession()
-                if (!session) {
-                    // No session after retries — AuthCheck handles redirect
+                let session = await waitForSession()
+
+                // On web, getSession() may time out due to navigator.locks but the user
+                // IS authenticated (auth-check allows through via stored auth cookie).
+                // Fall back to getUser() to get the user ID and proceed.
+                let currentUserId: string | null = session?.user?.id ?? null
+                let userMeta = session?.user?.user_metadata ?? {}
+
+                if (!session && !currentUserId) {
+                    try {
+                        const { data: userData } = await supabase.auth.getUser()
+                        if (userData.user) {
+                            console.log('✅ Dashboard: session null but getUser() succeeded')
+                            currentUserId = userData.user.id
+                            userMeta = userData.user.user_metadata ?? {}
+                        }
+                    } catch {}
+                }
+
+                if (!currentUserId) {
+                    // No session and no user — AuthCheck handles redirect
                     if (isMountedRef.current) setIsLoading(false)
                     return
                 }
 
                 // Get user role and full_name from database
-                let role = session.user.user_metadata?.role
-                let fullName = session.user.user_metadata?.full_name
+                let role = userMeta?.role as string | undefined
+                let fullName = userMeta?.full_name as string | undefined
 
                 // Always fetch from DB to ensure we have the latest role
                 const { data: dbUser, error: dbError } = await supabase
                     .from('users')
                     .select('role, full_name, company_id')
-                    .eq('id', session.user.id)
+                    .eq('id', currentUserId)
                     .single()
 
                 if (dbUser) {
@@ -124,10 +144,10 @@ export default function DashboardPage() {
 
                 // Final Fallback - default to manager (NOT driver)
                 if (!role) role = 'manager'
-                if (!fullName) fullName = session.user.email?.split('@')[0] || 'User'
+                if (!fullName) fullName = session?.user?.email?.split('@')[0] || 'User'
 
                 if (isMountedRef.current) {
-                    setUserId(session.user.id)
+                    setUserId(currentUserId)
                     setUserRole(role)
                     setUserName(fullName)
                 }
@@ -135,7 +155,7 @@ export default function DashboardPage() {
                 // 🔥 FETCH DASHBOARD DATA (For all management roles)
                 if (['manager', 'dispatcher', 'admin', 'company_admin'].includes(role)) {
                     // Get company_id — try direct query first, then fallback API
-                    let companyId = dbUser?.company_id || session.user.user_metadata?.company_id
+                    let companyId = dbUser?.company_id || userMeta?.company_id
 
                     if (!companyId) {
                         // Fallback: use server-side API
@@ -151,12 +171,14 @@ export default function DashboardPage() {
                     }
 
                     if (companyId) {
-                        // Fetch ALL orders for this company
+                        companyIdRef.current = companyId
+                        // Fetch orders for this company (capped at 500 for performance)
                         const { data: ordersData, error: ordersError } = await supabase
                             .from('orders')
                             .select('*')
                             .eq('company_id', companyId)
                             .order('created_at', { ascending: false })
+                            .limit(500)
 
                         if (ordersData && !ordersError) {
                             setOrders(ordersData)
@@ -220,78 +242,98 @@ export default function DashboardPage() {
         }
     }, [])
 
-    // Auto-refresh when user returns to dashboard (for Quick Setup updates)
-    useEffect(() => {
-        const handleFocus = async () => {
-            if (!userId || !['manager', 'dispatcher', 'admin', 'company_admin'].includes(userRole || '')) return
+    // Reusable refresh function for both focus + pull-to-refresh
+    const refreshDashboard = async () => {
+        const companyId = companyIdRef.current
+        if (!companyId) return
 
-            try {
-                // Get company_id via fallback API (avoids RLS recursion on users table)
-                let companyId = null
-                try {
-                    const res = await authenticatedFetch('/api/user-profile')
-                    if (res.ok) {
-                        const apiData = await res.json()
-                        if (apiData.success && apiData.user) {
-                            companyId = apiData.user.company_id
-                        }
-                    }
-                } catch {}
-                if (!companyId) return
+        try {
+            const { data: ordersData } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('company_id', companyId)
+                .order('created_at', { ascending: false })
+                .limit(500)
 
-                // Re-fetch ALL dashboard data
-                const { data: ordersData } = await supabase
-                    .from('orders')
-                    .select('*')
-                    .eq('company_id', companyId)
-                    .order('created_at', { ascending: false })
-
-                if (ordersData) {
-                    setOrders(ordersData)
-
-                    // Recalculate stats
-                    const statsCalc = {
-                        total: ordersData.length,
-                        pending: ordersData.filter(o => o.status === 'pending').length,
-                        assigned: ordersData.filter(o => o.status === 'assigned').length,
-                        inProgress: ordersData.filter(o => o.status === 'in_progress').length,
-                        delivered: ordersData.filter(o => o.status === 'delivered').length,
-                        cancelled: ordersData.filter(o => o.status === 'cancelled').length
-                    }
-                    setStats(statsCalc)
+            if (ordersData) {
+                setOrders(ordersData)
+                const statsCalc = {
+                    total: ordersData.length,
+                    pending: ordersData.filter(o => o.status === 'pending').length,
+                    assigned: ordersData.filter(o => o.status === 'assigned').length,
+                    inProgress: ordersData.filter(o => o.status === 'in_progress').length,
+                    delivered: ordersData.filter(o => o.status === 'delivered').length,
+                    cancelled: ordersData.filter(o => o.status === 'cancelled').length
                 }
-
-                // Re-fetch Drivers
-                const { data: driversData } = await supabase
-                    .from('drivers')
-                    .select('*')
-                    .eq('company_id', companyId)
-
-                if (driversData) {
-                    setTotalDriversCount(driversData.length)
-                    const dMap: Record<string, any> = {}
-                    driversData.forEach(d => {
-                        dMap[d.id] = { name: d.name, vehicle_type: d.vehicle_type, vehicle: d.vehicle_type }
-                    })
-                    setDriversMap(dMap)
-                }
-
-                // Re-fetch Hubs
-                const { data: hubsData } = await supabase
-                    .from('hubs')
-                    .select('id')
-                    .eq('company_id', companyId)
-
-                if (hubsData) {
-                    setHasHubs(hubsData.length > 0)
-                }
-            } catch (error) {
-                console.error('Error refreshing dashboard data:', error)
+                setStats(statsCalc)
             }
+
+            const { data: driversData } = await supabase
+                .from('drivers')
+                .select('*')
+                .eq('company_id', companyId)
+
+            if (driversData) {
+                setTotalDriversCount(driversData.length)
+                const dMap: Record<string, any> = {}
+                driversData.forEach(d => {
+                    dMap[d.id] = { name: d.name, vehicle_type: d.vehicle_type, vehicle: d.vehicle_type }
+                })
+                setDriversMap(dMap)
+            }
+
+            const { data: hubsData } = await supabase
+                .from('hubs')
+                .select('id')
+                .eq('company_id', companyId)
+
+            if (hubsData) {
+                setHasHubs(hubsData.length > 0)
+            }
+        } catch (error) {
+            console.error('Error refreshing dashboard data:', error)
+        }
+    }
+
+    // Auto-refresh when user returns to dashboard
+    useEffect(() => {
+        const handleFocus = () => {
+            if (!userId || !['manager', 'dispatcher', 'admin', 'company_admin'].includes(userRole || '')) return
+            refreshDashboard()
         }
 
         window.addEventListener('focus', handleFocus)
         return () => window.removeEventListener('focus', handleFocus)
+    }, [userId, userRole])
+
+    // 🔔 REALTIME: Alert manager on suspicious deliveries
+    useEffect(() => {
+        if (!companyIdRef.current || !['manager', 'dispatcher', 'admin', 'company_admin'].includes(userRole || '')) return
+
+        const channel = supabase
+            .channel(`dashboard-suspicious-${companyIdRef.current}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'orders',
+                filter: `company_id=eq.${companyIdRef.current}`
+            }, (payload) => {
+                const newOrder = payload.new as any
+                const oldOrder = payload.old as any
+                // Alert when an order just got flagged as out of range
+                if (newOrder.was_out_of_range && !oldOrder?.was_out_of_range) {
+                    toast({
+                        title: "⚠️ Suspicious Delivery",
+                        description: `Order #${newOrder.order_number || newOrder.id?.slice(0, 8)} was delivered ${newOrder.delivery_distance_meters ? Math.round(newOrder.delivery_distance_meters) + 'm' : 'far'} from destination`,
+                        type: "error"
+                    })
+                    // Refresh orders to update the alert banner
+                    setOrders(prev => prev.map(o => o.id === newOrder.id ? { ...o, ...newOrder } : o))
+                }
+            })
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
     }, [userId, userRole])
 
     // ✅ QUICK SETUP COMPLETION CHECK - Auto-hide when all steps are complete
@@ -366,11 +408,12 @@ export default function DashboardPage() {
 
     // 👔 MANAGER VIEW
     return (
-        <div className="p-4 space-y-6 pb-24 max-w-7xl mx-auto min-h-screen bg-slate-50/50 dark:bg-slate-950 transition-colors safe-area-pt">
+        <PullToRefresh onRefresh={refreshDashboard}>
+        <div className="p-4 space-y-6 pb-4 max-w-7xl mx-auto min-h-screen bg-slate-50/50 dark:bg-slate-950 transition-colors safe-area-pt">
             {/* 0. SETUP GUIDE (Conditional - Managers Only) */}
             {showSetup && userRole === 'manager' && (
                 <div className="relative">
-                    <button onClick={() => setShowSetup(false)} className="absolute top-2 right-2 p-2 text-slate-400 hover:text-white z-10"><X size={16} /></button>
+                    <button onClick={() => setShowSetup(false)} className="absolute top-2 right-2 p-2 text-slate-400 dark:text-slate-500 hover:text-white z-10"><X size={16} /></button>
                     <SetupGuide
                         hasDrivers={totalDriversCount > 0}
                         hasOrders={stats.total > 0}
@@ -417,11 +460,11 @@ export default function DashboardPage() {
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="end">
                             <div className="p-3 border-b border-slate-100 dark:border-slate-800">
-                                <h4 className="font-bold text-xs text-slate-500 mb-2 uppercase tracking-wider">Quick Select</h4>
+                                <h4 className="font-bold text-xs text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">Quick Select</h4>
                                 <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50 dark:bg-slate-900" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50 dark:bg-slate-900" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-slate-50 dark:bg-slate-900" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
                                 </div>
                             </div>
                             <Calendar
@@ -432,7 +475,7 @@ export default function DashboardPage() {
                                 initialFocus
                             />
                             <div className="p-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-center">
-                                <p className="text-[10px] text-slate-500">
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">
                                     💡 Tip: Click start date, then click end date to select a range.
                                 </p>
                             </div>
@@ -463,6 +506,24 @@ export default function DashboardPage() {
                     <ArrowRight className="text-amber-500 group-hover:translate-x-1 transition-transform" />
                 </div>
             )}
+
+            {/* 2b. SUSPICIOUS DELIVERY ALERT */}
+            {(() => {
+                const suspiciousCount = orders.filter((o: any) => o.was_out_of_range && o.status === 'delivered').length
+                return suspiciousCount > 0 ? (
+                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center shadow-inner">
+                                <AlertTriangle size={20} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-red-900 dark:text-red-100">{suspiciousCount} Suspicious Deliver{suspiciousCount === 1 ? 'y' : 'ies'}</h3>
+                                <p className="text-red-700 dark:text-red-300 text-xs sm:text-sm">Orders delivered outside the expected zone (&gt;500m away)</p>
+                            </div>
+                        </div>
+                    </div>
+                ) : null
+            })()}
 
             {/* 3. METRICS GRID */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -531,7 +592,7 @@ export default function DashboardPage() {
                     </h2>
                     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[300px] flex flex-col">
                         <Tabs defaultValue="orders" className="w-full flex-1 flex flex-col">
-                            <div className="px-4 pt-4 pb-2 border-b border-slate-50 dark:border-slate-800">
+                            <div className="px-4 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800">
                                 <TabsList className="grid w-full grid-cols-2">
                                     <TabsTrigger value="orders">Orders</TabsTrigger>
                                     <TabsTrigger value="activity">Driver Logs</TabsTrigger>
@@ -540,7 +601,7 @@ export default function DashboardPage() {
 
                             <TabsContent value="orders" className="flex-1 overflow-y-auto max-h-[400px] p-0 m-0">
                                 {filteredOrders.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-400 text-sm flex flex-col items-center justify-center h-full">
+                                    <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm flex flex-col items-center justify-center h-full">
                                         <Clock className="mb-2 opacity-50" />
                                         No activity recorded
                                     </div>
@@ -598,6 +659,7 @@ export default function DashboardPage() {
                 </div>
             </div>
         </div>
+        </PullToRefresh>
     )
 }
 

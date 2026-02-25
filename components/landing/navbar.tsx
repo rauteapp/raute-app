@@ -77,8 +77,13 @@ export function Navbar() {
             // Show dashboard button immediately if cookies exist
             setUser({ id: 'cookie-detected' })
 
-            // Verify session in background (non-blocking)
-            supabase.auth.getSession().then(({ data }) => {
+            // Verify session in background (non-blocking, with timeout to avoid hanging)
+            Promise.race([
+                supabase.auth.getSession(),
+                new Promise<{ data: { session: null } }>((resolve) =>
+                    setTimeout(() => resolve({ data: { session: null } }), 3000)
+                ),
+            ]).then(({ data }) => {
                 if (!data.session) {
                     // Cookies exist but session couldn't be restored — still show
                     // dashboard button because the client-side auth will handle

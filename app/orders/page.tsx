@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
 import { waitForSession } from "@/lib/wait-for-session"
-import { parseOrderAI, type ParsedOrder } from "@/lib/gemini"
+import { parseOrderAI, type ParsedOrder } from "@/lib/grok"
 import { reverseGeocode } from "@/lib/geocoding"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import LocationPicker from "@/components/location-picker"
@@ -24,6 +24,7 @@ import { DriverSetupGuide } from "@/components/driver-setup-guide"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 import { isValidPhoneNumber } from "react-phone-number-input"
 import { DriverActivityHistory } from "@/components/driver-activity-history"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { format, subDays, startOfMonth, endOfMonth, startOfDay, endOfDay, isToday } from "date-fns"
 import { DateRange } from "react-day-picker"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -31,11 +32,11 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 
 const statusColors = {
-    pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    assigned: "bg-blue-50 text-blue-700 border-blue-200",
-    in_progress: "bg-purple-50 text-purple-700 border-purple-200",
-    delivered: "bg-green-50 text-green-700 border-green-200",
-    cancelled: "bg-red-50 text-red-700 border-red-200",
+    pending: "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+    assigned: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+    in_progress: "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+    delivered: "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+    cancelled: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
 }
 
 const DriverRouteMap = dynamic(() => import('@/components/driver-route-map'), {
@@ -51,12 +52,18 @@ export default function OrdersPage() {
     const [statusFilter, setStatusFilter] = useState<string>("all")
     const [isAddOrderOpen, setIsAddOrderOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+    const isDesktop = useMediaQuery('(min-width: 768px)')
     const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false)
     const [userRole, setUserRole] = useState<string | null>(null)
     const [userName, setUserName] = useState<string>('')
     const [companyId, setCompanyId] = useState<string | null>(null) // Cache CompanyId
     const [isOnline, setIsOnline] = useState(false)
     const [driverId, setDriverId] = useState<string | null>(null)
+
+    // Pagination (manager view)
+    const PAGE_SIZE = 50
+    const [hasMore, setHasMore] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
 
     // For Add Order
     const [pickedLocation, setPickedLocation] = useState<{
@@ -85,7 +92,8 @@ export default function OrdersPage() {
     const [isParsing, setIsParsing] = useState(false)
     const [processingStage, setProcessingStage] = useState<string>("")
     const [aiOrders, setAiOrders] = useState<ParsedOrder[]>([])
-    const [activeTab, setActiveTab] = useState("ai")
+    const [formTab, setFormTab] = useState("ai")
+    const [viewMode, setViewMode] = useState("list")
     const formRef = React.useRef<HTMLFormElement>(null)
     const { toast } = useToast()
     const [aiInputText, setAiInputText] = useState("")
@@ -114,7 +122,7 @@ export default function OrdersPage() {
     // Real-time Address Verification
     useEffect(() => {
         const timer = setTimeout(async () => {
-            if (activeTab === 'manual' && address.length > 5) {
+            if (formTab === 'manual' && address.length > 5) {
                 const res = await geocodeAddress(address, city, state)
                 if (res) {
                     setVerificationResult({
@@ -134,7 +142,7 @@ export default function OrdersPage() {
         }, 1000) // 1s debounce
 
         return () => clearTimeout(timer)
-    }, [address, city, state, zipCode, activeTab])
+    }, [address, city, state, zipCode, formTab])
 
     // 🔔 REAL-TIME NOTIFICATIONS FOR DRIVER
     useEffect(() => {
@@ -187,7 +195,7 @@ export default function OrdersPage() {
             const lat = pickedLocation?.lat || verificationResult?.lat
             const lng = pickedLocation?.lng || verificationResult?.lng
 
-            if (activeTab === 'manual' && lat && lng) {
+            if (formTab === 'manual' && lat && lng) {
                 const count = await checkForDuplicateGPS(lat, lng)
                 if (count > 0) {
                     toast({
@@ -200,14 +208,26 @@ export default function OrdersPage() {
         }
         const timer = setTimeout(checkDupes, 1500)
         return () => clearTimeout(timer)
-    }, [pickedLocation, verificationResult, activeTab])
+    }, [pickedLocation, verificationResult, formTab])
 
     async function fetchData() {
         setIsLoading(true)
         try {
             // Use waitForSession to handle Capacitor async storage lag
             const session = await waitForSession()
-            const currentUserId = session?.user?.id
+            let currentUserId = session?.user?.id
+
+            // On web, getSession() may time out due to navigator.locks but user IS
+            // authenticated. Fall back to getUser() which bypasses locks.
+            if (!currentUserId) {
+                try {
+                    const { data: userData } = await supabase.auth.getUser()
+                    if (userData.user) {
+                        console.log('✅ Orders: session null but getUser() succeeded')
+                        currentUserId = userData.user.id
+                    }
+                } catch {}
+            }
 
             if (!currentUserId) return
 
@@ -285,8 +305,11 @@ export default function OrdersPage() {
                     .select('*')
                     .eq('company_id', userProfile.company_id)
                     .order('created_at', { ascending: false })
+                    .range(0, PAGE_SIZE - 1)
 
                 if (error) throw error
+
+                setHasMore((data?.length || 0) === PAGE_SIZE)
 
                 // ✅ SUCCESS: Update State & Cache (Managers too)
                 setOrders(data || [])
@@ -318,25 +341,55 @@ export default function OrdersPage() {
         }
     }
 
+    async function loadMoreOrders() {
+        if (!hasMore || loadingMore || !companyId || userRole === 'driver') return
+        setLoadingMore(true)
+        try {
+            const from = orders.length
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('company_id', companyId)
+                .order('created_at', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1)
+
+            if (!error && data) {
+                setOrders(prev => [...prev, ...data])
+                setHasMore(data.length === PAGE_SIZE)
+            }
+        } catch (e) {
+            console.error('Load more error:', e)
+        } finally {
+            setLoadingMore(false)
+        }
+    }
+
     function filterOrders() {
         let filtered = orders
         const todayStart = startOfDay(new Date())
 
-        // Compute incomplete orders (from previous days, still active) — for ALL roles
-        const incomplete = orders.filter(o => {
-            if (!['assigned', 'in_progress', 'pending'].includes(o.status)) return false
-            const d = new Date(o.delivery_date || o.created_at)
-            return d < todayStart
-        })
-        setIncompleteOrders(incomplete)
+        // When a specific status tab is active, show ALL matching orders (no incomplete separation)
+        const showingSpecificStatus = statusFilter !== 'all'
+
+        // Compute incomplete orders (from previous days, still active) — only when showing ALL
+        if (showingSpecificStatus) {
+            setIncompleteOrders([]) // Hide incomplete section when a status tab is active
+        } else {
+            const incomplete = orders.filter(o => {
+                if (!['assigned', 'in_progress', 'pending'].includes(o.status)) return false
+                const d = new Date(o.delivery_date || o.created_at)
+                return d < todayStart
+            })
+            setIncompleteOrders(incomplete)
+        }
 
         // Date range filter
         if (dateRange?.from) {
             const start = startOfDay(dateRange.from)
             const end = endOfDay(dateRange.to || dateRange.from)
             filtered = filtered.filter(o => {
-                // Active incomplete orders always pass through (shown in separate section)
-                if (['assigned', 'in_progress', 'pending'].includes(o.status)) {
+                // Only separate incomplete orders when showing ALL statuses
+                if (!showingSpecificStatus && ['assigned', 'in_progress', 'pending'].includes(o.status)) {
                     const d = new Date(o.delivery_date || o.created_at)
                     if (d < todayStart) return false // exclude from main list, shown in incomplete section
                 }
@@ -357,13 +410,14 @@ export default function OrdersPage() {
         }
 
         if (statusFilter !== "all") {
-            // ASSIGNED tab should show both 'assigned' and 'in_progress' orders (active tasks)
+            // When a specific status tab is active, ignore date range for matching statuses
+            // so ALL orders with that status are visible
             if (statusFilter === "assigned") {
-                filtered = filtered.filter(order =>
+                filtered = orders.filter(order =>
                     order.status === "assigned" || order.status === "in_progress"
                 )
             } else {
-                filtered = filtered.filter(order => order.status === statusFilter)
+                filtered = orders.filter(order => order.status === statusFilter)
             }
         }
         if (searchQuery) {
@@ -508,6 +562,7 @@ export default function OrdersPage() {
                 }
 
                 if (!targetCompanyId) throw new Error("Company ID Not Found")
+                console.log('🏢 Using company_id:', targetCompanyId)
 
                 // Map all results to database objects with geocoding
                 // We process sequentially to be nice to the free Geocoding API (Rate Limits)
@@ -552,15 +607,27 @@ export default function OrdersPage() {
                 }
 
                 // Batch Insert
+                console.log('📦 Orders to insert:', JSON.stringify(newOrders.map(o => ({
+                    customer: o.customer_name, address: o.address, company_id: o.company_id
+                }))))
                 setProcessingStage("Saving orders...")
-                const { error } = await supabase.from('orders').insert(newOrders)
+                const { data: insertedData, error } = await supabase
+                    .from('orders')
+                    .insert(newOrders)
+                    .select('id')
+                console.log('📥 Insert result:', { insertedCount: insertedData?.length, error })
                 if (error) throw error
+                if (!insertedData || insertedData.length === 0) {
+                    throw new Error('Orders were not saved (0 rows inserted). This may be a permissions issue.')
+                }
+                console.log(`✅ Successfully inserted ${insertedData.length} orders`)
 
                 // Success Feedback
                 setIsAddOrderOpen(false)
                 setPickedLocation(null)
                 setAiInputText("")
                 setSelectedFiles([])
+                setDateRange(undefined) // Clear date filter so imported orders are visible
                 fetchData()
                 toast({
                     title: `🚀 Imported ${newOrders.length} orders!`,
@@ -575,12 +642,12 @@ export default function OrdersPage() {
                 })
             }
         } catch (error: any) {
+            console.error('❌ Order import failed:', error.message, error)
             toast({
                 title: "Import Failed",
                 description: error.message || "Could not extract orders. Please check the input format.",
                 type: "error"
             })
-            throw error
         } finally {
             setIsParsing(false)
             setProcessingStage("")
@@ -637,9 +704,13 @@ export default function OrdersPage() {
 
             if (error) throw error
 
-            setSelectedOrders([])
-            fetchData()
+            // Optimistic update: remove from UI immediately
+            const deletedIds = new Set(selectedOrders)
+            setOrders(prev => prev.filter(o => !deletedIds.has(o.id)))
             toast({ title: `Deleted ${selectedOrders.length} orders`, type: "success" })
+            setSelectedOrders([])
+            setIsSelectionMode(false)
+            fetchData() // background sync
         } catch (error: any) {
             toast({ title: 'Delete error', description: error.message, type: 'error' })
         }
@@ -801,7 +872,7 @@ export default function OrdersPage() {
 
         return (
             <PullToRefresh onRefresh={fetchData}>
-                <div className="p-4 space-y-6 pb-24 max-w-lg mx-auto bg-background min-h-screen safe-area-pt">
+                <div className="p-4 space-y-6 pb-4 max-w-lg mx-auto bg-background min-h-screen safe-area-pt">
                     {driverId && userId && <DriverTracker driverId={driverId} companyId={companyId || undefined} isOnline={isOnline} userId={userId} />}
 
                     {/* OFFLINE / CACHE INDICATOR */}
@@ -892,10 +963,10 @@ export default function OrdersPage() {
 
                     {/* View Toggle (List vs Map) */}
                     <div className="flex bg-muted p-1 rounded-xl shadow-inner mb-4">
-                        <button onClick={() => setActiveTab('list')} className={cn("flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2", activeTab === 'list' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
+                        <button onClick={() => setViewMode('list')} className={cn("flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2", viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
                             <List size={14} /> List
                         </button>
-                        <button onClick={() => setActiveTab('map')} className={cn("flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2", activeTab === 'map' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
+                        <button onClick={() => setViewMode('map')} className={cn("flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2", viewMode === 'map' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
                             <MapPin size={14} /> Route Map
                         </button>
                     </div>
@@ -961,9 +1032,18 @@ export default function OrdersPage() {
                             </button>
                             {showIncomplete && (
                                 <div className="px-3 pb-3 space-y-2">
-                                    {incompleteOrders.map(order => (
-                                        <Link key={order.id} href={`/my-editor?id=${order.id}`} className="block">
+                                    {incompleteOrders.map(order => {
+                                        const content = (
                                             <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-amber-200/50 dark:border-amber-800/30 flex items-center gap-3">
+                                                {isSelectionMode && (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedOrders.includes(order.id)}
+                                                        onChange={(e) => { e.preventDefault(); toggleOrderSelection(order.id) }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="w-4 h-4 rounded border-amber-300 text-amber-600 shrink-0"
+                                                    />
+                                                )}
                                                 <div className={cn("w-2 h-2 rounded-full shrink-0",
                                                     order.status === 'in_progress' ? 'bg-purple-500' : order.status === 'assigned' ? 'bg-blue-500' : 'bg-yellow-500'
                                                 )} />
@@ -980,14 +1060,23 @@ export default function OrdersPage() {
                                                     </p>
                                                 </div>
                                             </div>
-                                        </Link>
-                                    ))}
+                                        )
+                                        return isSelectionMode ? (
+                                            <div key={order.id} className="block cursor-pointer" onClick={() => toggleOrderSelection(order.id)}>
+                                                {content}
+                                            </div>
+                                        ) : (
+                                            <Link key={order.id} href={`/my-editor?id=${order.id}`} className="block">
+                                                {content}
+                                            </Link>
+                                        )
+                                    })}
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {activeTab === 'list' ? (
+                    {viewMode === 'list' ? (
                         // LIST VIEW
                         <div className="space-y-4" id="orders-list">
                             <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest pl-1">
@@ -1075,6 +1164,11 @@ export default function OrdersPage() {
                                                                 {order.status.replace('_', ' ')}
                                                             </span>
                                                         )}
+                                                        {order.was_out_of_range && (
+                                                            <span className="flex items-center gap-1 text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">
+                                                                <AlertCircle size={10} /> Out of Range
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     <div className="pl-3 mb-4">
@@ -1118,9 +1212,18 @@ export default function OrdersPage() {
                             )}
                         </div>
                     ) : (
-                        // MAP VIEW
+                        // MAP VIEW — include incomplete orders so the map shows all relevant stops
                         <div className="h-[600px] rounded-2xl overflow-hidden border border-border shadow-md">
-                            <DriverRouteMap orders={filteredOrders.filter(o => o.latitude && o.longitude)} />
+                            <DriverRouteMap orders={[...filteredOrders, ...(showIncomplete ? incompleteOrders : [])].filter(o => o.latitude != null && o.longitude != null)} />
+                        </div>
+                    )}
+
+                    {/* Load More (Pagination) */}
+                    {hasMore && userRole !== 'driver' && (
+                        <div className="flex justify-center pt-4">
+                            <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMore} className="w-full max-w-xs">
+                                {loadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More Orders'}
+                            </Button>
                         </div>
                     )}
                 </div>
@@ -1180,10 +1283,10 @@ export default function OrdersPage() {
                     <Sheet open={isAddOrderOpen} onOpenChange={setIsAddOrderOpen}>
                         <SheetTrigger asChild><Button size="sm" className="gap-2 shadow-lg shadow-blue-200"><Plus size={16} /> Add Order</Button></SheetTrigger>
 
-                        <SheetContent side="bottom" className="h-[90vh] overflow-y-auto safe-area-pt sm:max-w-lg mx-auto" onInteractOutside={(e) => { if (isLocationPickerOpen) e.preventDefault() }}>
+                        <SheetContent side={isDesktop ? "right" : "bottom"} className={cn("overflow-y-auto safe-area-pt", isDesktop ? "w-full sm:max-w-xl" : "h-[90vh] sm:max-w-2xl sm:mx-auto sm:rounded-t-2xl")} onInteractOutside={(e) => { if (isLocationPickerOpen) e.preventDefault() }}>
                             <SheetHeader className="mb-4"><SheetTitle>Add New Order</SheetTitle><SheetDescription>Choose how you want to add orders</SheetDescription></SheetHeader>
 
-                            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                            <Tabs value={formTab} onValueChange={setFormTab} className="w-full">
                                 <TabsList className="grid w-full grid-cols-2 mb-6">
                                     <TabsTrigger value="ai" className="gap-2"><Sparkles size={14} /> AI Smart Import</TabsTrigger>
                                     <TabsTrigger value="manual" className="gap-2"><Edit size={14} /> Manual Entry</TabsTrigger>
@@ -1528,9 +1631,18 @@ export default function OrdersPage() {
                     {showIncomplete && (
                         <div className="px-3 pb-3 space-y-2">
                             <p className="text-[11px] text-amber-700 dark:text-amber-300 px-1 mb-2">Orders from previous days that haven't been completed yet.</p>
-                            {incompleteOrders.map(order => (
-                                <Link key={order.id} href={userRole === 'driver' ? `/my-editor?id=${order.id}` : `/orders`} className="block">
+                            {incompleteOrders.map(order => {
+                                const content = (
                                     <div className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-amber-200/50 dark:border-amber-800/30 flex items-center gap-3 hover:shadow-sm transition-shadow">
+                                        {isSelectionMode && (
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedOrders.includes(order.id)}
+                                                onChange={(e) => { e.preventDefault(); toggleOrderSelection(order.id) }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-4 h-4 rounded border-amber-300 text-amber-600 shrink-0"
+                                            />
+                                        )}
                                         <div className={cn("w-2 h-2 rounded-full shrink-0",
                                             order.status === 'in_progress' ? 'bg-purple-500' : order.status === 'assigned' ? 'bg-blue-500' : 'bg-yellow-500'
                                         )} />
@@ -1555,8 +1667,17 @@ export default function OrdersPage() {
                                             )}
                                         </div>
                                     </div>
-                                </Link>
-                            ))}
+                                )
+                                return isSelectionMode ? (
+                                    <div key={order.id} className="block cursor-pointer" onClick={() => toggleOrderSelection(order.id)}>
+                                        {content}
+                                    </div>
+                                ) : (
+                                    <Link key={order.id} href={userRole === 'driver' ? `/my-editor?id=${order.id}` : `/orders`} className="block">
+                                        {content}
+                                    </Link>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
@@ -1647,6 +1768,11 @@ export default function OrdersPage() {
                                                 )}>
                                                     {order.status === 'in_progress' ? 'In Progress' : order.status}
                                                 </span>
+                                                {order.was_out_of_range && (
+                                                    <span className="flex items-center gap-1 text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">
+                                                        <AlertCircle size={9} /> Out of Range
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1 font-medium truncate">
                                                 <UserIcon size={13} className="text-primary/70 shrink-0" />
@@ -1695,6 +1821,15 @@ export default function OrdersPage() {
                     ))
                 )}
             </div>
+
+            {/* Load More (Pagination) - Manager View */}
+            {hasMore && (
+                <div className="flex justify-center pt-4 pb-4">
+                    <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMore} className="w-full max-w-xs">
+                        {loadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More Orders'}
+                    </Button>
+                </div>
+            )}
 
         </div>
     )

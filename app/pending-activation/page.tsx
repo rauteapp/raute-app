@@ -11,23 +11,51 @@ export default function PendingActivationPage() {
 
     useEffect(() => {
         const checkStatus = async () => {
-            const { data: { session } } = await supabase.auth.getSession()
-            if (!session) {
+            let userId: string | null = null
+            let email: string | null = null
+            let role: string | null = null
+
+            try {
+                // getSession() can hang on web due to navigator.locks — add timeout
+                const { data: { session } } = await Promise.race([
+                    supabase.auth.getSession(),
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error('getSession timeout')), 5000)
+                    ),
+                ])
+                if (session) {
+                    userId = session.user.id
+                    email = session.user.email || ''
+                    role = session.user.user_metadata?.role || null
+                }
+            } catch {
+                // getSession timed out — try getUser() as fallback
+                try {
+                    const { data: userData } = await supabase.auth.getUser()
+                    if (userData.user) {
+                        userId = userData.user.id
+                        email = userData.user.email || ''
+                        role = userData.user.user_metadata?.role || null
+                    }
+                } catch {
+                    // Both failed
+                }
+            }
+
+            if (!userId) {
                 router.push('/login')
                 return
             }
 
-            setUserEmail(session.user.email || '')
+            setUserEmail(email || '')
 
             // Check if user is now activated (poll every 5 seconds)
             const interval = setInterval(async () => {
-                const role = session.user.user_metadata?.role
-
                 if (role === 'driver' || role === 'dispatcher') {
                     const { data: driverData } = await supabase
                         .from('drivers')
                         .select('is_active')
-                        .eq('user_id', session.user.id)
+                        .eq('user_id', userId!)
                         .single()
 
                     if (driverData?.is_active) {

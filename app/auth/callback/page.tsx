@@ -21,41 +21,49 @@ export default function AuthCallback() {
     // Helper: sync role and redirect to dashboard
     const syncRoleAndRedirect = async (userId: string, emailConfirmedAt: string | null | undefined) => {
       if (hasRedirected.current) return
-      hasRedirected.current = true
 
       // Check email verification
       if (!emailConfirmedAt) {
+        hasRedirected.current = true
         window.location.href = '/verify-email'
         return
       }
 
-      setStatus('Setting up your account...')
+      // Redirect to dashboard immediately — don't block on profile check or role sync.
+      // The dashboard page handles role loading with its own fallback/timeout.
+      // Profile check and role sync happen in the background (best-effort).
+      hasRedirected.current = true
+      setStatus('Redirecting to dashboard...')
 
-      // Check if user has a complete profile (role + company)
-      // If signup happened on mobile app but verification was clicked on web,
-      // the user may have a profile but we're in a web browser without app context.
+      // Fire-and-forget: sync role in background before redirect
       try {
-        const { data: userProfile } = await supabase
+        const profilePromise = supabase
           .from('users')
           .select('role, company_id')
           .eq('id', userId)
           .single()
 
-        if (!userProfile || !userProfile.role || !userProfile.company_id) {
-          // No profile or incomplete — user signed up but RPC may have failed.
-          // Redirect to login so they can sign in properly (from the app if needed).
-          console.warn('⚠️ User has no complete profile, redirecting to login')
-          window.location.href = '/login?message=verified'
-          return
+        // Give profile check 2s — if it responds quickly and user has no profile,
+        // redirect to login instead. Otherwise, just go to dashboard.
+        const result = await Promise.race([
+          profilePromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
+        ])
+
+        if (result && 'data' in result) {
+          const { data: userProfile } = result
+          if (!userProfile || !userProfile.role || !userProfile.company_id) {
+            console.warn('⚠️ User has no complete profile, redirecting to login')
+            window.location.href = '/login?message=verified'
+            return
+          }
         }
 
-        // Sync role from DB to session metadata
-        await authenticatedFetch('/api/sync-user-role')
+        // Best-effort role sync — don't await, don't block redirect
+        authenticatedFetch('/api/sync-user-role').catch(() => {})
       } catch {
-        // If profile check fails, still try to go to dashboard
+        // Profile check failed — still go to dashboard
       }
-
-      setStatus('Redirecting to dashboard...')
 
       window.location.href = '/dashboard'
     }
@@ -163,8 +171,17 @@ export default function AuthCallback() {
           const handled = await exchangeCode(window.location.href)
           if (handled) return
 
-          // Code exchange failed on web — likely mobile-originated PKCE without verifier
-          if (!isNative) {
+          // Code exchange failed — but onAuthStateChange (APPROACH 1) may have
+          // already consumed the code and established a session. Check first.
+          if (!isNative && !hasRedirected.current) {
+            const { data: sessionData } = await supabase.auth.getSession()
+            if (sessionData.session) {
+              console.log('✅ Code exchange failed but session exists (handled by onAuthStateChange)')
+              await syncRoleAndRedirect(sessionData.session.user.id, sessionData.session.user.email_confirmed_at)
+              return
+            }
+
+            // No session — likely mobile-originated PKCE without verifier
             console.warn('Code exchange failed (likely missing PKCE verifier from mobile signup):', code)
             setShowAppRedirect(true)
             hasRedirected.current = true

@@ -129,32 +129,39 @@ export default function LoginPage() {
             console.log('🔐 Login page: stored auth found, checking session...')
 
             const timeout = setTimeout(() => {
-                // If getSession() takes too long (blocked on token refresh),
-                // just redirect to dashboard — the auth-check there will handle it
+                // If getSession() takes too long, show login form instead of
+                // blindly redirecting to dashboard (which causes infinite loading)
                 if (!cancelled) {
-                    console.log('🔐 Login page: session check timeout, redirecting to dashboard')
-                    router.push('/dashboard')
+                    console.log('🔐 Login page: session check timeout — showing login form')
+                    setCheckingSession(false)
                 }
             }, 3000)
 
             try {
-                const { data } = await supabase.auth.getSession()
+                // Use timeout on getSession itself to avoid hanging on navigator.locks
+                const { data } = await Promise.race([
+                    supabase.auth.getSession(),
+                    new Promise<{ data: { session: null } }>((resolve) =>
+                        setTimeout(() => resolve({ data: { session: null } }), 2500)
+                    ),
+                ])
                 if (cancelled) return
                 clearTimeout(timeout)
 
                 if (data?.session) {
                     console.log('🔐 Login page: valid session found, redirecting to dashboard')
+                    router.push('/dashboard')
                 } else {
-                    console.log('🔐 Login page: stored auth exists but no session yet, redirecting to dashboard')
+                    // No valid session despite cookies existing — show login form
+                    // Cookies may be stale/expired fragments
+                    console.log('🔐 Login page: stored auth cookies found but no valid session — showing login form')
+                    if (!cancelled) setCheckingSession(false)
                 }
-                // Redirect regardless — auth-check on dashboard will handle token refresh
-                // Use router.push (not window.location.href) to preserve Supabase session in memory
-                router.push('/dashboard')
             } catch {
                 if (cancelled) return
                 clearTimeout(timeout)
-                console.log('🔐 Login page: session check error, but stored auth exists — redirecting')
-                router.push('/dashboard')
+                console.log('🔐 Login page: session check failed — showing login form')
+                if (!cancelled) setCheckingSession(false)
             }
         }
 
@@ -340,7 +347,7 @@ export default function LoginPage() {
                                                 Email
                                             </label>
                                             <div className="relative">
-                                                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="email"
                                                     name="email"
@@ -363,7 +370,7 @@ export default function LoginPage() {
                                                     Password
                                                 </label>
                                                 <Link
-                                                    href="/update-password"
+                                                    href="/forgot-password"
                                                     className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline"
                                                     tabIndex={-1}
                                                 >
@@ -371,7 +378,7 @@ export default function LoginPage() {
                                                 </Link>
                                             </div>
                                             <div className="relative">
-                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                 <Input
                                                     id="password"
                                                     name="password"
@@ -387,7 +394,7 @@ export default function LoginPage() {
                                                     type="button"
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600"
+                                                    className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
                                                     onClick={() => setShowPassword(!showPassword)}
                                                     tabIndex={-1}
                                                 >
@@ -418,7 +425,7 @@ export default function LoginPage() {
                                                 <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
                                             </div>
                                             <div className="relative flex justify-center text-xs uppercase">
-                                                <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 rounded-full">Or continue with</span>
+                                                <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 dark:text-slate-400 rounded-full">Or continue with</span>
                                             </div>
                                         </div>
 
@@ -542,7 +549,7 @@ export default function LoginPage() {
                                     </form>
                                 </CardContent>
                                 <CardFooter className="flex flex-col gap-4 text-center pb-6">
-                                    <div className="text-sm text-slate-500">
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">
                                         Don't have an account?{" "}
                                         <Link href="/signup" className="font-semibold text-blue-600 hover:text-blue-500 hover:underline">
                                             Sign up
@@ -605,7 +612,7 @@ export default function LoginPage() {
                                             Email
                                         </label>
                                         <div className="relative">
-                                            <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                            <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                             <Input
                                                 id="email"
                                                 name="email"
@@ -628,7 +635,7 @@ export default function LoginPage() {
                                                 Password
                                             </label>
                                             <Link
-                                                href="/update-password"
+                                                href="/forgot-password"
                                                 className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline"
                                                 tabIndex={-1}
                                             >
@@ -636,7 +643,7 @@ export default function LoginPage() {
                                             </Link>
                                         </div>
                                         <div className="relative">
-                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
                                             <Input
                                                 id="password"
                                                 name="password"
@@ -652,7 +659,7 @@ export default function LoginPage() {
                                                 type="button"
                                                 variant="ghost"
                                                 size="sm"
-                                                className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600"
+                                                className="absolute right-0 top-0 h-11 w-11 px-3 py-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
                                                 onClick={() => setShowPassword(!showPassword)}
                                                 tabIndex={-1}
                                             >
@@ -683,7 +690,7 @@ export default function LoginPage() {
                                             <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
                                         </div>
                                         <div className="relative flex justify-center text-xs uppercase">
-                                            <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 rounded-full">Or continue with</span>
+                                            <span className="bg-white/80 dark:bg-slate-900 px-2 text-slate-500 dark:text-slate-400 rounded-full">Or continue with</span>
                                         </div>
                                     </div>
 

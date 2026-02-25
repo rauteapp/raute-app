@@ -37,6 +37,11 @@ const MapController = dynamic<MapControllerProps>(
     { ssr: false }
 )
 
+const AnimatedMarker = dynamic(
+    () => import("@/components/map/animated-marker"),
+    { ssr: false }
+)
+
 // -- Icon Generators --
 const createOrderIcon = (status: string, index?: number) => {
     const colors = {
@@ -116,23 +121,25 @@ const createDriverIcon = (isOnline: boolean) => {
 interface InteractiveMapProps {
     orders: Order[]
     drivers: Driver[]
-    selectedDriverId: string | null
+    selectedDriverIds: Set<string>
+    driverFilter: 'all' | 'live' | 'offline'
     userLocation: [number, number] | null
     forceTheme?: 'light' | 'dark'
     onOrderDeleted?: (orderId: string) => void
 }
 
-export default function InteractiveMap({ orders, drivers, selectedDriverId, userLocation, forceTheme, onOrderDeleted }: InteractiveMapProps) {
+export default function InteractiveMap({ orders, drivers, selectedDriverIds, driverFilter, userLocation, forceTheme, onOrderDeleted }: InteractiveMapProps) {
     // Debug logging
     useEffect(() => {
         console.log('🗺️ InteractiveMap render:', {
             ordersCount: orders.length,
             driversCount: drivers.length,
-            selectedDriverId,
+            selectedDriverIds: selectedDriverIds.size,
+            driverFilter,
             userLocation,
             ordersWithGPS: orders.filter(o => o.latitude && o.longitude).length
         })
-    }, [orders, drivers, selectedDriverId, userLocation])
+    }, [orders, drivers, selectedDriverIds, driverFilter, userLocation])
 
     const { theme } = useTheme()
     // Use forced theme if provided, otherwise fallback to system theme
@@ -150,24 +157,31 @@ export default function InteractiveMap({ orders, drivers, selectedDriverId, user
         })
     }, [])
 
-    // Filter logic
+    // Filter logic — multi-select + filter support
     const displayedOrders = useMemo(() => {
-        if (!selectedDriverId) {
-            // Global view: Show ALL orders (unassigned + assigned to any driver)
+        if (selectedDriverIds.size === 0) {
+            // Global view: Show ALL orders
             return orders
         }
-        // Selected view: Show all orders for selected driver
-        return orders.filter(o => o.driver_id === selectedDriverId)
-    }, [orders, drivers, selectedDriverId])
+        // Selected view: Show orders for selected drivers + unassigned
+        return orders.filter(o => !o.driver_id || selectedDriverIds.has(o.driver_id))
+    }, [orders, selectedDriverIds])
 
     const displayedDrivers = useMemo(() => {
-        if (!selectedDriverId) {
-            // Global view: Show ONLY online drivers (based on last_location_update freshness)
-            return drivers.filter(d => isDriverOnline(d))
+        // 1. Only drivers with known location
+        let filtered = drivers.filter(d => d.current_lat && d.current_lng)
+
+        // 2. Apply filter tab
+        if (driverFilter === 'live') filtered = filtered.filter(d => isDriverOnline(d))
+        if (driverFilter === 'offline') filtered = filtered.filter(d => !isDriverOnline(d))
+
+        // 3. If specific drivers selected, show only those
+        if (selectedDriverIds.size > 0) {
+            filtered = filtered.filter(d => selectedDriverIds.has(d.id))
         }
-        // Selected view: Show selected driver even if offline (last known location)
-        return drivers.filter(d => d.id === selectedDriverId)
-    }, [drivers, selectedDriverId])
+
+        return filtered
+    }, [drivers, selectedDriverIds, driverFilter])
 
     // Count orders without GPS (for debugging/warning)
     const ordersWithoutGPS = useMemo(() => {
@@ -175,9 +189,10 @@ export default function InteractiveMap({ orders, drivers, selectedDriverId, user
     }, [displayedOrders])
 
     const routePositions = useMemo(() => {
-        if (!selectedDriverId || displayedDrivers.length === 0 || displayedOrders.length === 0) return []
+        // Only show route line when exactly 1 driver is selected
+        if (selectedDriverIds.size !== 1 || displayedDrivers.length === 0 || displayedOrders.length === 0) return []
         const driver = displayedDrivers[0]
-        if (!driver.current_lat || !driver.current_lng) return [] // if no current location, maybe use start location?
+        if (!driver.current_lat || !driver.current_lng) return []
 
         const points: [number, number][] = []
         points.push([driver.current_lat, driver.current_lng])
@@ -187,7 +202,7 @@ export default function InteractiveMap({ orders, drivers, selectedDriverId, user
             if (o.latitude && o.longitude) points.push([Number(o.latitude), Number(o.longitude)])
         })
         return points
-    }, [displayedDrivers, displayedOrders, selectedDriverId])
+    }, [displayedDrivers, displayedOrders, selectedDriverIds])
 
 
     if (!userLocation) return <div className="h-full w-full bg-slate-100 dark:bg-slate-900 animate-pulse flex items-center justify-center"><MapPin className="animate-bounce" /></div>
@@ -211,10 +226,10 @@ export default function InteractiveMap({ orders, drivers, selectedDriverId, user
             <MapController
                 orders={displayedOrders}
                 drivers={displayedDrivers}
-                selectedDriverId={selectedDriverId}
+                selectedDriverIds={selectedDriverIds}
             />
 
-            {selectedDriverId && routePositions.length > 1 && (
+            {selectedDriverIds.size === 1 && routePositions.length > 1 && (
                 <Polyline
                     positions={routePositions}
                     color="#3b82f6"
@@ -256,7 +271,7 @@ export default function InteractiveMap({ orders, drivers, selectedDriverId, user
                     <Marker
                         key={order.id}
                         position={[finalLat, finalLng]}
-                        icon={createOrderIcon(order.status, selectedDriverId ? index + 1 : undefined)}
+                        icon={createOrderIcon(order.status, selectedDriverIds.size === 1 ? index + 1 : undefined)}
                     >
                         <Popup>
                             <div className="p-2 min-w-[200px]">
@@ -304,11 +319,12 @@ export default function InteractiveMap({ orders, drivers, selectedDriverId, user
 
             {displayedDrivers.map((driver) => (
                 driver.current_lat && driver.current_lng && (
-                    <Marker
+                    <AnimatedMarker
                         key={driver.id}
                         position={[driver.current_lat, driver.current_lng]}
                         icon={createDriverIcon(isDriverOnline(driver))}
                         zIndexOffset={1000}
+                        duration={1000}
                     >
                         <Popup>
                             <div className="p-2 min-w-[200px]">
@@ -345,7 +361,7 @@ export default function InteractiveMap({ orders, drivers, selectedDriverId, user
                                 </div>
                             </div>
                         </Popup>
-                    </Marker>
+                    </AnimatedMarker>
                 )
             ))}
         </MapContainer>

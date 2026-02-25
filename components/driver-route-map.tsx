@@ -28,7 +28,7 @@ function MapBounds({ orders }: { orders: Order[] }) {
 
     useEffect(() => {
         if (orders.length > 0) {
-            const bounds = L.latLngBounds(orders.map(o => [o.latitude!, o.longitude!]))
+            const bounds = L.latLngBounds(orders.map(o => [Number(o.latitude!), Number(o.longitude!)]))
             map.fitBounds(bounds, { padding: [50, 50] })
         }
     }, [orders, map])
@@ -37,8 +37,12 @@ function MapBounds({ orders }: { orders: Order[] }) {
 }
 
 export default function DriverRouteMap({ orders }: { orders: Order[] }) {
-    // Filter valid coordinates
-    const validOrders = orders.filter(o => o.latitude && o.longitude)
+    // Filter valid coordinates and ensure they're numbers (Supabase returns numeric as strings)
+    const validOrders = orders.filter(o => {
+        const lat = Number(o.latitude)
+        const lng = Number(o.longitude)
+        return !isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)
+    })
 
     if (validOrders.length === 0) {
         return (
@@ -52,15 +56,17 @@ export default function DriverRouteMap({ orders }: { orders: Order[] }) {
     // 1. Group by exact location to detect collisions
     const locationGroups: Record<string, Order[]> = {}
     validOrders.forEach(o => {
-        const key = `${o.latitude!.toFixed(6)},${o.longitude!.toFixed(6)}`
+        const lat = Number(o.latitude)
+        const lng = Number(o.longitude)
+        const key = `${lat.toFixed(6)},${lng.toFixed(6)}`
         if (!locationGroups[key]) locationGroups[key] = []
         locationGroups[key].push(o)
     })
 
     // 2. Calculate displayed positions
     const displayOrders = validOrders.map(order => {
-        const lat = order.latitude!
-        const lng = order.longitude!
+        const lat = Number(order.latitude!)
+        const lng = Number(order.longitude!)
         const key = `${lat.toFixed(6)},${lng.toFixed(6)}`
         const group = locationGroups[key]
 

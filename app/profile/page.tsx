@@ -407,12 +407,12 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Content Container - Added relative z-10 to sit ABOVE header */}
-                <div className="relative z-10 max-w-lg mx-auto px-4 -mt-12 pb-24 space-y-4">
+                <div className="relative z-10 max-w-lg mx-auto px-4 -mt-12 pb-4 space-y-4">
                     {/* Company Card */}
                     {companyName && (
                         <div className="bg-card text-card-foreground rounded-2xl shadow-lg border border-border p-5">
                             <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 bg-blue-50/10 text-blue-600 rounded-xl flex items-center justify-center">
+                                <div className="h-12 w-12 bg-blue-50/10 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center">
                                     <Building2 size={24} />
                                 </div>
                                 <div>
@@ -574,7 +574,7 @@ export default function ProfilePage() {
                         <Sheet open={isPasswordSheetOpen} onOpenChange={setIsPasswordSheetOpen}>
                             <SheetTrigger asChild>
                                 <Button className="h-28 flex flex-col items-center justify-center gap-2 bg-card hover:bg-muted text-foreground border border-border shadow-sm rounded-2xl transition-all active:scale-95 group">
-                                    <div className="h-10 w-10 bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <div className="h-10 w-10 bg-amber-500/10 dark:bg-amber-900/20 text-amber-600 dark:text-amber-500 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                                         <Lock size={20} />
                                     </div>
                                     <span className="font-semibold">Security</span>
@@ -660,7 +660,7 @@ export default function ProfilePage() {
                                 }
                             }}
                             variant="ghost"
-                            className="w-full h-12 text-red-500 hover:bg-red-50 hover:text-red-700 text-sm font-medium rounded-xl border border-dashed border-red-200"
+                            className="w-full h-12 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-400 text-sm font-medium rounded-xl border border-dashed border-red-200 dark:border-red-900/50"
                         >
                             Delete My Account
                         </Button>

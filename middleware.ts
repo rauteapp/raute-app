@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
     // Force HTTPS redirect (before any other checks)
+    // Skip on localhost (dev server doesn't support HTTPS)
+    const host = request.headers.get('host') || ''
     const proto = request.headers.get('x-forwarded-proto')
-    if (proto === 'http') {
+    if (proto === 'http' && !host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
         const url = request.nextUrl.clone()
         url.protocol = 'https:'
         return NextResponse.redirect(url, 301)
@@ -16,7 +18,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // PUBLIC ROUTES — always allow access
-    const publicRoutes = ['/login', '/signup', '/verify-email', '/auth/callback', '/pending-activation']
+    const publicRoutes = ['/login', '/signup', '/verify-email', '/auth/callback', '/pending-activation', '/forgot-password', '/update-password', '/onboarding']
     const isPublicRoute = publicRoutes.some(route => {
         return request.nextUrl.pathname === route || request.nextUrl.pathname === `${route}/`
     })

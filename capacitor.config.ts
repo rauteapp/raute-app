@@ -8,6 +8,21 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    StatusBar: {
+      overlaysWebView: true,
+      style: 'LIGHT', // Dark text on light background (default)
+    },
+    SplashScreen: {
+      launchAutoHide: true,
+      launchShowDuration: 2000,
+      backgroundColor: '#f8fafc', // slate-50
+      androidScaleType: 'CENTER_CROP',
+      showSpinner: false,
+    },
+    Keyboard: {
+      resize: 'body',
+      resizeOnFullScreen: true,
+    },
   },
   // Deep linking for OAuth redirects
   server: {
