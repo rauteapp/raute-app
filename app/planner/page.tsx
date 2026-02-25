@@ -1107,7 +1107,7 @@ export default function PlannerPage() {
                     {/* ============================================= */}
                     {/* MOBILE PLANNER UI — Card/List layout           */}
                     {/* ============================================= */}
-                    <div className="md:hidden flex-1 flex flex-col bg-background overflow-y-auto pb-24" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)` }}>
+                    <div className="md:hidden flex-1 flex flex-col bg-background overflow-y-auto pb-4" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)` }}>
                         {/* Header */}
                         <div className="px-4 pt-2 pb-3 border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-30">
                             <h1 className="text-lg font-bold tracking-tight text-foreground">Route Planner</h1>

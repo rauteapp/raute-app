@@ -421,7 +421,7 @@ export default function ClientOrderDetails() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-50 pb-20">
+            <div className="min-h-screen bg-slate-50 pb-4">
                 {/* Header Skeleton */}
                 <div className="bg-white p-4 shadow-sm space-y-2">
                     <div className="flex justify-between items-start">
@@ -465,9 +465,10 @@ export default function ClientOrderDetails() {
     if (!order) return <div className="p-4 flex flex-col items-center justify-center h-screen"><Package className="h-12 w-12 text-slate-300 mb-3" /><p className="text-slate-500">Order not found</p><Button onClick={() => router.push('/orders')} className="mt-4">Back to Orders</Button></div>
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-20">
+        <PullToRefresh onRefresh={() => fetchOrder(false)}>
+        <div className="min-h-screen bg-slate-50 pb-4">
             {/* Header */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
+            <div className="bg-white border-b border-slate-200 sticky top-0 z-10 safe-area-pt">
                 <div className="p-4 flex items-center gap-3">
                     <Button variant="ghost" size="sm" onClick={() => router.back()} className="h-9 w-9 p-0 rounded-full hover:bg-slate-100"><ArrowLeft size={20} /></Button>
                     <div className="flex-1"><h1 className="text-base font-bold text-slate-900 leading-tight">#{order.order_number}</h1><p className="text-xs text-slate-500">{order.customer_name}</p></div>
@@ -979,5 +980,6 @@ export default function ClientOrderDetails() {
 
             <DebugLocationStatus />
         </div >
+        </PullToRefresh>
     )
 }

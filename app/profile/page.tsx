@@ -407,7 +407,7 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Content Container - Added relative z-10 to sit ABOVE header */}
-                <div className="relative z-10 max-w-lg mx-auto px-4 -mt-12 pb-24 space-y-4">
+                <div className="relative z-10 max-w-lg mx-auto px-4 -mt-12 pb-4 space-y-4">
                     {/* Company Card */}
                     {companyName && (
                         <div className="bg-card text-card-foreground rounded-2xl shadow-lg border border-border p-5">

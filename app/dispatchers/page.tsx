@@ -13,6 +13,7 @@ import { UserCog, Plus, Trash2, Power, Lock, Unlock, ShieldAlert } from 'lucide-
 import { useToast } from '@/components/toast-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { PullToRefresh } from '@/components/pull-to-refresh'
 import {
     AlertDialog,
     AlertDialogAction,
@@ -340,7 +341,8 @@ export default function DispatchersPage() {
     }
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6 pb-20 safe-area-pt">
+        <PullToRefresh onRefresh={fetchDispatchers}>
+        <div className="p-6 max-w-7xl mx-auto space-y-6 pb-4 safe-area-pt">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">Dispatch Team</h1>
@@ -493,5 +495,6 @@ export default function DispatchersPage() {
                 </AlertDialogContent>
             </AlertDialog>
         </div>
+        </PullToRefresh>
     )
 }
