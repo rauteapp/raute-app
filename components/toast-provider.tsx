@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from "react"
 import { X, CheckCircle, AlertCircle, Info } from "lucide-react"
+import { hapticSuccess, hapticError } from "@/lib/haptics"
 
 type ToastType = 'success' | 'error' | 'info'
 
@@ -31,6 +32,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         const id = Math.random().toString(36).substring(7)
         setToasts(prev => [...prev, { id, title, description, type }])
 
+        // Haptic feedback based on toast type
+        if (type === 'success') hapticSuccess()
+        else if (type === 'error') hapticError()
+
         // Auto dismiss
         setTimeout(() => removeToast(id), 5000)
     }, [])
@@ -50,11 +55,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return (
         <ToastContext.Provider value={{ toast: addToast }}>
             {children}
-            <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-[9999] flex flex-col gap-2 pointer-events-none">
+            <div className="fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:bottom-4 sm:w-96 z-[9999] flex flex-col gap-2 pointer-events-none safe-area-pb">
                 {toasts.map(t => (
                     <div
                         key={t.id}
-                        className={`pointer-events-auto flex items-start gap-3 p-4 rounded-xl shadow-xl border animate-in slide-in-from-bottom-5 fade-in zoom-in-95 duration-300 ${t.type === 'success' ? 'bg-green-600 text-white border-green-700' :
+                        className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl border animate-in slide-in-from-bottom-5 fade-in zoom-in-95 duration-300 ${t.type === 'success' ? 'bg-green-600 text-white border-green-700' :
                             t.type === 'error' ? 'bg-red-600 text-white border-red-700' :
                                 'bg-slate-800 text-white border-slate-700'
                             }`}

@@ -3,6 +3,7 @@
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
+import { hapticMedium } from "@/lib/haptics"
 
 export function ThemeToggle() {
     const [mounted, setMounted] = useState(false)
@@ -20,7 +21,7 @@ export function ThemeToggle() {
 
     return (
         <button
-            onClick={() => setTheme(isDark ? "light" : "dark")}
+            onClick={() => { hapticMedium(); setTheme(isDark ? "light" : "dark") }}
             className={`
                 relative inline-flex h-6 w-12 items-center rounded-full transition-colors
                 ${isDark ? "bg-blue-600" : "bg-slate-300"}

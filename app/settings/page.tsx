@@ -152,7 +152,7 @@ export default function SettingsPage() {
     return (
         <PullToRefresh onRefresh={fetchHubs}>
             <div className="min-h-screen bg-slate-50 pb-4">
-                <header className="bg-white border-b sticky top-0 z-10 px-4 py-4 flex items-center justify-between shadow-sm safe-area-pt">
+                <header className="ios-header sticky top-0 z-10 px-4 py-4 flex items-center justify-between safe-area-pt">
                     <div className="flex items-center gap-3">
                         <Button variant="ghost" size="icon" onClick={() => router.back()}>
                             <ArrowLeft size={20} />

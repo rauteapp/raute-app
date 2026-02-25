@@ -2,12 +2,12 @@
 
 import { Home, List, MapPin, User, Truck, Route } from 'lucide-react'
 
-
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { hapticLight } from '@/lib/haptics'
 
 export function MobileNav() {
     const pathname = usePathname()
@@ -187,7 +187,7 @@ export function MobileNav() {
     // to prevent leaking manager tabs
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-t border-border/50 dark:border-slate-800/50 safe-area-pb shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] transition-all duration-300">
+        <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-700/50 safe-area-pb transition-colors duration-150">
             <div className={`flex items-center justify-around h-16 max-w-lg mx-auto ${isDriver ? 'px-8' : ''}`}>
 
                 {/* 1. Home / Dashboard (Everyone) */}
@@ -261,26 +261,16 @@ function NavItem({ href, icon: Icon, label, active }: { href: string, icon: any,
         <Link
             href={href}
             prefetch={false}
+            onClick={() => { if (!active) hapticLight() }}
             className={cn(
-                "flex flex-col items-center justify-center w-full h-full transition-all duration-200 select-none touch-manipulation",
+                "flex flex-col items-center justify-center gap-0.5 w-full h-full select-none touch-manipulation",
                 active
-                    ? "text-blue-600 dark:text-blue-400 scale-105"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 active:scale-95"
+                    ? "text-blue-500 dark:text-blue-400"
+                    : "text-slate-400 dark:text-slate-500"
             )}
         >
-            {/* Active indicator dot */}
-            <div className={cn(
-                "w-1 h-1 rounded-full mb-0.5 transition-all duration-200",
-                active ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"
-            )} />
-            {/* Icon + label with background pill */}
-            <div className={cn(
-                "flex flex-col items-center justify-center px-3 py-1 rounded-xl transition-all duration-200",
-                active ? "bg-blue-50 dark:bg-blue-950/50" : ""
-            )}>
-                <Icon size={26} strokeWidth={active ? 2.5 : 1.5} className={active ? "fill-primary/10 text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400"} />
-                <span className={cn("text-[10px] font-medium tracking-tight mt-0.5", active ? "text-blue-600 dark:text-blue-400 font-semibold" : "text-slate-500 dark:text-slate-400")}>{label}</span>
-            </div>
+            <Icon size={22} strokeWidth={active ? 2 : 1.5} />
+            <span className={cn("text-[10px] tracking-tight", active ? "font-semibold" : "font-medium")}>{label}</span>
         </Link>
     )
 }
