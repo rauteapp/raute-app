@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function TermsOfService() {
     return (
-        <div className="max-w-4xl mx-auto p-8 py-12 prose dark:prose-invert">
+        <div className="max-w-4xl mx-auto p-8 py-12 prose dark:prose-invert safe-area-p">
             <h1>Terms of Service</h1>
             <p className="text-sm text-gray-500">Last updated: {new Date().toLocaleDateString()}</p>
 

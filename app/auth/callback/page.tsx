@@ -243,7 +243,7 @@ export default function AuthCallback() {
   // (PKCE code_verifier is in app storage, can't complete verification from Safari)
   if (showAppRedirect) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 safe-area-p">
         <div className="text-center space-y-6 max-w-md px-4">
           <div className="mx-auto w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -279,7 +279,7 @@ export default function AuthCallback() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 safe-area-p">
       <div className="text-center space-y-4 max-w-md px-4">
         <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
         <p className="text-slate-600 dark:text-slate-400">{status}</p>
@@ -332,7 +332,7 @@ function ExpiredLinkView({ errorMessage }: { errorMessage: string }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 safe-area-p">
       <div className="text-center space-y-6 max-w-md px-4">
         <div className="mx-auto w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

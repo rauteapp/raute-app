@@ -481,7 +481,7 @@ export default function ClientOrderDetails() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-4">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-4 safe-area-p">
                 {/* Header Skeleton */}
                 <div className="bg-white dark:bg-slate-900 p-4 shadow-sm space-y-2">
                     <div className="flex justify-between items-start">
@@ -522,7 +522,7 @@ export default function ClientOrderDetails() {
             </div>
         )
     }
-    if (!order) return <div className="p-4 flex flex-col items-center justify-center h-screen"><Package className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" /><p className="text-slate-500 dark:text-slate-400">Order not found</p><Button onClick={() => router.push('/orders')} className="mt-4">Back to Orders</Button></div>
+    if (!order) return <div className="p-4 flex flex-col items-center justify-center h-screen safe-area-p"><Package className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" /><p className="text-slate-500 dark:text-slate-400">Order not found</p><Button onClick={() => router.push('/orders')} className="mt-4">Back to Orders</Button></div>
 
     return (
         <PullToRefresh onRefresh={() => fetchOrder(false)}>

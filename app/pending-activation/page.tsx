@@ -72,7 +72,7 @@ export default function PendingActivationPage() {
     }, [router])
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 safe-area-p">
             <div className="max-w-md w-full">
                 <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 rounded-2xl shadow-2xl border border-amber-200 dark:border-amber-900/50 overflow-hidden">
                     {/* Header */}

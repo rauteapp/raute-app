@@ -568,7 +568,7 @@ export default function LoginPage() {
             }
             // Mobile version: Clean interface without navbar/footer
             mobileChildren={
-                <div className="flex min-h-screen items-center justify-center px-4 bg-slate-50 dark:bg-slate-950">
+                <div className="flex min-h-screen items-center justify-center px-4 safe-area-p bg-slate-50 dark:bg-slate-950">
                     <div className="w-full max-w-md space-y-8">
                         <div className="text-center space-y-2">
                             <div className="inline-flex h-16 w-16 items-center justify-center rounded-xl bg-white dark:bg-slate-800 shadow-xl overflow-hidden ring-1 ring-slate-200 dark:ring-slate-700">

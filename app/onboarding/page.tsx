@@ -105,14 +105,14 @@ export default function OnboardingPage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center safe-area-p">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4 safe-area-p relative overflow-hidden">
             {/* Background Blobs */}
             <div className="absolute top-[20%] right-[10%] w-[400px] h-[400px] bg-blue-100/50 dark:bg-blue-900/10 rounded-full blur-[100px] pointer-events-none" />
             <div className="absolute bottom-[20%] left-[10%] w-[300px] h-[300px] bg-indigo-100/50 dark:bg-indigo-900/10 rounded-full blur-[80px] pointer-events-none" />
