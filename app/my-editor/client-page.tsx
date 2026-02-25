@@ -538,7 +538,7 @@ export default function ClientOrderDetails() {
 
             {/* Map Section */}
             {order.latitude && order.longitude && (
-                <div className="h-56 w-full relative border-b border-slate-200 dark:border-slate-800">
+                <div className="h-56 w-full relative border-b border-slate-200 dark:border-slate-800 overflow-hidden" style={{ zIndex: 0, isolation: 'isolate' }}>
                     <MapContainer center={[order.latitude, order.longitude]} zoom={15} style={{ height: '100%', width: '100%' }} className="z-0">
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
                         <Marker position={[order.latitude, order.longitude]} icon={createColoredIcon(order.status)}><Popup>{order.customer_name}</Popup></Marker>
