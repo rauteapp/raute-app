@@ -1348,7 +1348,7 @@ export default function PlannerPage() {
                                 </div>
 
                                 <div className="pt-4 border-t">
-                                    <Button className="w-full" onClick={() => router.push(`/ my - editor ? id = ${selectedOrder.id} `)}>
+                                    <Button className="w-full" onClick={() => router.push(`/my-editor?id=${selectedOrder.id}`)}>
                                         <ExternalLink size={14} className="mr-2" />
                                         Open Full Editor
                                     </Button>
@@ -1597,7 +1597,7 @@ export default function PlannerPage() {
 
                                     {/* ACTION BUTTONS */}
                                     <div className="pt-4 border-t border-border space-y-3">
-                                        <Link href={`/ my - editor ? id = ${selectedOrder.id} `} className="block w-full">
+                                        <Link href={`/my-editor?id=${selectedOrder.id}`} className="block w-full">
                                             <Button variant="outline" className="w-full">
                                                 <Edit className="mr-2 h-4 w-4" /> Edit Order Details
                                             </Button>
