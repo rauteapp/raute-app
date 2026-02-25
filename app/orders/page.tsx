@@ -554,6 +554,7 @@ export default function OrdersPage() {
                 }
 
                 if (!targetCompanyId) throw new Error("Company ID Not Found")
+                console.log('🏢 Using company_id:', targetCompanyId)
 
                 // Map all results to database objects with geocoding
                 // We process sequentially to be nice to the free Geocoding API (Rate Limits)
@@ -598,15 +599,27 @@ export default function OrdersPage() {
                 }
 
                 // Batch Insert
+                console.log('📦 Orders to insert:', JSON.stringify(newOrders.map(o => ({
+                    customer: o.customer_name, address: o.address, company_id: o.company_id
+                }))))
                 setProcessingStage("Saving orders...")
-                const { error } = await supabase.from('orders').insert(newOrders)
+                const { data: insertedData, error } = await supabase
+                    .from('orders')
+                    .insert(newOrders)
+                    .select('id')
+                console.log('📥 Insert result:', { insertedCount: insertedData?.length, error })
                 if (error) throw error
+                if (!insertedData || insertedData.length === 0) {
+                    throw new Error('Orders were not saved (0 rows inserted). This may be a permissions issue.')
+                }
+                console.log(`✅ Successfully inserted ${insertedData.length} orders`)
 
                 // Success Feedback
                 setIsAddOrderOpen(false)
                 setPickedLocation(null)
                 setAiInputText("")
                 setSelectedFiles([])
+                setDateRange(undefined) // Clear date filter so imported orders are visible
                 fetchData()
                 toast({
                     title: `🚀 Imported ${newOrders.length} orders!`,
@@ -621,12 +634,12 @@ export default function OrdersPage() {
                 })
             }
         } catch (error: any) {
+            console.error('❌ Order import failed:', error.message, error)
             toast({
                 title: "Import Failed",
                 description: error.message || "Could not extract orders. Please check the input format.",
                 type: "error"
             })
-            throw error
         } finally {
             setIsParsing(false)
             setProcessingStage("")
