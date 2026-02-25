@@ -369,7 +369,7 @@ export default function LoginPage() {
                                                     Password
                                                 </label>
                                                 <Link
-                                                    href="/update-password"
+                                                    href="/forgot-password"
                                                     className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline"
                                                     tabIndex={-1}
                                                 >
@@ -634,7 +634,7 @@ export default function LoginPage() {
                                                 Password
                                             </label>
                                             <Link
-                                                href="/update-password"
+                                                href="/forgot-password"
                                                 className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline"
                                                 tabIndex={-1}
                                             >
