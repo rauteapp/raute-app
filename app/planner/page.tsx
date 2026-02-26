@@ -41,7 +41,21 @@ const TileLayer = dynamic(() => import('react-leaflet').then(m => m.TileLayer), 
 const Marker = dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(m => m.Popup), { ssr: false })
 const Polyline = dynamic(() => import('react-leaflet').then(m => m.Polyline), { ssr: false })
-// const useMap = dynamic(() => import('react-leaflet').then(m => m.useMap), { ssr: false }) // Disabled for simpler implementation
+// Map invalidateSize helper — fixes tiles not rendering properly in flex layouts
+const MapResizer = dynamic(() => Promise.resolve(function MapResizerInner() {
+    const { useMap } = require('react-leaflet')
+    const map = useMap()
+    React.useEffect(() => {
+        if (!map) return
+        // Delay to ensure container has its final size
+        const timer = setTimeout(() => map.invalidateSize(), 200)
+        // Also listen for resize events
+        const observer = new ResizeObserver(() => map.invalidateSize())
+        if (map.getContainer()) observer.observe(map.getContainer())
+        return () => { clearTimeout(timer); observer.disconnect() }
+    }, [map])
+    return null
+}), { ssr: false })
 
 
 
@@ -1003,6 +1017,7 @@ export default function PlannerPage() {
 
                         <div style={{ height: '100%', width: '100%' }}>
                             <MapContainer key={`${mapCenter[0]} -${mapCenter[1]} `} center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+                                <MapResizer />
                                 <TileLayer
                                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                                     url={mapTheme === 'dark'
