@@ -987,7 +987,7 @@ export default function PlannerPage() {
                         </div>
                     </div>
                     {/* MAP AREA — DESKTOP ONLY */}
-                    <div className="hidden md:flex md:flex-col flex-1 relative z-10 h-full">
+                    <div className="hidden md:block flex-1 relative z-10" style={{ height: '100vh' }}>
                         {/* Map Theme Toggle */}
                         <div className="absolute top-4 right-4 z-[500]">
                             <Button
@@ -1001,7 +1001,7 @@ export default function PlannerPage() {
                             </Button>
                         </div>
 
-                        <div className="flex-1 min-h-0 w-full">
+                        <div style={{ height: '100%', width: '100%' }}>
                             <MapContainer key={`${mapCenter[0]} -${mapCenter[1]} `} center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
                                 <MapResizer />
                                 <TileLayer
