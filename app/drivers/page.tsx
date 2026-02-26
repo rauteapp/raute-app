@@ -707,7 +707,7 @@ export default function DriversPage() {
                             <SheetHeader className="mb-6">
                                 <SheetTitle className="text-2xl font-bold text-primary">Add New Driver</SheetTitle>
                             </SheetHeader>
-                            <form onSubmit={handleFormSubmit} className="space-y-5 pb-20">
+                            <form onSubmit={handleFormSubmit} className="space-y-5 pb-20 px-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
                                     <div className="relative">
@@ -1077,7 +1077,7 @@ export default function DriversPage() {
                             <SheetTitle>Edit Driver Details</SheetTitle>
                         </SheetHeader>
                         {editingDriver && (
-                            <form action={handleEditDriver} className="space-y-4 mt-6 pb-20">
+                            <form action={handleEditDriver} className="space-y-4 mt-6 pb-20 px-4">
                                 <div className="space-y-2">
                                     <Label>Full Name</Label>
                                     <Input name="name" defaultValue={editingDriver.name} required />
