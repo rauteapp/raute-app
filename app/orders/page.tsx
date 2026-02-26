@@ -608,31 +608,9 @@ export default function OrdersPage() {
                     }
                 })
 
-                // Geocode addresses sequentially (Nominatim has its own 1s rate limiter)
-                setProcessingStage(`Geocoding ${results.length} addresses...`)
-                for (let i = 0; i < results.length; i++) {
-                    setProcessingStage(`Geocoding address ${i + 1} of ${results.length}...`)
-                    const result = results[i]
-                    try {
-                        const coords = await geocodeAddress(
-                            [result.address, result.city, result.state].filter(Boolean).join(', ')
-                        )
-                        if (coords) {
-                            newOrders[i].latitude = coords.lat
-                            newOrders[i].longitude = coords.lng
-                            newOrders[i].geocoding_confidence = coords.confidence
-                            newOrders[i].geocoded_address = coords.foundAddress
-                        }
-                    } catch {
-                        // Skip geocoding errors — orders still save without coordinates
-                    }
-                }
-
-                // Batch Insert
-                console.log('📦 Orders to insert:', JSON.stringify(newOrders.map(o => ({
-                    customer: o.customer_name, address: o.address, company_id: o.company_id
-                }))))
+                // Save orders FIRST (instant), then geocode in background
                 setProcessingStage("Saving orders...")
+                console.log('📦 Orders to insert:', newOrders.length)
                 const { data: insertedData, error } = await supabase
                     .from('orders')
                     .insert(newOrders)
@@ -643,6 +621,32 @@ export default function OrdersPage() {
                     throw new Error('Orders were not saved (0 rows inserted). This may be a permissions issue.')
                 }
                 console.log(`✅ Successfully inserted ${insertedData.length} orders`)
+
+                // Geocode in background — don't block the user
+                const orderIds = insertedData.map(d => d.id)
+                setTimeout(async () => {
+                    for (let i = 0; i < results.length; i++) {
+                        const result = results[i]
+                        try {
+                            const coords = await geocodeAddress(
+                                [result.address, result.city, result.state].filter(Boolean).join(', ')
+                            )
+                            if (coords && orderIds[i]) {
+                                await supabase.from('orders').update({
+                                    latitude: coords.lat,
+                                    longitude: coords.lng,
+                                    geocoding_confidence: coords.confidence,
+                                    geocoded_address: coords.foundAddress
+                                }).eq('id', orderIds[i])
+                            }
+                        } catch {
+                            // Skip geocoding errors silently
+                        }
+                    }
+                    console.log('✅ Background geocoding complete for', orderIds.length, 'orders')
+                    // Refresh to show geocoded coordinates
+                    fetchData()
+                }, 100)
 
                 // Success Feedback
                 setIsAddOrderOpen(false)
