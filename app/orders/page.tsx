@@ -426,16 +426,20 @@ export default function OrdersPage() {
             })
         }
 
-        if (statusFilter !== "all") {
+        if (statusFilter === "all") {
+            // "ALL" tab shows active orders only — delivered/cancelled
+            // are accessible via their dedicated tabs
+            filtered = filtered.filter(order =>
+                order.status !== "delivered" && order.status !== "cancelled"
+            )
+        } else if (statusFilter === "assigned") {
             // When a specific status tab is active, ignore date range for matching statuses
             // so ALL orders with that status are visible
-            if (statusFilter === "assigned") {
-                filtered = orders.filter(order =>
-                    order.status === "assigned" || order.status === "in_progress"
-                )
-            } else {
-                filtered = orders.filter(order => order.status === statusFilter)
-            }
+            filtered = orders.filter(order =>
+                order.status === "assigned" || order.status === "in_progress"
+            )
+        } else {
+            filtered = orders.filter(order => order.status === statusFilter)
         }
         if (searchQuery) {
             filtered = filtered.filter(order =>
