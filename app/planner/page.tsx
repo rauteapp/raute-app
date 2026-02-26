@@ -761,7 +761,7 @@ export default function PlannerPage() {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
             >
-                <div className="flex h-screen w-full bg-background overflow-hidden">
+                <div className="flex w-full bg-background overflow-hidden" style={{ height: '100dvh' }}>
                     {/* SIDEBAR - Desktop Only */}
                     <div className="hidden md:flex md:w-96 border-r border-border flex-col bg-card dark:bg-card z-20 shadow-xl transition-colors">
                         <div className="p-4 border-b border-border bg-muted/20 dark:bg-muted/10 flex-shrink-0 safe-area-pt">
@@ -987,9 +987,9 @@ export default function PlannerPage() {
                         </div>
                     </div>
                     {/* MAP AREA — DESKTOP ONLY */}
-                    <div className="hidden md:block flex-1 z-10">
+                    <div className="hidden md:block flex-1 relative z-10 self-stretch">
                         {/* Map Theme Toggle */}
-                        <div className="absolute top-4 right-4 z-[500]" style={{ position: 'fixed' }}>
+                        <div className="absolute top-4 right-4 z-[500]">
                             <Button
                                 variant="secondary"
                                 size="icon"
@@ -1001,8 +1001,8 @@ export default function PlannerPage() {
                             </Button>
                         </div>
 
-                        <div>
-                            <MapContainer key={`${mapCenter[0]} -${mapCenter[1]} `} center={mapCenter} zoom={13} style={{ height: '100vh', width: '100%' }}>
+                        <div className="absolute inset-0">
+                            <MapContainer key={`${mapCenter[0]} -${mapCenter[1]} `} center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
                                 <MapResizer />
                                 <TileLayer
                                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
