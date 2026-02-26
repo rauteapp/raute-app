@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import "leaflet/dist/leaflet.css"
 import { useRouter } from 'next/navigation'
 import { supabase, type Order, type Driver } from '@/lib/supabase'
 import { isDriverOnline } from '@/lib/driver-status'
@@ -987,7 +988,7 @@ export default function PlannerPage() {
                         </div>
                     </div>
                     {/* MAP AREA — DESKTOP ONLY */}
-                    <div className="hidden md:block flex-1 relative z-10 self-stretch">
+                    <div className="hidden md:block flex-1 relative z-10">
                         {/* Map Theme Toggle */}
                         <div className="absolute top-4 right-4 z-[500]">
                             <Button
