@@ -114,6 +114,61 @@ If a field is missing, use "".
 RETURN ONLY THE RAW JSON.
 `;
 
+const MAX_RETRIES = 2;
+const TIMEOUT_MS = 120_000; // 2 minutes — reasoning models can be slow on large inputs
+
+async function callGrokWithRetry(
+  contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+  attempt = 1
+): Promise<string> {
+  try {
+    const completionPromise = client.chat.completions.create({
+      model: "grok-4-1-fast-reasoning",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: contentParts },
+      ],
+      temperature: 0.1,
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("TIMEOUT")), TIMEOUT_MS)
+    );
+
+    const completion = await Promise.race([completionPromise, timeoutPromise]);
+    const textResponse = completion.choices[0]?.message?.content || "";
+
+    if (!textResponse) {
+      throw new Error("The AI returned an empty response. Please try a different image.");
+    }
+
+    return textResponse;
+  } catch (error: any) {
+    const isRetryable =
+      error.message === "TIMEOUT" ||
+      error.code === "ERR_HTTP2_PROTOCOL_ERROR" ||
+      error.status === 429 ||
+      error.status === 502 ||
+      error.status === 503 ||
+      error.message?.includes("ERR_HTTP2") ||
+      error.message?.includes("ECONNRESET") ||
+      error.message?.includes("fetch failed");
+
+    if (isRetryable && attempt <= MAX_RETRIES) {
+      const delay = attempt * 3000; // 3s, 6s backoff
+      console.warn(`Grok request failed (attempt ${attempt}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`, error.message);
+      await new Promise(r => setTimeout(r, delay));
+      return callGrokWithRetry(contentParts, attempt + 1);
+    }
+
+    if (error.message === "TIMEOUT") {
+      throw new Error("Request timed out. The AI model took too long to respond. Please try again or use a smaller image.");
+    }
+
+    throw error;
+  }
+}
+
 export async function parseOrderAI(input: string | File | File[]): Promise<ParsedOrder[]> {
   if (!apiKey) {
     console.error("xAI API Key is missing");
@@ -144,28 +199,9 @@ export async function parseOrderAI(input: string | File | File[]): Promise<Parse
       contentParts.push(part);
     }
 
-    // Call xAI Grok via OpenAI-compatible API with 60s timeout
-    const completionPromise = client.chat.completions.create({
-      model: "grok-4-1-fast-reasoning",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: contentParts },
-      ],
-      temperature: 0.1, // Low temperature for consistent structured output
-    });
-
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Request timed out. The AI model took too long to respond.")), 60000)
-    );
-
-    const completion = await Promise.race([completionPromise, timeoutPromise]);
-    const textResponse = completion.choices[0]?.message?.content || "";
+    const textResponse = await callGrokWithRetry(contentParts);
 
     console.log("Grok Raw Response:", textResponse);
-
-    if (!textResponse) {
-      throw new Error("The AI returned an empty response. Please try a different image.");
-    }
 
     // Clean markdown code fences if present
     const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
