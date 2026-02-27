@@ -187,8 +187,8 @@ export function MobileNav() {
     // to prevent leaking manager tabs
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-700/50 safe-area-pb transition-colors duration-150">
-            <div className={`flex items-center justify-around h-16 max-w-lg mx-auto ${isDriver ? 'px-8' : ''}`}>
+        <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-700/50 transition-colors duration-150">
+            <div className={`flex items-center justify-around h-16 max-w-lg mx-auto safe-area-pb ${isDriver ? 'px-8' : ''}`}>
 
                 {/* 1. Home / Dashboard (Everyone) */}
                 <NavItem

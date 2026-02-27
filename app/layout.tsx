@@ -53,8 +53,8 @@ export default function RootLayout({
           <ToastProvider>
             <AuthListener />
             <AuthCheck>
-              <div className="min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))] safe-area-pb">
-                <main>
+              <div className="min-h-screen flex flex-col pt-safe px-safe">
+                <main className="flex-1 pb-32 mb-10 safe-area-pb">
                   {children}
                 </main>
                 <MobileNav />
