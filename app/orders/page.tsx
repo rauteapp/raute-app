@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff } from "lucide-react"
+import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, CloudOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
@@ -1083,6 +1083,11 @@ export default function OrdersPage() {
                                                     <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", statusColors[order.status as keyof typeof statusColors])}>
                                                         {order.status.replace('_', ' ')}
                                                     </span>
+                                                    {(order as any)._pendingSync && (
+                                                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800">
+                                                            <CloudOff size={9} /> Pending Sync
+                                                        </span>
+                                                    )}
                                                     <p className="text-[10px] text-muted-foreground mt-1">
                                                         {format(new Date(order.delivery_date || order.created_at), "MMM dd")}
                                                     </p>
@@ -1173,6 +1178,11 @@ export default function OrdersPage() {
                                                             {order.priority_level === 'high' && (
                                                                 <span className="text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                                                     HIGH
+                                                                </span>
+                                                            )}
+                                                            {(order as any)._pendingSync && (
+                                                                <span className="flex items-center gap-1 text-[10px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800 uppercase tracking-wider">
+                                                                    <CloudOff size={10} /> Pending Sync
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1680,6 +1690,11 @@ export default function OrdersPage() {
                                                 <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", statusColors[order.status as keyof typeof statusColors])}>
                                                     {order.status.replace('_', ' ')}
                                                 </span>
+                                                {(order as any)._pendingSync && (
+                                                    <span className="flex items-center gap-0.5 text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800">
+                                                        <CloudOff size={9} /> Sync
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="text-sm font-medium text-foreground truncate">{order.customer_name}</p>
                                             <p className="text-[10px] text-muted-foreground truncate">{order.address}</p>
@@ -1799,6 +1814,11 @@ export default function OrdersPage() {
                                                 {order.was_out_of_range && (
                                                     <span className="flex items-center gap-1 text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">
                                                         <AlertCircle size={9} /> Out of Range
+                                                    </span>
+                                                )}
+                                                {(order as any)._pendingSync && (
+                                                    <span className="flex items-center gap-1 text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800">
+                                                        <CloudOff size={9} /> Pending Sync
                                                     </span>
                                                 )}
                                             </div>
