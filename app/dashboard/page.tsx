@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { cacheData, getCachedData } from '@/lib/offline-cache'
 import { waitForSession } from '@/lib/wait-for-session'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity, CheckCircle2, Clock, Package, Truck, AlertCircle, AlertTriangle, TrendingUp, MapPin, ArrowRight, Calendar as CalendarIcon, Filter, X } from 'lucide-react'
@@ -182,6 +183,7 @@ export default function DashboardPage() {
 
                         if (ordersData && !ordersError) {
                             setOrders(ordersData)
+                            cacheData('orders', ordersData).catch(() => {})
 
                             // Calculate stats
                             const statsCalc = {
@@ -193,6 +195,23 @@ export default function DashboardPage() {
                                 cancelled: ordersData.filter(o => o.status === 'cancelled').length
                             }
                             setStats(statsCalc)
+                        } else if (ordersError) {
+                            // Offline fallback: load from IDB
+                            const cached = await getCachedData('orders', {
+                                filter: (o: any) => o.company_id === companyId
+                            })
+                            if (cached.length > 0) {
+                                setOrders(cached as any)
+                                const statsCalc = {
+                                    total: cached.length,
+                                    pending: cached.filter((o: any) => o.status === 'pending').length,
+                                    assigned: cached.filter((o: any) => o.status === 'assigned').length,
+                                    inProgress: cached.filter((o: any) => o.status === 'in_progress').length,
+                                    delivered: cached.filter((o: any) => o.status === 'delivered').length,
+                                    cancelled: cached.filter((o: any) => o.status === 'cancelled').length
+                                }
+                                setStats(statsCalc)
+                            }
                         }
 
                         // Fetch Drivers
@@ -203,6 +222,7 @@ export default function DashboardPage() {
 
                         if (driversData) {
                             setTotalDriversCount(driversData.length)
+                            cacheData('drivers', driversData).catch(() => {})
                             // Build drivers map for quick lookup
                             const dMap: Record<string, any> = {}
                             driversData.forEach(d => {
@@ -219,6 +239,7 @@ export default function DashboardPage() {
 
                         if (hubsData) {
                             setHasHubs(hubsData.length > 0)
+                            cacheData('hubs', hubsData).catch(() => {})
                         }
                     }
                 }

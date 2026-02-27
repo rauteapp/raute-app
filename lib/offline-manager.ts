@@ -2,12 +2,16 @@ import { Network } from '@capacitor/network';
 import { Preferences } from '@capacitor/preferences';
 import { supabase } from './supabase';
 import { toast } from '@/lib/toast-utils';
+import { cacheSingleRecord, deleteCachedRecord } from '@/lib/offline-cache';
+
+type ActionType = 'UPDATE_ORDER_STATUS' | 'UPDATE_DRIVER_LOCATION' | 'CREATE_ORDER';
 
 type OfflineAction = {
     id: string;
-    type: 'UPDATE_ORDER_STATUS' | 'UPDATE_DRIVER_LOCATION';
+    type: ActionType;
     payload: any;
     timestamp: number;
+    localId?: string; // For CREATE_ORDER: temporary client-side ID
 }
 
 const STORAGE_KEY = 'offline_queue';
@@ -48,36 +52,92 @@ class OfflineManager {
         });
     }
 
-    public async queueAction(type: OfflineAction['type'], payload: any) {
+    public getQueueSize(): number {
+        return this.queue.length;
+    }
+
+    public async queueAction(type: ActionType, payload: any): Promise<string | undefined> {
         if (this.isOnline) {
             await this.executeAction(type, payload);
+            return undefined;
         } else {
+            const localId = type === 'CREATE_ORDER' ? `local_${crypto.randomUUID()}` : undefined;
             const action: OfflineAction = {
                 id: crypto.randomUUID(),
                 type,
                 payload,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                localId
             };
             this.queue.push(action);
             await this.saveQueue();
+
+            // For CREATE_ORDER: cache the order locally in IDB for instant UI display
+            if (type === 'CREATE_ORDER' && localId) {
+                const localOrder = {
+                    ...payload.order,
+                    id: localId,
+                    _pendingSync: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    status: payload.order.status || 'pending'
+                };
+                await cacheSingleRecord('orders', localOrder);
+            }
+
+            // Register Background Sync on web (if supported)
+            this.registerBackgroundSync();
+
             toast({
                 title: "You are offline",
                 description: "Action saved and will sync when online.",
                 type: "warning"
             });
+
+            return localId;
         }
     }
 
-    private async executeAction(type: OfflineAction['type'], payload: any) {
+    private async registerBackgroundSync() {
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'SyncManager' in window) {
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                await (reg as any).sync.register('offline-queue-sync');
+            } catch (err) {
+                console.warn('Background sync registration failed:', err);
+            }
+        }
+    }
+
+    private async executeAction(type: ActionType, payload: any, action?: OfflineAction) {
         try {
             switch (type) {
-                case 'UPDATE_ORDER_STATUS':
+                case 'UPDATE_ORDER_STATUS': {
                     const { orderId, status, location } = payload;
-                    // Example implementation - adapt to valid DB columns
+
+                    // Conflict detection: check server state before applying
+                    if (action) {
+                        const { data: current } = await supabase.from('orders')
+                            .select('updated_at, status')
+                            .eq('id', orderId)
+                            .single();
+
+                        if (current && new Date(current.updated_at).getTime() > action.timestamp) {
+                            // Server has newer data
+                            if (['delivered', 'cancelled'].includes(current.status)) {
+                                console.warn(`Conflict: order ${orderId} already ${current.status} — skipping queued update`);
+                                toast({
+                                    title: 'Sync Conflict',
+                                    description: `Order was already marked as ${current.status}`,
+                                    type: 'warning'
+                                });
+                                return;
+                            }
+                        }
+                    }
+
                     await supabase.from('orders').update({
                         status,
-                        // If we had location columns like delivered_lat/lng, we'd update them here
-                        // For now just status
                         updated_at: new Date().toISOString()
                     }).eq('id', orderId);
 
@@ -85,49 +145,75 @@ class OfflineManager {
                         const updateData: any = {
                             delivered_at: new Date().toISOString()
                         };
-                        // Save Delivery Location verification
                         if (location) {
                             updateData.delivered_lat = location.lat;
                             updateData.delivered_lng = location.lng;
                         }
-                        // Save Flags
                         if (payload.outOfRange !== undefined) updateData.was_out_of_range = payload.outOfRange;
                         if (payload.distance !== undefined) updateData.delivery_distance_meters = payload.distance;
 
                         await supabase.from('orders').update(updateData).eq('id', orderId);
                     }
                     break;
+                }
+
+                case 'CREATE_ORDER': {
+                    const { order } = payload;
+                    // Remove local-only fields before inserting
+                    const { _pendingSync, ...cleanOrder } = order;
+                    // Remove the local ID — let Supabase generate the real one
+                    const { id: localId, ...orderWithoutId } = cleanOrder;
+
+                    const { data, error } = await supabase.from('orders').insert(orderWithoutId).select().single();
+                    if (error) throw error;
+
+                    // Update IDB: remove local record, cache the real one
+                    if (action?.localId) {
+                        await deleteCachedRecord('orders', action.localId);
+                    }
+                    if (data) {
+                        await cacheSingleRecord('orders', data);
+                    }
+                    break;
+                }
 
                 case 'UPDATE_DRIVER_LOCATION':
-                    // handled by separate tracking logic usually, but good for one-off updates
+                    // Handled by separate tracking logic
                     break;
             }
         } catch (error) {
             console.error('Error executing offline action:', error);
-            throw error; // Let the queue processor handle retries if we wanted to get fancy
+            throw error;
         }
     }
 
     public async processQueue() {
         if (this.queue.length === 0) return;
 
-        toast({ title: "Back Online", description: "Syncing offline data...", type: "info" });
+        toast({ title: "Back Online", description: `Syncing ${this.queue.length} offline action(s)...`, type: "info" });
 
         const tempQueue = [...this.queue];
-        this.queue = []; // Clear queue first to prevent loops, re-add failed items later
+        this.queue = [];
         await this.saveQueue();
+
+        let successCount = 0;
+        let failCount = 0;
 
         for (const action of tempQueue) {
             try {
-                await this.executeAction(action.type, action.payload);
+                await this.executeAction(action.type, action.payload, action);
+                successCount++;
             } catch (error) {
                 console.error('Failed to process offline action:', action, error);
-                // Optionally re-queue if it's a transient error
-                // for now we just log it to avoid blocking others
+                failCount++;
             }
         }
 
-        toast({ title: "Sync Complete", description: "All offline logs updated.", type: "success" });
+        if (failCount > 0) {
+            toast({ title: "Sync Partial", description: `${successCount} synced, ${failCount} failed.`, type: "warning" });
+        } else {
+            toast({ title: "Sync Complete", description: `${successCount} action(s) synced.`, type: "success" });
+        }
     }
 }
 

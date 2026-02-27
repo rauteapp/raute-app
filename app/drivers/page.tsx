@@ -5,6 +5,7 @@ import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
+import { cacheData, getCachedData } from "@/lib/offline-cache"
 import {
     Plus,
     Search,
@@ -233,11 +234,29 @@ export default function DriversPage() {
 
 
             if (driversError) {
-                toast({ title: 'Error fetching drivers', description: driversError.message, type: 'error' })
-                throw driversError
+                // Offline fallback: load from IDB cache
+                const cached = await getCachedData('drivers', {
+                    filter: (d: any) => d.company_id === userProfile.company_id
+                })
+                if (cached.length > 0) {
+                    const withMissing = cached.map((d: any) => {
+                        const missing: string[] = []
+                        if (!d.name) missing.push('name')
+                        if (!d.phone) missing.push('phone')
+                        if (!d.vehicle_type) missing.push('vehicle_type')
+                        return { ...d, missing_fields: missing }
+                    })
+                    setDrivers(withMissing)
+                    setFilteredDrivers(withMissing)
+                    toast({ title: 'Offline Mode', description: 'Showing cached drivers', type: 'info' })
+                } else {
+                    toast({ title: 'Error fetching drivers', description: driversError.message, type: 'error' })
+                    throw driversError
+                }
             }
 
             if (driversData) {
+                cacheData('drivers', driversData).catch(() => {})
                 const withMissing = driversData.map((d: any) => {
                     const missing = []
                     if (!d.name) missing.push('name')

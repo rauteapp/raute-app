@@ -15,6 +15,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Raute",
   description: "Route optimization and delivery management",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -63,6 +64,18 @@ export default function RootLayout({
           </ToastProvider>
         </ThemeProvider>
         <SpeedInsights />
+        <script dangerouslySetInnerHTML={{ __html: `
+          if ('serviceWorker' in navigator && !window.Capacitor) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js').catch(function() {});
+              navigator.serviceWorker.addEventListener('message', function(e) {
+                if (e.data && e.data.type === 'PROCESS_OFFLINE_QUEUE') {
+                  window.dispatchEvent(new CustomEvent('process-offline-queue'));
+                }
+              });
+            });
+          }
+        `}} />
       </body>
     </html>
   );

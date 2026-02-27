@@ -6,6 +6,7 @@ import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truc
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
+import { cacheData, getCachedData, getLastSyncTime } from "@/lib/offline-cache"
 import { waitForSession } from "@/lib/wait-for-session"
 import { parseOrderAI, type ParsedOrder } from "@/lib/grok"
 import { reverseGeocode } from "@/lib/geocoding"
@@ -231,17 +232,15 @@ export default function OrdersPage() {
 
             if (!currentUserId) return
 
-            // ⚡ QUICK LOAD: Try to load from cache immediately for instant UI
-            if (typeof window !== 'undefined') {
-                const cachedOrders = localStorage.getItem('cached_orders')
-                if (cachedOrders && orders.length === 0) {
-                    try {
-                        const parsed = JSON.parse(cachedOrders)
-                        setOrders(parsed)
-                        // Don't verify integrity too strictly here, just show something
-                        console.log("Loaded cached orders:", parsed.length)
-                    } catch (e) { console.error("Cache parse error", e) }
-                }
+            // ⚡ QUICK LOAD: Try to load from IDB cache immediately for instant UI
+            if (orders.length === 0) {
+                try {
+                    const cached = await getCachedData<Order>('orders')
+                    if (cached.length > 0) {
+                        setOrders(cached)
+                        console.log("Loaded cached orders from IDB:", cached.length)
+                    }
+                } catch (e) { console.error("IDB cache read error", e) }
             }
 
             const { data: userProfile } = await supabase
@@ -297,8 +296,7 @@ export default function OrdersPage() {
                 fetchedOrders = data || []
                 setOrders(fetchedOrders)
                 if (data) {
-                    localStorage.setItem('cached_orders', JSON.stringify(data))
-                    localStorage.setItem('cached_orders_ts', new Date().toISOString())
+                    cacheData('orders', data).catch(() => {})
                 }
 
             } else {
@@ -317,8 +315,7 @@ export default function OrdersPage() {
                 fetchedOrders = data || []
                 setOrders(fetchedOrders)
                 if (data) {
-                    localStorage.setItem('cached_orders', JSON.stringify(data))
-                    localStorage.setItem('cached_orders_ts', new Date().toISOString())
+                    cacheData('orders', data).catch(() => {})
                 }
             }
             // Auto-expand date range if no orders match today but there are orders
@@ -337,21 +334,26 @@ export default function OrdersPage() {
             }
         } catch (error: any) {
             console.error("Fetch error:", error)
-            // 🛑 ERROR: Fallback to Cache if empty
-            const cachedOrders = localStorage.getItem('cached_orders')
-            if (orders.length === 0 && cachedOrders) {
+            // 🛑 ERROR: Fallback to IDB Cache if empty
+            if (orders.length === 0) {
                 try {
-                    const parsed = JSON.parse(cachedOrders)
-                    setOrders(parsed)
-                    const ts = localStorage.getItem('cached_orders_ts')
-                    toast({
-                        title: 'Offline Mode',
-                        description: `Showing data from ${ts ? new Date(ts).toLocaleTimeString() : 'cache'}`,
-                        type: 'info'
-                    })
-                } catch (e) { }
+                    const cached = await getCachedData<Order>('orders')
+                    if (cached.length > 0) {
+                        setOrders(cached)
+                        const lastSync = await getLastSyncTime('orders')
+                        toast({
+                            title: 'Offline Mode',
+                            description: `Showing data from ${lastSync ? new Date(lastSync).toLocaleTimeString() : 'cache'}`,
+                            type: 'info'
+                        })
+                    } else {
+                        toast({ title: 'Failed to load orders', description: error.message, type: 'error' })
+                    }
+                } catch (e) {
+                    toast({ title: 'Failed to load orders', description: error.message, type: 'error' })
+                }
             } else {
-                toast({ title: 'Failed to update order', description: error.message, type: 'error' })
+                toast({ title: 'Failed to update orders', description: error.message, type: 'error' })
             }
         } finally {
             setIsLoading(false)
