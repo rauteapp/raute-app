@@ -53,7 +53,7 @@ export default function RootLayout({
           <ToastProvider>
             <AuthListener />
             <AuthCheck>
-              <div className="min-h-screen pb-16 safe-area-pb">
+              <div className="min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))] safe-area-pb">
                 <main>
                   {children}
                 </main>
