@@ -72,7 +72,7 @@ export default function DispatchersPage() {
                 try {
                     const { data: userData } = await supabase.auth.getUser()
                     if (userData.user) currentUserId = userData.user.id
-                } catch {}
+                } catch { }
             }
 
             if (!currentUserId) {
@@ -240,7 +240,7 @@ export default function DispatchersPage() {
                             companyUser = apiData.user
                         }
                     }
-                } catch {}
+                } catch { }
             }
             if (!companyUser) throw new Error("No company found")
 
@@ -305,36 +305,41 @@ export default function DispatchersPage() {
     // LOADING SKELETON
     if (isLoading) {
         return (
-            <div className="p-6 max-w-7xl mx-auto space-y-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <Skeleton className="h-8 w-48 mb-2" />
-                        <Skeleton className="h-4 w-64" />
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-slate-100 dark:from-blue-950/20 dark:via-slate-950 dark:to-slate-900">
+                <header
+                    className="sticky top-0 z-20 px-5 pb-5 flex items-center justify-between bg-white/70 dark:bg-slate-950/70 backdrop-blur-2xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm"
+                    style={{ paddingTop: 'max(env(safe-area-inset-top), 3.5rem)' }}
+                >
+                    <div className="flex flex-col gap-2">
+                        <Skeleton className="h-7 w-48 rounded-full" />
+                        <Skeleton className="h-4 w-64 rounded-full" />
                     </div>
-                    <Skeleton className="h-10 w-32" />
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                        <div key={i} className="border rounded-xl p-6 bg-card space-y-4">
-                            <div className="flex justify-between items-center">
-                                <Skeleton className="h-6 w-32" />
-                                <Skeleton className="h-5 w-16 rounded-full" />
-                            </div>
-                            <Skeleton className="h-4 w-48" />
-                            <div className="space-y-2 pt-4">
-                                <Skeleton className="h-3 w-20" />
-                                <div className="flex gap-2">
-                                    <Skeleton className="h-5 w-16" />
-                                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-10 w-32 rounded-full" />
+                </header>
+                <div className="p-5 max-w-7xl mx-auto space-y-8 mt-2">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-4">
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div key={i} className="rounded-[32px] p-6 bg-white/60 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/50 shadow-sm space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <Skeleton className="h-6 w-32 rounded-full" />
+                                    <Skeleton className="h-5 w-16 rounded-full" />
+                                </div>
+                                <Skeleton className="h-4 w-48 rounded-full" />
+                                <div className="space-y-2 pt-4">
+                                    <Skeleton className="h-3 w-20 rounded-full" />
+                                    <div className="flex gap-2">
+                                        <Skeleton className="h-5 w-16 rounded-[8px]" />
+                                        <Skeleton className="h-5 w-24 rounded-[8px]" />
+                                    </div>
+                                </div>
+                                <div className="pt-4 flex gap-2">
+                                    <Skeleton className="h-9 flex-1 rounded-full" />
+                                    <Skeleton className="h-9 w-9 rounded-full" />
+                                    <Skeleton className="h-9 w-9 rounded-full" />
                                 </div>
                             </div>
-                            <div className="pt-4 flex gap-2">
-                                <Skeleton className="h-8 flex-1" />
-                                <Skeleton className="h-8 w-8" />
-                                <Skeleton className="h-8 w-8" />
-                            </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             </div>
         )
@@ -342,159 +347,181 @@ export default function DispatchersPage() {
 
     return (
         <PullToRefresh onRefresh={fetchDispatchers}>
-        <div className="p-6 max-w-7xl mx-auto space-y-6 pb-4 safe-area-pt">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold">Dispatch Team</h1>
-                    <p className="text-slate-500 dark:text-slate-400">Manage dispatchers and their access limits.</p>
-                </div>
-                <Sheet open={isAddOpen} onOpenChange={(open) => {
-                    setIsAddOpen(open)
-                    if (!open) {
-                        setEditingDispatcher(null)
-                        setFormData({ name: '', email: '', password: '', permissions: { view_orders: true, view_drivers: true } })
-                    }
-                }}>
-                    <SheetTrigger asChild>
-                        <Button className="gap-2"><Plus size={16} /> Add Dispatcher</Button>
-                    </SheetTrigger>
-                    <SheetContent className="overflow-y-auto w-full sm:max-w-md safe-area-pt">
-                        <SheetHeader>
-                            <SheetTitle>{editingDispatcher ? 'Edit Dispatcher' : 'Add New Dispatcher'}</SheetTitle>
-                        </SheetHeader>
-                        <div className="space-y-4 mt-6 px-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Full Name</label>
-                                <Input
-                                    value={formData.name}
-                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="e.g. Sarah Smith"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Email</label>
-                                <Input
-                                    value={formData.email}
-                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                    placeholder="dispatcher@company.com"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Password {editingDispatcher && '(Leave blank to keep current)'}</label>
-                                <PasswordInput
-                                    value={formData.password}
-                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                    placeholder={editingDispatcher ? "••••••••" : "Create password"}
-                                />
-                            </div>
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-slate-100 dark:from-blue-950/20 dark:via-slate-950 dark:to-slate-900">
 
-                            <div className="pt-4 border-t">
-                                <label className="text-sm font-bold mb-3 block flex items-center gap-2">
-                                    <ShieldAlert size={14} /> Access Limitations
-                                </label>
-                                <div className="space-y-3">
-                                    {AVAILABLE_PERMISSIONS.map(perm => (
-                                        <div key={perm.id} className="flex items-center gap-2">
-                                            <Checkbox
-                                                id={perm.id}
-                                                checked={!!formData.permissions?.[perm.id]}
-                                                onCheckedChange={(checked) => {
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        permissions: {
-                                                            ...prev.permissions,
-                                                            [perm.id]: checked === true
-                                                        }
-                                                    }))
-                                                }}
-                                            />
-                                            <label htmlFor={perm.id} className="text-sm cursor-pointer select-none">
-                                                {perm.label}
-                                            </label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <Button onClick={handleSubmit} className="w-full mt-4" disabled={isSubmitting}>
-                                {isSubmitting ? 'Saving...' : (editingDispatcher ? 'Save Changes' : 'Create Account')}
-                            </Button>
-                        </div>
-                    </SheetContent>
-                </Sheet>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {dispatchers.length === 0 && (
-                    <div className="col-span-full text-center py-12 border-2 border-dashed rounded-xl text-slate-400 dark:text-slate-500 dark:border-slate-700">
-                        No dispatchers found.
+                <header
+                    className="sticky top-0 z-20 px-5 pb-5 flex items-center justify-between bg-white/70 dark:bg-slate-950/70 backdrop-blur-2xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm"
+                    style={{ paddingTop: 'max(env(safe-area-inset-top), 3.5rem)' }}
+                >
+                    <div className="flex flex-col">
+                        <h1 className="text-[22px] leading-none font-black text-slate-900 dark:text-white tracking-tight">Dispatch Team</h1>
+                        <p className="text-[13px] font-semibold text-slate-500 mt-1">Manage dispatchers and access limits.</p>
                     </div>
-                )}
 
-                {dispatchers.map(dispatcher => (
-                    <Card key={dispatcher.id} className={dispatcher.status === 'suspended' ? 'opacity-70 bg-slate-50 dark:bg-slate-900/40' : ''}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-base font-bold flex items-center gap-2">
-                                <UserCog size={18} className="text-blue-600" />
-                                {dispatcher.full_name}
-                            </CardTitle>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold border ${dispatcher.status === 'suspended' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' : 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'}`}>
-                                {dispatcher.status || 'active'}
-                            </span>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-sm text-slate-500 dark:text-slate-400 mb-4">{dispatcher.email}</div>
+                    <Sheet open={isAddOpen} onOpenChange={(open) => {
+                        setIsAddOpen(open)
+                        if (!open) {
+                            setEditingDispatcher(null)
+                            setFormData({ name: '', email: '', password: '', permissions: { view_orders: true, view_drivers: true } })
+                        }
+                    }}>
+                        <SheetTrigger asChild>
+                            <Button size="sm" className="gap-2 h-10 rounded-[20px] px-4 shadow-sm bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-200 dark:text-slate-900 transition-all font-bold">
+                                <Plus size={18} strokeWidth={3} /> <span className="hidden sm:inline">Add Dispatcher</span><span className="sm:hidden">Add</span>
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="bottom" className="h-[90vh] rounded-t-[32px] p-6 overflow-y-auto safe-area-pt bg-white/95 dark:bg-slate-950/95 backdrop-blur-2xl border-t border-slate-200/50 dark:border-slate-800/50 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
+                            <SheetHeader className="mb-6">
+                                <SheetTitle className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">{editingDispatcher ? 'Edit Dispatcher' : 'Add New Dispatcher'}</SheetTitle>
+                            </SheetHeader>
+                            <div className="space-y-6 pb-32 px-1">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Full Name</label>
+                                    <Input
+                                        value={formData.name}
+                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                        placeholder="e.g. Sarah Smith"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Email</label>
+                                    <Input
+                                        value={formData.email}
+                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                        placeholder="dispatcher@company.com"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Password {editingDispatcher && '(Leave blank to keep current)'}</label>
+                                    <PasswordInput
+                                        value={formData.password}
+                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                        placeholder={editingDispatcher ? "••••••••" : "Create password"}
+                                    />
+                                </div>
 
-                            <div className="space-y-1 mb-4">
-                                <p className="text-xs font-bold uppercase text-slate-400 dark:text-slate-500">Permissions:</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {Object.entries(dispatcher.permissions || {}).map(([key, val]) => (
-                                        val && <span key={key} className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">{key.replace('_', ' ')}</span>
-                                    ))}
-                                    {Object.keys(dispatcher.permissions || {}).length === 0 && <span className="text-xs italic text-red-500">Read Only</span>}
+                                <div className="pt-4 border-t">
+                                    <label className="text-sm font-bold mb-3 block flex items-center gap-2">
+                                        <ShieldAlert size={14} /> Access Limitations
+                                    </label>
+                                    <div className="space-y-3">
+                                        {AVAILABLE_PERMISSIONS.map(perm => (
+                                            <div key={perm.id} className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id={perm.id}
+                                                    checked={!!formData.permissions?.[perm.id]}
+                                                    onCheckedChange={(checked) => {
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            permissions: {
+                                                                ...prev.permissions,
+                                                                [perm.id]: checked === true
+                                                            }
+                                                        }))
+                                                    }}
+                                                />
+                                                <label htmlFor={perm.id} className="text-sm cursor-pointer select-none">
+                                                    {perm.label}
+                                                </label>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <Button onClick={handleSubmit} className="w-full h-12 text-lg font-bold rounded-[16px] mt-4" disabled={isSubmitting}>
+                                    {isSubmitting ? 'Saving...' : (editingDispatcher ? 'Save Changes' : 'Create Account')}
+                                </Button>
+                            </div>
+                        </SheetContent>
+                    </Sheet>
+                </header>
+
+                <main className="p-5 max-w-7xl mx-auto space-y-8 mt-2">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {dispatchers.length === 0 && (
+                            <div className="col-span-full border-dashed border-2 border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 rounded-[32px] flex flex-col items-center justify-center py-20 text-center shadow-sm backdrop-blur-sm mx-2">
+                                <div className="h-16 w-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-5 rotate-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    <UserCog className="h-8 w-8 text-slate-400 dark:text-slate-500" strokeWidth={2} />
+                                </div>
+                                <h3 className="text-[17px] font-black text-slate-800 dark:text-slate-200 tracking-tight">No dispatchers found</h3>
+                                <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400 mt-2 max-w-[260px] leading-relaxed">Add a dispatcher to allow them to manage your drivers and orders.</p>
+                            </div>
+                        )}
+
+                        {dispatchers.map(dispatcher => (
+                            <div key={dispatcher.id} className={`group relative flex flex-col overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-lg transition-all rounded-[32px] p-6 ${dispatcher.status === 'suspended' ? 'opacity-70 grayscale-[0.3]' : ''}`}>
+                                <div className="flex flex-row items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-[20px] shadow-sm flex items-center justify-center shrink-0 border border-white/20">
+                                            <UserCog size={22} className="text-white" strokeWidth={2.5} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight truncate pb-0.5">{dispatcher.full_name}</h3>
+                                            <div className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">{dispatcher.email}</div>
+                                        </div>
+                                    </div>
+                                    <span className={`text-[10px] px-2 py-1 rounded-[8px] uppercase font-black tracking-wider border ${dispatcher.status === 'suspended' ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/60' : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/60'}`}>
+                                        {dispatcher.status || 'active'}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-1 mb-6 flex-1">
+                                    <p className="text-[11px] font-bold uppercase text-slate-400 dark:text-slate-500 mb-2 tracking-widest">Permissions:</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {Object.entries(dispatcher.permissions || {}).map(([key, val]) => (
+                                            val && <span key={key} className="text-[11px] font-bold bg-slate-100 dark:bg-slate-800/80 px-2 py-1 rounded-[10px] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">{key.replace('_', ' ')}</span>
+                                        ))}
+                                        {Object.keys(dispatcher.permissions || {}).length === 0 && <span className="text-xs font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-1 rounded-[10px]">Read Only</span>}
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 pt-4 border-t border-slate-100 dark:border-slate-800/60 mt-auto items-center">
+                                    <Button
+                                        variant="outline"
+                                        className={`flex-1 h-11 rounded-full font-bold shadow-sm ${dispatcher.status === 'suspended' ? 'text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60' : 'text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200 dark:border-amber-900/40 dark:bg-amber-950/40 dark:hover:bg-amber-900/60'}`}
+                                        onClick={() => toggleStatus(dispatcher)}
+                                    >
+                                        {dispatcher.status === 'suspended' ? <Unlock size={16} className="mr-1.5" strokeWidth={2.5} /> : <Lock size={16} className="mr-1.5" strokeWidth={2.5} />}
+                                        {dispatcher.status === 'suspended' ? 'Unfreeze' : 'Freeze'}
+                                    </Button>
+
+                                    <button
+                                        className="h-11 w-11 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200/50 dark:border-slate-700/50"
+                                        onClick={() => openEdit(dispatcher)}
+                                        title="Edit Dispatcher"
+                                    >
+                                        <UserCog size={18} strokeWidth={2} />
+                                    </button>
+
+                                    <button
+                                        className="h-11 w-11 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors border border-rose-100 dark:border-rose-900/50"
+                                        onClick={() => initiateDelete(dispatcher)}
+                                        title="Delete Dispatcher"
+                                    >
+                                        <Trash2 size={18} strokeWidth={2} />
+                                    </button>
                                 </div>
                             </div>
+                        ))}
+                    </div>
+                </main>
 
-                            <div className="flex gap-2 pt-2 border-t mt-auto">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className={`flex-1 ${dispatcher.status === 'suspended' ? 'text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20'}`}
-                                    onClick={() => toggleStatus(dispatcher)}
-                                >
-                                    {dispatcher.status === 'suspended' ? <Unlock size={14} className="mr-1" /> : <Lock size={14} className="mr-1" />}
-                                    {dispatcher.status === 'suspended' ? 'Unfreeze' : 'Freeze'}
-                                </Button>
-
-                                <Button variant="outline" size="sm" onClick={() => openEdit(dispatcher)}>
-                                    <UserCog size={14} />
-                                </Button>
-
-                                <Button variant="destructive" size="sm" onClick={() => initiateDelete(dispatcher)}>
-                                    <Trash2 size={14} />
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                {/* DELETE ALERT */}
+                <AlertDialog open={!!deletingDispatcher} onOpenChange={() => setDeletingDispatcher(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Dispatcher?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Are you sure you want to delete <b>{deletingDispatcher?.full_name}</b>? This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteDispatcher} className="bg-red-600">Delete Account</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
-
-            {/* DELETE ALERT */}
-            <AlertDialog open={!!deletingDispatcher} onOpenChange={() => setDeletingDispatcher(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Dispatcher?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Are you sure you want to delete <b>{deletingDispatcher?.full_name}</b>? This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteDispatcher} className="bg-red-600">Delete Account</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
         </PullToRefresh>
     )
 }

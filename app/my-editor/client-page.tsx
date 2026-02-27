@@ -526,55 +526,113 @@ export default function ClientOrderDetails() {
 
     return (
         <PullToRefresh onRefresh={() => fetchOrder(false)}>
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-4">
-            {/* Header */}
-            <div className="ios-header sticky top-0 z-10 safe-area-pt">
-                <div className="p-4 flex items-center gap-3">
-                    <Button variant="ghost" size="sm" onClick={() => router.back()} className="h-9 w-9 p-0 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft size={20} /></Button>
-                    <div className="flex-1"><h1 className="text-base font-bold text-slate-900 dark:text-slate-100 leading-tight">#{order.order_number}</h1><p className="text-xs text-slate-500 dark:text-slate-400">{order.customer_name}</p></div>
-                    <span className={`px-3 py-1 text-xs font-bold rounded-full border uppercase tracking-wider ${statusColors[order.status as keyof typeof statusColors]}`}>{order.status.replace("_", " ")}</span>
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32">
+                {/* Premium Header */}
+                <div className="ios-header sticky top-0 z-10 safe-area-pt bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50">
+                    <div className="p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 shrink-0 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 bg-white shadow-sm dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                <ArrowLeft size={20} className="text-slate-700 dark:text-slate-300" />
+                            </Button>
+                            <div className="flex flex-col">
+                                <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">#{order.order_number}</h1>
+                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 line-clamp-1">{order.customer_name}</p>
+                            </div>
+                        </div>
+
+                        {/* Status Pill */}
+                        <div className={cn(
+                            "px-3.5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest border shadow-sm shrink-0 whitespace-nowrap",
+                            order.status === 'pending' ? "bg-amber-50 text-amber-600 border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20" :
+                                order.status === 'assigned' ? "bg-blue-50 text-blue-600 border-blue-200/50 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20" :
+                                    order.status === 'in_progress' ? "bg-purple-50 text-purple-600 border-purple-200/50 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20" :
+                                        order.status === 'delivered' ? "bg-emerald-50 text-emerald-600 border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20" :
+                                            "bg-rose-50 text-rose-600 border-rose-200/50 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                        )}>
+                            {order.status.replace('_', ' ')}
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            {/* Map Section */}
-            {order.latitude && order.longitude && (
-                <div className="h-56 w-full relative border-b border-slate-200 dark:border-slate-800 overflow-hidden" style={{ zIndex: 0, isolation: 'isolate' }}>
-                    <MapContainer center={[order.latitude, order.longitude]} zoom={15} style={{ height: '100%', width: '100%' }} className="z-0">
-                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
-                        <Marker position={[order.latitude, order.longitude]} icon={createColoredIcon(order.status)}><Popup>{order.customer_name}</Popup></Marker>
-                    </MapContainer>
-                </div>
-            )}
+                {/* Map Section */}
+                {order.latitude && order.longitude && (
+                    <div className="h-56 w-full relative border-b border-slate-200 dark:border-slate-800 overflow-hidden" style={{ zIndex: 0, isolation: 'isolate' }}>
+                        <MapContainer center={[order.latitude, order.longitude]} zoom={15} style={{ height: '100%', width: '100%' }} className="z-0">
+                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
+                            <Marker position={[order.latitude, order.longitude]} icon={createColoredIcon(order.status)}><Popup>{order.customer_name}</Popup></Marker>
+                        </MapContainer>
+                    </div>
+                )}
 
-            {/* Content & Logic Area */}
-            <div className="p-4 space-y-4 max-w-lg mx-auto">
+                {/* Content & Logic Area */}
+                <div className="p-4 space-y-5 max-w-lg mx-auto">
 
-                {/* Info Cards */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden divide-y divide-slate-50 dark:divide-slate-800">
-                    <div className="p-4 flex gap-4"><div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0"><UserIcon size={20} /></div><div><p className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Customer</p><p className="font-medium text-slate-900 dark:text-slate-100">{order.customer_name}</p>{order.phone && (<a href={`tel:${order.phone}`} className="text-blue-600 dark:text-blue-400 text-sm font-medium flex items-center gap-1 mt-1"><Phone size={12} /> {order.phone}</a>)}</div></div>
-                    <div className="p-4 flex gap-4"><div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0"><MapPin size={20} /></div><div><p className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Address</p><p className="font-medium text-slate-900 dark:text-slate-100">{order.address}</p><p className="text-sm text-slate-500 dark:text-slate-400">{[order.city, order.state].filter(Boolean).join(', ')}</p><button
-                        onClick={async () => {
-                            // Auto-trigger in_progress when driver navigates from assigned order
-                            if (order.status === 'assigned' && !['manager', 'admin', 'company_admin'].includes(userRole || '')) {
-                                await updateOrderStatus('in_progress')
-                            }
-                            const isNative = Capacitor.isNativePlatform()
-                            if (isNative) {
-                                // Open native Maps app
-                                const url = Capacitor.getPlatform() === 'ios'
-                                    ? `maps://?q=${order.latitude},${order.longitude}`
-                                    : `geo:${order.latitude},${order.longitude}?q=${order.latitude},${order.longitude}`
-                                window.location.href = url
-                            } else {
-                                // Web: open in new tab
-                                window.open(`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`, '_blank')
-                            }
-                        }}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full mt-2 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                    >
-                        Open in Google Maps
-                    </button></div></div>
-                    {order.notes && (<div className="p-4 bg-yellow-50/50 dark:bg-yellow-950/20"><p className="text-xs text-yellow-600 dark:text-yellow-400 font-bold uppercase tracking-wider mb-1">Driver Notes</p><p className="text-sm text-slate-700 dark:text-slate-300 italic">"{order.notes}"</p></div>)}
+                    {/* Customer Info Card */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-sm border border-slate-200/60 dark:border-slate-800 overflow-hidden relative group">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                        <div className="p-5 flex gap-4">
+                            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-[16px] flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 shadow-inner">
+                                <UserIcon size={24} strokeWidth={2.5} />
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Customer Details</p>
+                                <p className="text-lg font-black text-slate-900 dark:text-white truncate">{order.customer_name}</p>
+                                {order.phone && (
+                                    <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1.5 mt-2 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-xl text-sm font-bold w-fit transition-colors group/phone">
+                                        <Phone size={14} className="text-blue-500 group-hover/phone:rotate-12 transition-transform" /> {order.phone}
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Delivery Location Card */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-sm border border-slate-200/60 dark:border-slate-800 overflow-hidden relative group">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                        <div className="p-5 flex gap-4">
+                            <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-[16px] flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-inner">
+                                <MapPin size={24} strokeWidth={2.5} />
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Delivery Address</p>
+                                <p className="text-base font-bold text-slate-800 dark:text-slate-200 leading-snug break-words">{order.address}</p>
+                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-0.5">{[order.city, order.state].filter(Boolean).join(', ')}</p>
+
+                                <button
+                                    onClick={async () => {
+                                        if (order.status === 'assigned' && !['manager', 'admin', 'company_admin'].includes(userRole || '')) {
+                                            await updateOrderStatus('in_progress')
+                                        }
+                                        const isNative = Capacitor.isNativePlatform()
+                                        if (isNative) {
+                                            const url = Capacitor.getPlatform() === 'ios'
+                                                ? `maps://?q=${order.latitude},${order.longitude}`
+                                                : `geo:${order.latitude},${order.longitude}?q=${order.latitude},${order.longitude}`
+                                            window.location.href = url
+                                        } else {
+                                            window.open(`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`, '_blank')
+                                        }
+                                    }}
+                                    className="mt-3 inline-flex items-center justify-center gap-2 w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-sm font-bold py-3 rounded-xl shadow-md transition-transform active:scale-[0.98]"
+                                >
+                                    <MapPin size={16} /> Open in Navigation
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Driver Notes Card */}
+                    {order.notes && (
+                        <div className="bg-amber-50/80 dark:bg-amber-950/20 rounded-[28px] border border-amber-200/60 dark:border-amber-900/40 p-5 mt-2 shadow-inner">
+                            <div className="flex items-center gap-2 mb-2">
+                                <AlertCircle size={16} className="text-amber-600 dark:text-amber-500" />
+                                <h3 className="text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-500">Important Notes</h3>
+                            </div>
+                            <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 leading-relaxed italic bg-amber-100/50 dark:bg-amber-900/30 p-3 rounded-2xl">
+                                "{order.notes}"
+                            </p>
+                        </div>
+                    )}
 
                     {/* Proof Images Gallery - Only show when order is delivered */}
                     {order.status === 'delivered' && (proofImages.length > 0 || order.proof_url || order.signature_url) && (
@@ -658,73 +716,78 @@ export default function ClientOrderDetails() {
 
                 {/* 🚨 DRIVER ACTIONS (Show for anyone NOT a manager) */}
                 {!['manager', 'admin', 'company_admin'].includes(userRole || '') && (
-                    <div className="space-y-3 pt-2">
+                    <div className="space-y-4 pt-2 block">
                         {order.status === 'delivered' ? (
-                            <div className="bg-green-50 dark:bg-green-950/30 rounded-xl border border-green-200 dark:border-green-900/50 p-5 text-center space-y-3 animate-in fade-in slide-in-from-bottom-4">
-                                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mx-auto text-green-600 dark:text-green-400"><CheckCircle2 size={24} /></div>
-                                <div><h3 className="font-bold text-green-800 dark:text-green-300 text-lg">Order Delivered!</h3><p className="text-sm text-green-700 dark:text-green-400">Time: {new Date(order.delivered_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
+                            <div className="bg-emerald-50 dark:bg-emerald-950/20 rounded-[24px] border border-emerald-200/60 dark:border-emerald-900/40 p-6 text-center space-y-4 shadow-sm relative overflow-hidden group">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400 shadow-inner">
+                                    <CheckCircle2 size={32} strokeWidth={2.5} className="drop-shadow-sm" />
+                                </div>
+                                <div className="space-y-1">
+                                    <h3 className="font-black text-emerald-800 dark:text-emerald-300 text-xl tracking-tight">Order Delivered!</h3>
+                                    <p className="text-sm font-semibold text-emerald-600/80 dark:text-emerald-400/80">Time: {new Date(order.delivered_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                </div>
 
                                 {order.proof_url && (
-                                    <div className="flex justify-center">
+                                    <div className="flex justify-center pt-2">
                                         <button
                                             onClick={() => {
                                                 setViewerImageUrl(order.proof_url!)
                                                 setViewerImageTitle('Proof of Delivery')
                                             }}
-                                            className="inline-flex items-center gap-2 text-xs font-bold text-green-700 dark:text-green-400 bg-white dark:bg-slate-900 border border-green-200 dark:border-green-800 px-4 py-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors shadow-sm"
+                                            className="inline-flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-white/80 dark:bg-slate-900/80 border border-emerald-200/50 dark:border-emerald-800/50 px-5 py-2.5 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all shadow-sm active:scale-95"
                                         >
-                                            <CameraIcon size={14} /> View Proof Photo
+                                            <CameraIcon size={16} /> View Proof Photo
                                         </button>
                                     </div>
                                 )}
-
-
 
                                 <Button
                                     variant="outline"
                                     disabled={isUpdating}
                                     onClick={() => setIsUndoDialogOpen(true)}
-                                    className="w-full h-12 border-green-200 text-green-700 hover:bg-green-100 mt-2 bg-transparent font-medium"
+                                    className="w-full h-12 rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 mt-2 bg-transparent font-bold transition-all"
                                 >
                                     {isUpdating ? <Loader2 className="animate-spin mr-2" size={18} /> : <Undo2 size={18} className="mr-2" />}
                                     Undo / Not Delivered
                                 </Button>
                             </div>
                         ) : order.status === 'cancelled' ? (
-                            <div className="bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-900/50 p-5 space-y-3 animate-in fade-in slide-in-from-bottom-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 bg-red-100 dark:bg-red-900/40 rounded-full flex items-center justify-center text-red-600 dark:text-red-400 flex-shrink-0">
-                                        <AlertCircle size={24} />
+                            <div className="bg-rose-50 dark:bg-rose-950/20 rounded-[24px] border border-rose-200/60 dark:border-rose-900/40 p-6 space-y-4 shadow-sm relative overflow-hidden group">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-400 to-red-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 bg-rose-100 dark:bg-rose-900/40 rounded-full flex items-center justify-center text-rose-600 dark:text-rose-400 flex-shrink-0 shadow-inner">
+                                        <AlertCircle size={28} strokeWidth={2.5} />
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-red-800 dark:text-red-300 text-lg">Order Cancelled</h3>
+                                        <h3 className="font-black text-rose-800 dark:text-rose-300 text-xl tracking-tight">Order Cancelled</h3>
                                         {order.cancelled_at && (
-                                            <p className="text-sm text-red-600 dark:text-red-400">
+                                            <p className="text-[13px] font-semibold text-rose-600/80 dark:text-rose-400/80 mt-0.5">
                                                 {new Date(order.cancelled_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(order.cancelled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </p>
                                         )}
                                     </div>
                                 </div>
                                 {order.cancellation_reason && (
-                                    <div className="bg-white/60 dark:bg-slate-900/40 rounded-lg p-3 space-y-1">
-                                        <p className="text-sm font-medium text-red-700 dark:text-red-300">
-                                            Reason: {
+                                    <div className="bg-white/80 dark:bg-slate-900/60 rounded-2xl p-4 space-y-1.5 shadow-sm border border-rose-100 dark:border-rose-900/30">
+                                        <p className="text-sm font-bold text-rose-800 dark:text-rose-300">
+                                            Reason: <span className="font-semibold text-rose-600 dark:text-rose-400">{
                                                 [...(MANAGER_CANCEL_REASONS || [])].find(r => r.value === order.cancellation_reason)?.label
                                                 || order.cancellation_reason
-                                            }
+                                            }</span>
                                         </p>
                                         {order.cancellation_note && (
-                                            <p className="text-sm text-red-600 dark:text-red-400 italic">&ldquo;{order.cancellation_note}&rdquo;</p>
+                                            <p className="text-sm text-rose-600/90 dark:text-rose-400/90 italic font-medium leading-relaxed">&ldquo;{order.cancellation_note}&rdquo;</p>
                                         )}
                                     </div>
                                 )}
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-3">
+                            <div className="grid grid-cols-1 gap-4">
                                 {/* Start Delivery — prominent button for assigned orders */}
                                 {order.status === 'assigned' && (
                                     <Button
-                                        className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white text-base font-bold shadow-lg"
+                                        className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-[0_8px_16px_-6px_rgba(37,99,235,0.4)] text-[17px] font-black tracking-wide transition-all active:scale-[0.98] group flex items-center justify-center"
                                         disabled={isUpdating}
                                         onClick={async () => {
                                             await updateOrderStatus('in_progress')
@@ -742,7 +805,7 @@ export default function ClientOrderDetails() {
                                             }
                                         }}
                                     >
-                                        {isUpdating ? <Loader2 className="animate-spin mr-2" size={20} /> : <Navigation size={20} className="mr-2" />}
+                                        {isUpdating ? <Loader2 className="animate-spin mr-2" size={22} /> : <Navigation size={22} className="mr-3 group-hover:-translate-y-1 group-hover:translate-x-1 transition-transform" />}
                                         Start Delivery
                                     </Button>
                                 )}
@@ -762,98 +825,59 @@ export default function ClientOrderDetails() {
                                             })
 
                                             if (image.webPath) {
-                                                // Import compression utility
                                                 const { ImageCompressor } = await import('@/lib/image-compressor')
-
-                                                // Fetch and compress image
                                                 const response = await fetch(image.webPath)
                                                 const originalBlob = await response.blob()
                                                 const compressedBlob = await ImageCompressor.compressFromBlob(originalBlob)
-
                                                 const filename = `proof-${orderId}-${Date.now()}.jpg`
-
-                                                // Upload compressed version (96% smaller)
-                                                const { data, error } = await supabase.storage
-                                                    .from('proofs')
-                                                    .upload(filename, compressedBlob)
+                                                const { data, error } = await supabase.storage.from('proofs').upload(filename, compressedBlob)
 
                                                 if (error) throw error
 
                                                 if (data) {
                                                     const { data: { publicUrl } } = supabase.storage.from('proofs').getPublicUrl(filename)
-
-                                                    // Get company_id and user_id
                                                     const { data: { user } } = await supabase.auth.getUser()
-                                                    const { data: userProfile } = await supabase
-                                                        .from('users')
-                                                        .select('company_id')
-                                                        .eq('id', user?.id)
-                                                        .single()
+                                                    const { data: userProfile } = await supabase.from('users').select('company_id').eq('id', user?.id).single()
 
-                                                    // Save to proof_images table
                                                     const { data: newImage, error: insertError } = await supabase
                                                         .from('proof_images')
-                                                        .insert({
-                                                            order_id: orderId,
-                                                            company_id: userProfile?.company_id,
-                                                            image_url: publicUrl,
-                                                            uploaded_by: user?.id
-                                                        })
-                                                        .select()
-                                                        .single()
+                                                        .insert({ order_id: orderId, company_id: userProfile?.company_id, image_url: publicUrl, uploaded_by: user?.id })
+                                                        .select().single()
 
                                                     if (insertError) throw insertError
 
-                                                    // Update local state
-                                                    if (newImage) {
-                                                        setProofImages(prev => [...prev, newImage])
-                                                    }
+                                                    if (newImage) setProofImages(prev => [...prev, newImage])
 
                                                     toast({ title: 'Photo captured!', description: 'You can take more photos or mark as delivered', type: 'success' })
                                                 }
                                             }
                                         } catch (e: any) {
-                                            // Ensure user knows why it failed
-                                            if (e.message !== 'User cancelled photos app') {
-                                                toast({ title: "Camera Failed", description: e.message, type: "error" })
-                                            }
+                                            if (e.message !== 'User cancelled photos app') toast({ title: "Camera Failed", description: e.message, type: "error" })
                                         } finally {
                                             setIsUploadingProof(false)
                                         }
                                     }}
-                                    className="w-full h-12 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600"
+                                    className="w-full h-14 rounded-2xl border-2 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-700 transition-all text-base bg-white dark:bg-slate-900"
                                 >
                                     {isUploadingProof ? (
-                                        <>
-                                            <Loader2 size={18} className="mr-2 animate-spin" />
-                                            Uploading...
-                                        </>
+                                        <><Loader2 size={20} className="mr-2 animate-spin" /> Uploading...</>
                                     ) : (
-                                        <>
-                                            <CameraIcon size={18} className="mr-2" />
-                                            Capture Proof {proofImages.length > 0 && `(${proofImages.length})`}
-                                        </>
+                                        <><CameraIcon size={20} className="mr-2 text-slate-400" /> Capture Proof {proofImages.length > 0 && `(${proofImages.length})`}</>
                                     )}
                                 </Button>
 
                                 {/* ✍️ SIGNATURE (Optional/Required) */}
-                                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                                <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-200/60 dark:border-slate-800 p-5 space-y-4 shadow-sm">
                                     <div className="flex justify-between items-center">
-                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                            ✍️ Customer Signature
-                                            {formData.signature_required && <span className="text-red-500 text-xs">*Required</span>}
+                                        <label className="text-[13px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                            ✍️ Signature
+                                            {formData.signature_required && <span className="text-red-500 font-bold text-[10px] ml-1">*REQ</span>}
                                         </label>
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-6 text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                            className="h-7 px-3 text-xs font-bold rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                                             onClick={() => {
-                                                // clear signature
-                                                const canvas = document.querySelector('canvas.sig-canvas') as HTMLCanvasElement
-                                                // We need a ref to clear it properly, or just remount.
-                                                // The simplest way without complex refs across dynamic imports is to use the clear button provided by the lib wrapper or expose a clear method.
-                                                // For now, I will assume the SignatureInput component handles 'value' prop and clearing.
-                                                // Actually, I'll implement a 'key' prop to force re-render to clear.
                                                 setSignatureKey(prev => prev + 1)
                                                 setSignatureData(null)
                                             }}
@@ -862,72 +886,52 @@ export default function ClientOrderDetails() {
                                         </Button>
                                     </div>
 
-                                    <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/50 touch-none">
+                                    <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-[16px] bg-slate-50/50 dark:bg-slate-900/50 touch-none overflow-hidden hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
                                         <SignatureInput
                                             key={signatureKey}
                                             onEnd={(dataUrl) => setSignatureData(dataUrl)}
                                         />
                                     </div>
                                     {formData.signature_required && !signatureData && (
-                                        <p className="text-[10px] text-red-500 font-bold">Signature is required to complete delivery.</p>
+                                        <p className="text-[11px] text-red-500 font-bold">Signature is required to complete delivery.</p>
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-3">
-                                    {/* Button 2: Direct Delivery */}
-                                    <Button
-                                        disabled={isUpdating || (formData.signature_required && !signatureData)}
-                                        onClick={async () => {
-                                            // Check if at least one proof image exists (if no signature)
-                                            // If signature required, we checked above.
-
-                                            // Combine uploads
-                                            try {
-                                                setIsUpdating(true)
-
-                                                let finalSignatureUrl = null
-                                                if (signatureData) {
-                                                    // Upload Signature
-                                                    const blob = await (await fetch(signatureData)).blob()
-                                                    const filename = `sig-${orderId}-${Date.now()}.png`
-                                                    const { data, error } = await supabase.storage.from('proofs').upload(filename, blob)
-                                                    if (data) {
-                                                        const { data: { publicUrl } } = supabase.storage.from('proofs').getPublicUrl(filename)
-                                                        finalSignatureUrl = publicUrl
-                                                    }
-                                                }
-
-                                                // Use first proof image URL or fallback to legacy proof_url
-                                                let proofUrl = proofImages[0]?.image_url || order.proof_url
-
-                                                // Update status with signature
-                                                if (finalSignatureUrl) {
-                                                    await supabase.from('orders').update({ signature_url: finalSignatureUrl }).eq('id', orderId)
-                                                }
-
-                                                // Mark Delivered
-                                                await updateOrderStatus('delivered', proofUrl)
-
-                                            } catch (err: any) {
-                                                toast({ title: "Error", description: err.message, type: "error" })
-                                            } finally {
-                                                setIsUpdating(false)
+                                {/* Button 2: Direct Delivery */}
+                                <Button
+                                    disabled={isUpdating || (formData.signature_required && !signatureData)}
+                                    onClick={async () => {
+                                        try {
+                                            setIsUpdating(true)
+                                            let finalSignatureUrl = null
+                                            if (signatureData) {
+                                                const blob = await (await fetch(signatureData)).blob()
+                                                const filename = `sig-${orderId}-${Date.now()}.png`
+                                                const { data, error } = await supabase.storage.from('proofs').upload(filename, blob)
+                                                if (data) finalSignatureUrl = supabase.storage.from('proofs').getPublicUrl(filename).data.publicUrl
                                             }
-                                        }}
-                                        className="w-full bg-green-600 hover:bg-green-700 text-white h-14 rounded-xl shadow-lg shadow-green-200 text-lg font-bold transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
-                                    >
-                                        {isUpdating ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={24} />}
-                                        <span>{isUpdating ? "Processing..." : "Mark Delivered"}</span>
-                                    </Button>
-                                </div>
+                                            let proofUrl = proofImages[0]?.image_url || order.proof_url
+                                            if (finalSignatureUrl) await supabase.from('orders').update({ signature_url: finalSignatureUrl }).eq('id', orderId)
+                                            await updateOrderStatus('delivered', proofUrl)
+                                        } catch (err: any) {
+                                            toast({ title: "Error", description: err.message, type: "error" })
+                                        } finally {
+                                            setIsUpdating(false)
+                                        }
+                                    }}
+                                    className="w-full bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white h-16 rounded-[20px] shadow-[0_8px_16px_-6px_rgba(16,185,129,0.4)] text-[17px] font-black tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none group"
+                                >
+                                    {isUpdating ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={24} className="group-hover:scale-110 transition-transform" />}
+                                    <span>{isUpdating ? "Processing..." : "Complete Delivery"}</span>
+                                </Button>
 
                                 {/* Cancel Order — driver */}
                                 <Button
                                     variant="outline"
                                     onClick={() => setIsCancelDialogOpen(true)}
-                                    className="w-full h-12 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/30 font-medium"
+                                    className="w-full h-14 rounded-2xl text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[15px] font-bold mt-2"
                                 >
-                                    <AlertCircle size={16} className="mr-2" /> Cancel Order
+                                    <AlertCircle size={18} className="mr-2" /> Report Issue & Cancel
                                 </Button>
                             </div>
                         )}
@@ -936,49 +940,65 @@ export default function ClientOrderDetails() {
 
                 {/* 🔒 MANAGER ACTIONS 🔒 */}
                 {(userRole === 'manager' || userRole === 'admin' || userRole === 'company_admin') && (
-                    <div className="space-y-4 pt-4">
+                    <div className="space-y-4 pt-4 block">
                         {/* Status Update */}
-                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-4">
-                            <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Update Status</label>
-                            <select value={order.status} onChange={(e) => {
-                                if (e.target.value === 'cancelled') {
-                                    setIsCancelDialogOpen(true)
-                                } else {
-                                    updateOrderStatus(e.target.value)
-                                }
-                            }} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium bg-slate-50 dark:bg-slate-900 dark:text-slate-100">
-                                <option value="pending">🟡 Pending</option>
-                                <option value="assigned">🔵 Assigned</option>
-                                <option value="in_progress">🟣 In Progress</option>
-                                <option value="delivered">🟢 Delivered</option>
-                                <option value="cancelled">🔴 Cancelled</option>
-                            </select>
+                        <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-sm border border-slate-200/60 dark:border-slate-800 p-5 relative overflow-hidden group">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                            <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-3 pl-1">Update Status</label>
+                            <div className="relative">
+                                <select value={order.status} onChange={(e) => {
+                                    if (e.target.value === 'cancelled') {
+                                        setIsCancelDialogOpen(true)
+                                    } else {
+                                        updateOrderStatus(e.target.value)
+                                    }
+                                }} className="appearance-none w-full p-4 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl text-[15px] font-bold bg-slate-50/50 dark:bg-slate-900/50 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 dark:focus:ring-blue-400/10 dark:focus:border-blue-400 cursor-pointer shadow-sm">
+                                    <option value="pending">🟡 Pending</option>
+                                    <option value="assigned">🔵 Assigned</option>
+                                    <option value="in_progress">🟣 In Progress</option>
+                                    <option value="delivered">🟢 Delivered</option>
+                                    <option value="cancelled">🔴 Cancelled</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Assign Driver With ONLINE Status */}
-                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-4">
-                            <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Assign Driver</label>
-                            <select
-                                value={order.driver_id || ''}
-                                onChange={async (e) => {
-                                    const driverId = e.target.value || null
-                                    const { error } = await supabase.from('orders').update({ driver_id: driverId, status: driverId ? 'assigned' : 'pending' }).eq('id', orderId)
-                                    if (!error) fetchOrder()
-                                }}
-                                className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium bg-slate-50 dark:bg-slate-900 dark:text-slate-100"
-                            >
-                                <option value="">Unassigned</option>
-                                {drivers.map((driver) => (
-                                    <option key={driver.id} value={driver.id} className={!isDriverOnline(driver) ? 'text-slate-400' : 'text-green-700 font-bold'}>
-                                        {isDriverOnline(driver) ? '🟢' : '⚪'} {driver.name} {!isDriverOnline(driver) ? '(Offline)' : ''}
-                                    </option>
-                                ))}
-                            </select>
+                        {/* Assign Driver */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-sm border border-slate-200/60 dark:border-slate-800 p-5 relative overflow-hidden group">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-400 to-pink-500 opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                            <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-3 pl-1">Assign Driver</label>
+                            <div className="relative">
+                                <select
+                                    value={order.driver_id || ''}
+                                    onChange={async (e) => {
+                                        const driverId = e.target.value || null
+                                        const { error } = await supabase.from('orders').update({ driver_id: driverId, status: driverId ? 'assigned' : 'pending' }).eq('id', orderId)
+                                        if (!error) fetchOrder()
+                                    }}
+                                    className="appearance-none w-full p-4 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl text-[15px] font-bold bg-slate-50/50 dark:bg-slate-900/50 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 dark:focus:ring-purple-400/10 dark:focus:border-purple-400 cursor-pointer shadow-sm"
+                                >
+                                    <option value="">👤 Unassigned</option>
+                                    {drivers.map((driver) => (
+                                        <option key={driver.id} value={driver.id} className={!isDriverOnline(driver) ? 'text-slate-400' : 'text-emerald-600 font-bold'}>
+                                            {isDriverOnline(driver) ? '🟢' : '⚪'} {driver.name} {!isDriverOnline(driver) ? '(Offline)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <Button variant="outline" onClick={() => setIsEditSheetOpen(true)} className="w-full"><Edit size={16} className="mr-2" /> Edit</Button>
-                            <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)} className="w-full"><Trash2 size={16} className="mr-2" /> Delete</Button>
+                        <div className="grid grid-cols-2 gap-4 pb-4">
+                            <Button variant="outline" onClick={() => setIsEditSheetOpen(true)} className="h-14 rounded-2xl border-slate-200 dark:border-slate-800 text-[15px] font-bold shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800/50">
+                                <Edit size={18} className="mr-2 text-slate-500" /> Edit Order
+                            </Button>
+                            <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)} className="h-14 rounded-2xl bg-rose-500 hover:bg-rose-600 text-[15px] font-bold shadow-sm">
+                                <Trash2 size={18} className="mr-2" /> Delete
+                            </Button>
                         </div>
                     </div>
                 )}
@@ -1094,12 +1114,12 @@ export default function ClientOrderDetails() {
             </AlertDialog>
 
             <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
-                <SheetContent side="bottom" className="h-[90vh] overflow-y-auto safe-area-pt">
+                <SheetContent side="bottom" className="h-[90vh] overflow-y-auto safe-area-pt pb-36">
                     <SheetHeader>
                         <SheetTitle>Edit Order</SheetTitle>
                         <SheetDescription>Update order details and location.</SheetDescription>
                     </SheetHeader>
-                    <form onSubmit={handleEditSubmit} className="space-y-4 mt-4 px-4">
+                    <form onSubmit={handleEditSubmit} className="space-y-4 mt-4 px-4 pb-12">
                         <Input value={formData.order_number || ''} onChange={e => setFormData(prev => ({ ...prev, order_number: e.target.value }))} placeholder="Order #" />
                         <Input value={formData.customer_name || ''} onChange={e => setFormData(prev => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer Name" />
 
@@ -1172,7 +1192,6 @@ export default function ClientOrderDetails() {
                 title={viewerImageTitle}
             />
 
-        </div >
         </PullToRefresh>
     )
 }

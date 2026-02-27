@@ -286,12 +286,12 @@ export function DriverDashboardView({ userId }: { userId: string }) {
     const isRange = dateRange?.from && dateRange.to && !isSameDay(dateRange.from, dateRange.to)
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 p-4 space-y-6">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 pt-12 p-4 space-y-6">
             {/* Header with Date Picker */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between animate-in fade-in slide-in-from-bottom-2 duration-500">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                        {isToday ? "My Route Today" : isRange ? "Period Reports" : "History Log"} {isToday && "🚛"}
+                        {isToday ? "My Route Today" : isRange ? "Period Reports" : "History Log"} {isToday && <Truck className="h-6 w-6 text-blue-500" />}
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">
                         {isRange
@@ -381,7 +381,7 @@ export function DriverDashboardView({ userId }: { userId: string }) {
 
             {/* STATUS TOGGLE & GUIDE (Only show for TODAY) */}
             {isToday && (
-                <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-3 duration-500 delay-150 fill-mode-both">
                     <div className="flex items-center gap-3">
                         <div className={`h-10 w-10 rounded-full flex items-center justify-center transition-colors ${isOnline ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
                             <Power size={20} />
@@ -414,7 +414,7 @@ export function DriverDashboardView({ userId }: { userId: string }) {
             )}
 
             {/* Main Progress Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden transition-all">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden transition-all animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300 fill-mode-both">
                 {/* Success Checkmark - Shows when 100% complete */}
                 <div className={`absolute top-0 right-0 p-4 transition-opacity duration-500 ${completionPercentage === 100 && stats.total > 0
                     ? 'opacity-20 dark:opacity-10'

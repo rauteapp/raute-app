@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff } from "lucide-react"
+import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
@@ -52,7 +52,14 @@ export default function OrdersPage() {
     const [statusFilter, setStatusFilter] = useState<string>("all")
     const [isAddOrderOpen, setIsAddOrderOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-    const isDesktop = useMediaQuery('(min-width: 768px)')
+    const _isDesktop = useMediaQuery('(min-width: 768px)')
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    const isDesktop = mounted ? _isDesktop : false
     const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false)
     const [userRole, setUserRole] = useState<string | null>(null)
     const [userName, setUserName] = useState<string>('')
@@ -107,11 +114,12 @@ export default function OrdersPage() {
     const [priorityLevel, setPriorityLevel] = useState<'normal' | 'high' | 'critical'>('normal')
 
     // Date Range Filter
-    const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: new Date(), to: new Date() })
+    const [dateRange, setDateRange] = useState<DateRange | undefined>()
     const [incompleteOrders, setIncompleteOrders] = useState<Order[]>([])
     const [showIncomplete, setShowIncomplete] = useState(true)
 
     useEffect(() => {
+        setDateRange({ from: new Date(), to: new Date() })
         fetchData()
     }, [])
 
@@ -226,7 +234,7 @@ export default function OrdersPage() {
                         console.log('✅ Orders: session null but getUser() succeeded')
                         currentUserId = userData.user.id
                     }
-                } catch {}
+                } catch { }
             }
 
             if (!currentUserId) return
@@ -843,7 +851,7 @@ export default function OrdersPage() {
 
             const { error } = await supabase.from('orders').insert(newOrder)
             if (error) throw error
-            setIsAddOrderOpen(false); setPickedLocation(null); setPhoneValue(undefined); setVerificationResult(null); 
+            setIsAddOrderOpen(false); setPickedLocation(null); setPhoneValue(undefined); setVerificationResult(null);
             // Reset all form fields
             setAddress(''); setCity(''); setState(''); setZipCode(''); setPriorityLevel('normal');
             fetchData()
@@ -902,7 +910,7 @@ export default function OrdersPage() {
 
         return (
             <PullToRefresh onRefresh={fetchData}>
-                <div className="p-4 space-y-6 pb-4 max-w-lg mx-auto bg-background min-h-screen safe-area-pt">
+                <div className="p-4 pt-12 pb-32 space-y-6 max-w-lg mx-auto bg-background min-h-screen">
                     {driverId && userId && <DriverTracker driverId={driverId} companyId={companyId || undefined} isOnline={isOnline} userId={userId} />}
 
                     {/* OFFLINE / CACHE INDICATOR */}
@@ -1262,22 +1270,31 @@ export default function OrdersPage() {
     }
 
     // MANAGER UI
+    const quickStats = {
+        total: orders.length,
+        pending: orders.filter(o => o.status === 'pending').length,
+        active: orders.filter(o => o.status === 'in_progress' || o.status === 'assigned').length,
+        delivered: orders.filter(o => o.status === 'delivered').length,
+    }
+
     return (
-        <div className="p-4 space-y-4 pb-20 max-w-7xl mx-auto safe-area-pt">
-            <header className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">All Orders</h1>
-                    <p className="text-muted-foreground text-sm">Manage company deliveries</p>
+        <div className="p-4 pt-12 pb-32 space-y-4 max-w-7xl mx-auto min-h-screen bg-slate-50/50 dark:bg-slate-950">
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 relative">
+                <div className="flex-1">
+                    <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white leading-none">All Orders</h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-2">Manage company deliveries</p>
                     {selectedOrders.length > 0 && (
-                        <p className="text-xs text-blue-600 mt-1 font-medium">{selectedOrders.length} selected</p>
+                        <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold leading-none">
+                            <span>{selectedOrders.length} selected</span>
+                        </div>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
                     {selectedOrders.length > 0 && (
                         <Button
                             size="sm"
                             variant="destructive"
-                            className="gap-2"
+                            className="gap-2 rounded-xl h-10 px-4 font-bold shadow-sm w-full sm:w-auto"
                             onClick={handleBulkDelete}
                         >
                             🗑️ Delete ({selectedOrders.length})
@@ -1285,353 +1302,494 @@ export default function OrdersPage() {
                     )}
                     <Sheet open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                         <SheetTrigger asChild>
-                            <Button size="sm" variant="outline" className="gap-2">
-                                <Settings size={14} /> Settings
+                            <Button size="sm" variant="outline" className="gap-2 rounded-xl border-slate-200 shadow-sm text-slate-700 bg-white hover:bg-slate-50 h-10 px-4 font-bold flex-1 sm:flex-none">
+                                <Settings size={16} /> Settings
                             </Button>
                         </SheetTrigger>
-                        <SheetContent className="w-full sm:max-w-lg safe-area-pt">
-                            <SheetHeader>
-                                <SheetTitle>Settings</SheetTitle>
-                                <SheetDescription>Manage your orders settings and preferences</SheetDescription>
-                            </SheetHeader>
-                            <div className="mt-6 space-y-6 px-4">
-                                {/* Custom Fields Section */}
-                                <div className="pb-6">
+                        <SheetContent
+                            side={isDesktop ? "right" : "bottom"}
+                            className={cn(
+                                "flex flex-col bg-slate-50 dark:bg-slate-950 p-0 overflow-hidden",
+                                isDesktop ? "w-full sm:max-w-md border-l border-slate-200/50 dark:border-slate-800" : "h-[85vh] rounded-t-[32px]"
+                            )}
+                        >
+                            {/* Mobile Drag Handle */}
+                            {!isDesktop && (
+                                <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full" />
+                            )}
+
+                            {/* Header Section */}
+                            <div className="px-6 pt-8 pb-4 bg-white dark:bg-slate-900 border-b border-slate-200/60 dark:border-slate-800 shrink-0">
+                                <SheetHeader className="text-left space-y-1">
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300">
+                                            <Settings size={20} strokeWidth={2.5} />
+                                        </div>
+                                        <div>
+                                            <SheetTitle className="text-2xl font-black text-slate-900 dark:text-white leading-none">Settings</SheetTitle>
+                                        </div>
+                                    </div>
+                                    <SheetDescription className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                        Manage your orders settings and custom fields
+                                    </SheetDescription>
+                                </SheetHeader>
+                            </div>
+
+                            {/* Scrollable Content */}
+                            <div className="flex-1 overflow-y-auto w-full p-6 pb-36 sm:pb-6 space-y-6">
+                                <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] shadow-sm border border-slate-200/60 dark:border-slate-800">
+                                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4 uppercase tracking-wider flex items-center gap-2">
+                                        <Database size={16} className="text-slate-400" />
+                                        Data Structure
+                                    </h3>
                                     <CustomFieldsManager entityType="order" />
                                 </div>
-
-                                {/* Future sections can be added here */}
-                                {/* Example:
-                                <div className="border-b pb-6">
-                                    <h3 className="text-lg font-bold">Company Info</h3>
-                                    ...
-                                </div>
-                                */}
                             </div>
                         </SheetContent>
                     </Sheet>
                     <Sheet open={isAddOrderOpen} onOpenChange={setIsAddOrderOpen}>
-                        <SheetTrigger asChild><Button size="sm" className="gap-2 shadow-lg shadow-blue-200"><Plus size={16} /> Add Order</Button></SheetTrigger>
+                        <SheetTrigger asChild>
+                            <Button size="sm" className="gap-2 rounded-xl shadow-md shadow-slate-900/10 bg-slate-900 text-white hover:bg-slate-800 h-10 px-4 font-bold flex-1 sm:flex-none">
+                                <Plus size={18} /> Add Order
+                            </Button>
+                        </SheetTrigger>
 
-                        <SheetContent side={isDesktop ? "right" : "bottom"} className={cn("overflow-y-auto safe-area-pt", isDesktop ? "w-full sm:max-w-xl" : "h-[90vh] sm:max-w-2xl sm:mx-auto sm:rounded-t-2xl")} onInteractOutside={(e) => { if (isLocationPickerOpen) e.preventDefault() }}>
-                            <SheetHeader className="mb-4"><SheetTitle>Add New Order</SheetTitle><SheetDescription>Choose how you want to add orders</SheetDescription></SheetHeader>
+                        <SheetContent side={isDesktop ? "right" : "bottom"} className={cn("flex flex-col bg-slate-50 dark:bg-slate-950 p-0 overflow-hidden", isDesktop ? "w-full sm:max-w-xl border-l border-slate-200/50 dark:border-slate-800" : "h-[90vh] rounded-t-[32px]")} onInteractOutside={(e) => { if (isLocationPickerOpen) e.preventDefault() }}>
 
-                            <Tabs value={formTab} onValueChange={setFormTab} className="w-full px-4">
-                                <TabsList className="grid w-full grid-cols-2 mb-6">
-                                    <TabsTrigger value="ai" className="gap-2"><Sparkles size={14} /> AI Smart Import</TabsTrigger>
-                                    <TabsTrigger value="manual" className="gap-2"><Edit size={14} /> Manual Entry</TabsTrigger>
-                                </TabsList>
+                            {/* Mobile Drag Handle */}
+                            {!isDesktop && (
+                                <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full" />
+                            )}
 
-                                <TabsContent value="ai" className="mt-0 pb-32">
-                                    <div className="p-1 rounded-2xl bg-gradient-to-b from-indigo-50 to-white dark:from-slate-900 dark:to-slate-950 border border-indigo-100 dark:border-slate-800 shadow-sm relative overflow-visible group min-h-[300px] flex flex-col justify-center">
-                                        <div className="absolute -top-3 left-4 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-indigo-100 dark:border-slate-700 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider shadow-sm z-10 flex items-center gap-1">
-                                            <Sparkles size={10} className="text-indigo-500 fill-indigo-500" /> AI AUTO-FILL
+                            {/* Header Section */}
+                            <div className="px-6 pt-8 pb-4 bg-white dark:bg-slate-900 border-b border-slate-200/60 dark:border-slate-800 shrink-0">
+                                <SheetHeader className="text-left space-y-1">
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300">
+                                            <Plus size={20} strokeWidth={2.5} />
                                         </div>
-
-                                        <div className="p-3 space-y-4">
-                                            <div className="text-center space-y-2 mb-2">
-                                                <h3 className="font-bold text-indigo-900 dark:text-indigo-100">Magically Extract Orders</h3>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 px-4">Paste unstructured text (chats, emails) or upload screenshots. We'll extract details automatically.</p>
-                                            </div>
-
-                                            <div className="mx-4 mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg text-[11px] text-yellow-800 dark:text-yellow-200 flex items-start gap-2 text-left">
-                                                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                                                <span><strong>Tip:</strong> If pasting a spreadsheet/table, please include the <u>Header Row</u> so we can identify columns correctly!</span>
-                                            </div>
-
-                                            <div className="relative">
-                                                <textarea
-                                                    placeholder="Paste order text here..."
-                                                    value={aiInputText}
-                                                    onChange={(e) => setAiInputText(e.target.value)}
-                                                    className="w-full min-h-[120px] text-sm p-3 rounded-xl border border-indigo-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 focus:border-indigo-400 transition-all resize-y text-slate-700 dark:text-slate-200 shadow-inner placeholder:text-slate-400 dark:placeholder:text-slate-500 pr-10"
-                                                />
-                                                {aiInputText && (
-                                                    <button
-                                                        onClick={() => setAiInputText("")}
-                                                        className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                                                        title="Clear text"
-                                                    >
-                                                        <XCircle size={16} />
-                                                    </button>
-                                                )}
-                                                {isParsing ? (
-                                                    <div className="absolute bottom-3 right-3 flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 px-3 py-1.5 rounded-full shadow-sm text-xs font-medium text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-slate-700 animate-in fade-in">
-                                                        <Loader2 size={12} className="animate-spin" /> {processingStage || "Analyzing..."}
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        disabled={!aiInputText}
-                                                        onClick={() => handleAIParse(aiInputText)}
-                                                        className="absolute bottom-2 right-2 p-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 shadow-md transition-transform active:scale-95 flex items-center gap-2 text-xs font-bold px-3 disabled:opacity-50 disabled:pointer-events-none"
-                                                    >
-                                                        Analyze Text <ArrowRight size={12} />
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-px bg-indigo-50 dark:bg-slate-800 flex-1" />
-                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">OR</span>
-                                                <div className="h-px bg-indigo-50 dark:bg-slate-800 flex-1" />
-                                            </div>
-
-                                            <label className="flex items-center justify-center gap-2 w-full py-4 bg-white dark:bg-slate-900/50 border border-dashed border-indigo-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 text-sm font-semibold hover:bg-indigo-50 dark:hover:bg-slate-800 hover:border-indigo-400 dark:hover:border-indigo-700 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all cursor-pointer group/upload shadow-sm">
-                                                <input
-                                                    type="file"
-                                                    accept="image/*,.csv,.xlsx,.xls"
-                                                    multiple
-                                                    className="hidden"
-                                                    value="" // Always reset so onChange fires even for same file
-                                                    onChange={(e) => {
-                                                        if (e.target.files && e.target.files.length > 0) {
-                                                            const newFiles = Array.from(e.target.files)
-                                                            setSelectedFiles(prev => [...prev, ...newFiles])
-                                                        }
-                                                    }}
-                                                />
-                                                <div className="p-2 bg-indigo-100 dark:bg-slate-800 rounded-full text-indigo-600 dark:text-indigo-400 group-hover/upload:scale-110 transition-transform">
-                                                    <Camera size={18} />
-                                                </div>
-                                                <span>{selectedFiles.length > 0 ? "Add More Files" : "Select Images or Excel"}</span>
-                                            </label>
-
-                                            {/* File List & Analyze Button */}
-                                            {selectedFiles.length > 0 && (
-                                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                                                    <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 space-y-2 border border-slate-100 dark:border-slate-800">
-                                                        <div className="flex justify-between items-center">
-                                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Selected Files ({selectedFiles.length})</p>
-                                                            <button onClick={() => setSelectedFiles([])} className="text-[10px] text-red-500 hover:text-red-600 font-medium">Clear All</button>
-                                                        </div>
-                                                        <ul className="space-y-2">
-                                                            {selectedFiles.map((file, idx) => (
-                                                                <li key={`${file.name}-${idx}`} className="text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between gap-2 p-2 bg-white dark:bg-slate-950 rounded border border-slate-100 dark:border-slate-800">
-                                                                    <div className="flex items-center gap-2 truncate">
-                                                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                                                                        <span className="truncate">{file.name}</span>
-                                                                        <span className="text-[10px] text-slate-400">({(file.size / 1024).toFixed(1)} KB)</span>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
-                                                                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
-                                                                        title="Remove file"
-                                                                    >
-                                                                        <X size={14} />
-                                                                    </button>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-
-                                                    <Button
-                                                        onClick={() => handleAIParse(selectedFiles)}
-                                                        disabled={isParsing}
-                                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-                                                    >
-                                                        {isParsing ? (
-                                                            <>
-                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                {processingStage || `Analyzing ${selectedFiles.length} Images...`}
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Sparkles className="mr-2 h-4 w-4" />
-                                                                Analyze {selectedFiles.length} Images
-                                                            </>
-                                                        )}
-                                                    </Button>
-                                                </div>
-                                            )}
+                                        <div>
+                                            <SheetTitle className="text-2xl font-black text-slate-900 dark:text-white leading-none">Add Order</SheetTitle>
                                         </div>
                                     </div>
-                                </TabsContent>
+                                    <SheetDescription className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                        Choose how you want to add new orders
+                                    </SheetDescription>
+                                </SheetHeader>
+                            </div>
 
-                                <TabsContent value="manual" className="pb-32">
-                                    <form
-                                        id="add-order-form"
-                                        onSubmit={(e) => {
-                                            e.preventDefault()
-                                            console.log("Form submitted!")
-                                            const formData = new FormData(e.currentTarget)
-                                            handleAddOrder(formData)
-                                        }}
-                                        className="space-y-4"
-                                    >
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium flex justify-between">
-                                                Order Number
-                                                <span className="text-[10px] text-slate-400 font-normal self-end">(Auto-generated if empty)</span>
-                                            </label>
-                                            <Input name="order_number" placeholder="ORD-001" />
-                                        </div>
-                                        <div className="space-y-2"><label className="text-sm font-medium">Customer Name</label><Input name="customer_name" placeholder="John Doe" required /></div>
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                            <LocationPicker onLocationSelect={async (lat, lng) => {
-                                                setPickedLocation({ lat, lng })
-                                                const res = await reverseGeocode(lat, lng)
-                                                if (res) {
-                                                    setAddress(res.address)
-                                                    setCity(res.city)
-                                                    setState(res.state)
-                                                    setZipCode(res.zip)
-                                                }
-                                            }} />
-                                            {pickedLocation && (<p className="text-xs text-blue-600 mt-2 flex items-center gap-1"><MapPin size={12} /> Selected: {pickedLocation.lat.toFixed(4)}, {pickedLocation.lng.toFixed(4)}</p>)}
-                                        </div>
-                                        <div className="space-y-2"><label className="text-sm font-medium">Address</label><Input name="address" placeholder="123 Main St" required value={address} onChange={(e) => setAddress(e.target.value)} /></div>
-                                        <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-sm font-medium">City</label><Input name="city" placeholder="New York" value={city} onChange={(e) => setCity(e.target.value)} /></div><div className="space-y-2"><label className="text-sm font-medium">State</label><Input name="state" placeholder="NY" value={state} onChange={(e) => setState(e.target.value)} /></div></div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2"><label className="text-sm font-medium">ZIP Code</label><Input name="zip_code" placeholder="10001" value={zipCode} onChange={(e) => setZipCode(e.target.value)} /></div>
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-medium">Phone</label>
-                                                <StyledPhoneInput
-                                                    name="phone"
-                                                    value={phoneValue}
-                                                    onChange={setPhoneValue}
-                                                    placeholder="Enter phone number"
-                                                />
+                            {/* Scrollable Content */}
+                            <div className="flex-1 overflow-y-auto w-full p-6 pb-36 sm:pb-6 space-y-6">
+
+                                <Tabs value={formTab} onValueChange={setFormTab} className="w-full">
+                                    <TabsList className="grid w-full grid-cols-2 mb-6 h-12 rounded-[16px] bg-slate-200/50 dark:bg-slate-800/50 p-1">
+                                        <TabsTrigger value="ai" className="gap-2 rounded-[12px] font-bold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm transition-all"><Sparkles size={16} /> AI Import</TabsTrigger>
+                                        <TabsTrigger value="manual" className="gap-2 rounded-[12px] font-bold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all"><Edit size={16} /> Manual</TabsTrigger>
+                                    </TabsList>
+
+                                    <TabsContent value="ai" className="mt-0">
+                                        <div className="p-1 rounded-3xl bg-gradient-to-b from-indigo-50 to-white dark:from-slate-900 dark:to-slate-950 border border-indigo-100 dark:border-slate-800 shadow-sm relative overflow-visible group min-h-[300px] flex flex-col justify-center">
+                                            <div className="absolute -top-3 left-6 bg-white dark:bg-slate-900 px-3 py-1 rounded-full border border-indigo-100 dark:border-slate-700 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider shadow-sm z-10 flex items-center gap-1.5">
+                                                <Sparkles size={12} className="text-indigo-500 fill-indigo-500" /> AI AUTO-FILL
                                             </div>
-                                        </div>
 
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Priority Level</label>
-                                            <div className="flex gap-2">
-                                                {['normal', 'high', 'critical'].map((level) => (
-                                                    <button
-                                                        key={level}
-                                                        type="button"
-                                                        onClick={() => setPriorityLevel(level as any)}
-                                                        className={cn(
-                                                            "flex-1 py-2 px-3 rounded-lg border text-xs font-bold uppercase transition-all flex items-center justify-center gap-2",
-                                                            priorityLevel === level
-                                                                ? (level === 'critical' ? "bg-red-500 text-white border-red-600 shadow-md" :
-                                                                    level === 'high' ? "bg-orange-500 text-white border-orange-600 shadow-md" :
-                                                                        "bg-blue-600 text-white border-blue-700 shadow-md")
-                                                                : "bg-card text-muted-foreground hover:bg-muted"
+                                            <div className="p-3 space-y-4">
+                                                <div className="text-center space-y-2 mb-2">
+                                                    <h3 className="font-bold text-indigo-900 dark:text-indigo-100">Magically Extract Orders</h3>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 px-4">Paste unstructured text (chats, emails) or upload screenshots. We'll extract details automatically.</p>
+                                                </div>
+
+                                                <div className="mx-4 mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg text-[11px] text-yellow-800 dark:text-yellow-200 flex items-start gap-2 text-left">
+                                                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                                    <span><strong>Tip:</strong> If pasting a spreadsheet/table, please include the <u>Header Row</u> so we can identify columns correctly!</span>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    <div className="relative">
+                                                        <textarea
+                                                            placeholder="Paste order text here..."
+                                                            value={aiInputText}
+                                                            onChange={(e) => setAiInputText(e.target.value)}
+                                                            className="w-full min-h-[120px] text-sm p-3 rounded-xl border border-indigo-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900 focus:border-indigo-400 transition-all resize-y text-slate-700 dark:text-slate-200 shadow-inner placeholder:text-slate-400 dark:placeholder:text-slate-500 pr-10 pb-4"
+                                                        />
+                                                        {aiInputText && (
+                                                            <button
+                                                                onClick={() => setAiInputText("")}
+                                                                className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                                                title="Clear text"
+                                                            >
+                                                                <XCircle size={16} />
+                                                            </button>
                                                         )}
-                                                    >
-                                                        {level === 'critical' && <AlertCircle size={14} />}
-                                                        {level === 'high' && <AlertTriangle size={14} />}
-                                                        {level}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            <input type="hidden" name="priority_level" value={priorityLevel} />
-                                        </div>
-
-                                        {/* ADDRESS VERIFICATION WARNING */}
-                                        {verificationResult && verificationResult.confidence !== 'exact' && (
-                                            <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/50 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                                                <AlertTriangle size={16} className="text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
-                                                <div className="space-y-1">
-                                                    <p className="text-sm font-bold text-orange-800 dark:text-orange-300">
-                                                        Address Verification Warning
-                                                    </p>
-                                                    <p className="text-xs text-orange-700 dark:text-orange-400">
-                                                        Could not find exact location for this address.
-                                                    </p>
-                                                    <div className="text-xs bg-orange-100 dark:bg-orange-900/40 p-1.5 rounded text-orange-800 dark:text-orange-200 font-mono mt-1">
-                                                        Using {verificationResult.confidence} location: "{verificationResult.foundAddress}"
                                                     </div>
-                                                    <p className="text-[10px] text-orange-600 dark:text-orange-500 mt-1">
-                                                        Please verify the pin on the map above.
-                                                    </p>
+                                                    {isParsing ? (
+                                                        <div className="w-full flex justify-center items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl shadow-sm text-sm font-bold text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-slate-700 animate-in fade-in">
+                                                            <Loader2 size={16} className="animate-spin" /> {processingStage || "Analyzing..."}
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            disabled={!aiInputText}
+                                                            onClick={() => handleAIParse(aiInputText)}
+                                                            className="w-full p-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 shadow-md transition-transform active:scale-[0.98] flex items-center justify-center gap-2 text-sm font-bold disabled:opacity-50 disabled:pointer-events-none"
+                                                        >
+                                                            Analyze Text <ArrowRight size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-px bg-indigo-50 dark:bg-slate-800 flex-1" />
+                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">OR</span>
+                                                    <div className="h-px bg-indigo-50 dark:bg-slate-800 flex-1" />
+                                                </div>
+
+                                                <label className="flex items-center justify-center gap-2 w-full py-4 bg-white dark:bg-slate-900/50 border border-dashed border-indigo-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 text-sm font-semibold hover:bg-indigo-50 dark:hover:bg-slate-800 hover:border-indigo-400 dark:hover:border-indigo-700 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all cursor-pointer group/upload shadow-sm">
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*,.csv,.xlsx,.xls"
+                                                        multiple
+                                                        className="hidden"
+                                                        value="" // Always reset so onChange fires even for same file
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files.length > 0) {
+                                                                const newFiles = Array.from(e.target.files)
+                                                                setSelectedFiles(prev => [...prev, ...newFiles])
+                                                            }
+                                                        }}
+                                                    />
+                                                    <div className="p-2 bg-indigo-100 dark:bg-slate-800 rounded-full text-indigo-600 dark:text-indigo-400 group-hover/upload:scale-110 transition-transform">
+                                                        <Camera size={18} />
+                                                    </div>
+                                                    <span>{selectedFiles.length > 0 ? "Add More Files" : "Select Images or Excel"}</span>
+                                                </label>
+
+                                                {/* File List & Analyze Button */}
+                                                {selectedFiles.length > 0 && (
+                                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                                        <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 space-y-2 border border-slate-100 dark:border-slate-800">
+                                                            <div className="flex justify-between items-center">
+                                                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Selected Files ({selectedFiles.length})</p>
+                                                                <button onClick={() => setSelectedFiles([])} className="text-[10px] text-red-500 hover:text-red-600 font-medium">Clear All</button>
+                                                            </div>
+                                                            <ul className="space-y-2">
+                                                                {selectedFiles.map((file, idx) => (
+                                                                    <li key={`${file.name}-${idx}`} className="text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between gap-2 p-2 bg-white dark:bg-slate-950 rounded border border-slate-100 dark:border-slate-800">
+                                                                        <div className="flex items-center gap-2 truncate">
+                                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                                                                            <span className="truncate">{file.name}</span>
+                                                                            <span className="text-[10px] text-slate-400">({(file.size / 1024).toFixed(1)} KB)</span>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
+                                                                            className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                                                            title="Remove file"
+                                                                        >
+                                                                            <X size={14} />
+                                                                        </button>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+
+                                                        <Button
+                                                            onClick={() => handleAIParse(selectedFiles)}
+                                                            disabled={isParsing}
+                                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                                                        >
+                                                            {isParsing ? (
+                                                                <>
+                                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                    {processingStage || `Analyzing ${selectedFiles.length} Images...`}
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Sparkles className="mr-2 h-4 w-4" />
+                                                                    Analyze {selectedFiles.length} Images
+                                                                </>
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </TabsContent>
+
+                                    <TabsContent value="manual" className="mt-0">
+                                        <form
+                                            id="add-order-form"
+                                            onSubmit={(e) => {
+                                                e.preventDefault()
+                                                console.log("Form submitted!")
+                                                const formData = new FormData(e.currentTarget)
+                                                handleAddOrder(formData)
+                                            }}
+                                            className="space-y-6"
+                                        >
+                                            <div className="space-y-6">
+                                                {/* Header Info */}
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-[24px] border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-bold text-slate-800 dark:text-slate-200 flex justify-between">
+                                                            Order Number
+                                                            <span className="text-[10px] text-slate-400 font-medium self-end">(Auto-generated if empty)</span>
+                                                        </label>
+                                                        <Input name="order_number" placeholder="ORD-001" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-bold text-slate-800 dark:text-slate-200">Customer Name <span className="text-red-500">*</span></label>
+                                                        <Input name="customer_name" placeholder="John Doe" required className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" />
+                                                    </div>
+                                                </div>
+
+                                                {/* Location Info */}
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-[24px] border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                                    <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">Delivery Location</h4>
+                                                    <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40 rounded-xl p-3 shadow-inner">
+                                                        <LocationPicker onLocationSelect={async (lat, lng) => {
+                                                            setPickedLocation({ lat, lng })
+                                                            const res = await reverseGeocode(lat, lng)
+                                                            if (res) {
+                                                                setAddress(res.address)
+                                                                setCity(res.city)
+                                                                setState(res.state)
+                                                                setZipCode(res.zip)
+                                                            }
+                                                        }} />
+                                                        {pickedLocation && (<p className="text-xs text-blue-600 mt-2 flex items-center gap-1"><MapPin size={12} /> Selected: {pickedLocation.lat.toFixed(4)}, {pickedLocation.lng.toFixed(4)}</p>)}
+                                                    </div>
+                                                    <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">Address <span className="text-red-500">*</span></label><Input name="address" placeholder="123 Main St" required value={address} onChange={(e) => setAddress(e.target.value)} className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div>
+                                                    <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">City</label><Input name="city" placeholder="New York" value={city} onChange={(e) => setCity(e.target.value)} className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div><div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">State</label><Input name="state" placeholder="NY" value={state} onChange={(e) => setState(e.target.value)} className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div></div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">ZIP Code</label><Input name="zip_code" placeholder="10001" value={zipCode} onChange={(e) => setZipCode(e.target.value)} className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-bold text-slate-800 dark:text-slate-200">Phone</label>
+                                                        <div className="bg-white dark:bg-slate-950 rounded-xl shadow-sm overflow-hidden border border-input">
+                                                            <StyledPhoneInput
+                                                                name="phone"
+                                                                value={phoneValue}
+                                                                onChange={setPhoneValue}
+                                                                placeholder="Enter phone number"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Delivery Details */}
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-[24px] border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                                    <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">Delivery Details</h4>
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-bold text-slate-800 dark:text-slate-200">Priority Level</label>
+                                                        <div className="flex gap-2">
+                                                            {['normal', 'high', 'critical'].map((level) => (
+                                                                <button
+                                                                    key={level}
+                                                                    type="button"
+                                                                    onClick={() => setPriorityLevel(level as any)}
+                                                                    className={cn(
+                                                                        "flex-1 py-2 px-3 rounded-lg border text-xs font-bold uppercase transition-all flex items-center justify-center gap-2",
+                                                                        priorityLevel === level
+                                                                            ? (level === 'critical' ? "bg-red-500 text-white border-red-600 shadow-md" :
+                                                                                level === 'high' ? "bg-orange-500 text-white border-orange-600 shadow-md" :
+                                                                                    "bg-blue-600 text-white border-blue-700 shadow-md")
+                                                                            : "bg-card text-muted-foreground hover:bg-muted"
+                                                                    )}
+                                                                >
+                                                                    {level === 'critical' && <AlertCircle size={14} />}
+                                                                    {level === 'high' && <AlertTriangle size={14} />}
+                                                                    {level}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <input type="hidden" name="priority_level" value={priorityLevel} />
+                                                    </div>
+
+                                                    {/* ADDRESS VERIFICATION WARNING */}
+                                                    {verificationResult && verificationResult.confidence !== 'exact' && (
+                                                        <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/50 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
+                                                            <AlertTriangle size={18} className="text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+                                                            <div className="space-y-1">
+                                                                <p className="text-sm font-bold text-orange-900 dark:text-orange-300">
+                                                                    Address Verification Warning
+                                                                </p>
+                                                                <p className="text-xs text-orange-800 dark:text-orange-400">
+                                                                    Could not find exact location for this address.
+                                                                </p>
+                                                                <div className="text-xs bg-orange-100/50 dark:bg-orange-900/40 p-2 rounded-lg text-orange-900 dark:text-orange-200 font-mono mt-2 shadow-inner">
+                                                                    Using {verificationResult.confidence} location: "{verificationResult.foundAddress}"
+                                                                </div>
+                                                                <p className="text-[11px] text-orange-700 dark:text-orange-500 mt-2 font-medium">
+                                                                    Please verify the pin on the map above.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">Delivery Date</label><Input name="delivery_date" type="date" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">Start Time</label><Input name="time_window_start" type="time" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div>
+                                                        <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">End Time</label><Input name="time_window_end" type="time" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div>
+                                                    </div>
+                                                    <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">Notes</label><textarea name="notes" className="w-full min-h-[100px] rounded-xl border border-input shadow-sm bg-white dark:bg-slate-950 px-3 py-3 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y" placeholder="Any special delivery instructions..." /></div>
                                                 </div>
                                             </div>
-                                        )}
-                                        <div className="space-y-2"><label className="text-sm font-medium">Delivery Date</label><Input name="delivery_date" type="date" /></div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2"><label className="text-sm font-medium">Start Time Window</label><Input name="time_window_start" type="time" /></div>
-                                            <div className="space-y-2"><label className="text-sm font-medium">End Time Window</label><Input name="time_window_end" type="time" /></div>
-                                        </div>
-                                        <div className="space-y-2"><label className="text-sm font-medium">Notes</label><textarea name="notes" className="w-full min-h-20 rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Notes..." /></div>
-                                        <Button
-                                            type="button"
-                                            className="w-full"
-                                            disabled={isSubmitting}
-                                            onClick={(e) => {
-                                                e.preventDefault()
-                                                if (isSubmitting) return
-                                                console.log("Button clicked, forcing submit...")
-                                                const form = document.getElementById('add-order-form') as HTMLFormElement
-                                                if (form) form.requestSubmit()
-                                            }}
-                                        >
-                                            {isSubmitting ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Creating...
-                                                </>
-                                            ) : (
-                                                "Create Order"
-                                            )}
-                                        </Button>
-                                    </form>
-                                </TabsContent>
-                            </Tabs>
+
+                                            <Button
+                                                type="button"
+                                                className="w-full h-12 rounded-xl text-base font-bold bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-md transition-all active:scale-[0.98] mt-8"
+                                                disabled={isSubmitting}
+                                                onClick={(e) => {
+                                                    e.preventDefault()
+                                                    if (isSubmitting) return
+                                                    console.log("Button clicked, forcing submit...")
+                                                    const form = document.getElementById('add-order-form') as HTMLFormElement
+                                                    if (form) form.requestSubmit()
+                                                }}
+                                            >
+                                                {isSubmitting ? (
+                                                    <>
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        Creating...
+                                                    </>
+                                                ) : (
+                                                    "Create Order"
+                                                )}
+                                            </Button>
+                                        </form>
+                                    </TabsContent>
+                                </Tabs>
+                            </div>
                         </SheetContent>
                     </Sheet>
                 </div>
             </header>
 
-            <div className="space-y-3 pb-4">
-                <div className="flex gap-2">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search orders..."
-                            className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn("justify-start text-left font-normal w-[220px] shrink-0", !dateRange && "text-muted-foreground")}>
-                                <Calendar className="mr-2 h-4 w-4" />
-                                {dateRange?.from ? (
-                                    dateRange.to && dateRange.from.toDateString() !== dateRange.to.toDateString() ? (
-                                        <span className="text-xs">{format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd")}</span>
-                                    ) : (
-                                        <span className="text-xs">{format(dateRange.from, "MMM dd, yyyy")}</span>
-                                    )
-                                ) : (
-                                    <span className="text-xs">All dates</span>
-                                )}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                            <div className="p-3 border-b border-border">
-                                <h4 className="font-bold text-xs text-muted-foreground mb-2 uppercase tracking-wider">Quick Select</h4>
-                                <div className="flex gap-2 flex-wrap">
-                                    <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
-                                    <Button size="sm" variant="ghost" className="text-xs h-8 text-muted-foreground" onClick={() => setDateRange(undefined)}>All Time</Button>
-                                </div>
+            {/* Global Search Bar */}
+            <div className="relative w-full mb-8 group" >
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-slate-600 dark:group-focus-within:text-slate-300 transition-colors" />
+                <Input
+                    placeholder="Search by order ID, customer name, or destination..."
+                    className="w-full pl-12 h-14 bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-slate-300 transition-all font-medium text-base"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
+
+            {/* Quick Stats Row - Premium Themed UI */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8" >
+                {/* Total Orders Card */}
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800/50 rounded-[20px] p-4 md:p-5 border border-slate-200/60 dark:border-slate-800 shadow-sm relative overflow-hidden group hover:shadow-md transition-all" >
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-slate-200/50 dark:bg-slate-700/20 rounded-full blur-2xl group-hover:scale-110 transition-transform"></div>
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="w-10 h-10 rounded-[14px] bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-600 dark:text-slate-300">
+                                <Package size={18} strokeWidth={2.5} />
                             </div>
-                            <CalendarPicker
-                                mode="range"
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                disabled={(date) => date > new Date() || date < new Date("2024-01-01")}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
+                        </div>
+                        <div>
+                            <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1">{quickStats.total}</p>
+                            <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider">Total Orders</p>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+
+                {/* Pending Card */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/20 rounded-[20px] p-4 md:p-5 border border-amber-100 dark:border-amber-900/50 shadow-sm relative overflow-hidden group hover:shadow-md transition-all" >
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-orange-200/40 dark:bg-orange-900/20 rounded-full blur-2xl group-hover:scale-110 transition-transform"></div>
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="w-10 h-10 rounded-[14px] bg-white dark:bg-amber-900/40 shadow-sm flex items-center justify-center text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-800">
+                                <Clock size={18} strokeWidth={2.5} />
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-3xl font-black text-amber-950 dark:text-amber-50 tracking-tight leading-none mb-1">{quickStats.pending}</p>
+                            <p className="text-amber-700 dark:text-amber-400 text-[11px] font-bold uppercase tracking-wider">Pending</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Active Card */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 rounded-[20px] p-4 md:p-5 border border-blue-100 dark:border-blue-900/50 shadow-sm relative overflow-hidden group hover:shadow-md transition-all" >
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-indigo-200/40 dark:bg-indigo-900/20 rounded-full blur-2xl group-hover:scale-110 transition-transform"></div>
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="w-10 h-10 rounded-[14px] bg-white dark:bg-blue-900/40 shadow-sm flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+                                <Truck size={18} strokeWidth={2.5} />
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-3xl font-black text-blue-950 dark:text-blue-50 tracking-tight leading-none mb-1">{quickStats.active}</p>
+                            <p className="text-blue-700 dark:text-blue-400 text-[11px] font-bold uppercase tracking-wider">Active</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Delivered Card */}
+                <div className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/20 rounded-[20px] p-4 md:p-5 border border-emerald-100 dark:border-emerald-900/50 shadow-sm relative overflow-hidden group hover:shadow-md transition-all" >
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-green-200/40 dark:bg-green-900/20 rounded-full blur-2xl group-hover:scale-110 transition-transform"></div>
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="w-10 h-10 rounded-[14px] bg-white dark:bg-emerald-900/40 shadow-sm flex items-center justify-center text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800">
+                                <CheckCircle2 size={18} strokeWidth={2.5} />
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-3xl font-black text-emerald-950 dark:text-emerald-50 tracking-tight leading-none mb-1">{quickStats.delivered}</p>
+                            <p className="text-emerald-700 dark:text-emerald-400 text-[11px] font-bold uppercase tracking-wider">Delivered</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Control Toolbar */}
+            <div className="flex flex-col md:flex-row gap-4 mb-6 overflow-hidden" >
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("justify-start text-left font-medium w-full md:w-[260px] shrink-0 h-12 bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 rounded-[16px] shadow-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition-all gap-3", !dateRange && "text-slate-400")}>
+                            <Calendar className="h-4 w-4" />
+                            {dateRange?.from ? (
+                                dateRange.to && dateRange.from.toDateString() !== dateRange.to.toDateString() ? (
+                                    <span className="text-[14px]">{format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd")}</span>
+                                ) : (
+                                    <span className="text-[14px]">{format(dateRange.from, "MMM dd, yyyy")}</span>
+                                )
+                            ) : (
+                                <span className="text-[14px]">All dates</span>
+                            )}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-2xl border-slate-200/50 shadow-xl overflow-hidden" align="start">
+                        <div className="p-3 bg-slate-50/80 backdrop-blur-md border-b border-slate-200/50">
+                            <h4 className="font-bold text-[10px] text-slate-500 mb-2 uppercase tracking-widest px-1">Quick Select</h4>
+                            <div className="flex gap-2 flex-wrap">
+                                <Button size="sm" variant="outline" className="text-xs h-8 bg-white rounded-lg" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
+                                <Button size="sm" variant="outline" className="text-xs h-8 bg-white rounded-lg" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
+                                <Button size="sm" variant="outline" className="text-xs h-8 bg-white rounded-lg" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
+                                <Button size="sm" variant="ghost" className="text-xs h-8 text-slate-500 rounded-lg" onClick={() => setDateRange(undefined)}>All Time</Button>
+                            </div>
+                        </div>
+                        <CalendarPicker
+                            mode="range"
+                            selected={dateRange}
+                            onSelect={setDateRange}
+                            disabled={(date) => date > new Date() || date < new Date("2024-01-01")}
+                            initialFocus
+                        />
+                    </PopoverContent>
+                </Popover>
+
+                <div className="flex gap-2.5 overflow-x-auto pb-2 md:pb-0 scrollbar-hide items-center w-full">
                     {["all", "pending", "assigned", "in_progress", "delivered", "cancelled"].map((status) => (
                         <button
                             key={status}
                             onClick={() => setStatusFilter(status)}
                             className={cn(
-                                "px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border",
+                                "h-11 px-5 rounded-2xl text-[11px] font-[800] uppercase tracking-[0.1em] whitespace-nowrap transition-all border shrink-0",
                                 statusFilter === status
-                                    ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25"
-                                    : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                                    ? "bg-[#0f172a] text-white border-[#0f172a] shadow-md shadow-slate-900/10"
+                                    : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
                             )}
                         >
                             {status === "all" ? "All" : status.replace("_", " ")}
@@ -1641,83 +1799,86 @@ export default function OrdersPage() {
             </div>
 
             {/* Incomplete Orders from Previous Days */}
-            {incompleteOrders.length > 0 && (
-                <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 overflow-hidden mb-4">
-                    <button
-                        onClick={() => setShowIncomplete(!showIncomplete)}
-                        className="w-full flex items-center justify-between p-3 text-left hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
-                    >
-                        <div className="flex items-center gap-2">
-                            <AlertTriangle size={14} className="text-amber-600" />
-                            <span className="text-sm font-bold text-amber-800 dark:text-amber-200">
-                                Incomplete Orders
-                            </span>
-                            <span className="text-xs bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-full font-bold">
-                                {incompleteOrders.length}
-                            </span>
-                        </div>
-                        <span className="text-xs text-amber-600 font-medium">{showIncomplete ? 'Hide' : 'Show'}</span>
-                    </button>
-                    {showIncomplete && (
-                        <div className="px-3 pb-3 space-y-2">
-                            <p className="text-[11px] text-amber-700 dark:text-amber-300 px-1 mb-2">Orders from previous days that haven't been completed yet.</p>
-                            {incompleteOrders.map(order => {
-                                const content = (
-                                    <div className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-amber-200/50 dark:border-amber-800/30 flex items-center gap-3 hover:shadow-sm transition-shadow">
-                                        {isSelectionMode && (
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedOrders.includes(order.id)}
-                                                onChange={(e) => { e.preventDefault(); toggleOrderSelection(order.id) }}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="w-4 h-4 rounded border-amber-300 text-amber-600 shrink-0"
-                                            />
-                                        )}
-                                        <div className={cn("w-2 h-2 rounded-full shrink-0",
-                                            order.status === 'in_progress' ? 'bg-purple-500' : order.status === 'assigned' ? 'bg-blue-500' : 'bg-yellow-500'
-                                        )} />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-mono text-[10px] text-muted-foreground">#{order.order_number}</span>
-                                                <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", statusColors[order.status as keyof typeof statusColors])}>
-                                                    {order.status.replace('_', ' ')}
-                                                </span>
-                                            </div>
-                                            <p className="text-sm font-medium text-foreground truncate">{order.customer_name}</p>
-                                            <p className="text-[10px] text-muted-foreground truncate">{order.address}</p>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                            <p className="text-[10px] text-muted-foreground">
-                                                {format(new Date(order.delivery_date || order.created_at), "MMM dd")}
-                                            </p>
-                                            {order.driver_id ? (
-                                                <span className="text-[9px] text-blue-600 font-medium">Assigned</span>
-                                            ) : (
-                                                <span className="text-[9px] text-amber-600 font-medium">Unassigned</span>
+            {
+                incompleteOrders.length > 0 && (
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 overflow-hidden mb-4">
+                        <button
+                            onClick={() => setShowIncomplete(!showIncomplete)}
+                            className="w-full flex items-center justify-between p-3 text-left hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                        >
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle size={14} className="text-amber-600" />
+                                <span className="text-sm font-bold text-amber-800 dark:text-amber-200">
+                                    Incomplete Orders
+                                </span>
+                                <span className="text-xs bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-full font-bold">
+                                    {incompleteOrders.length}
+                                </span>
+                            </div>
+                            <span className="text-xs text-amber-600 font-medium">{showIncomplete ? 'Hide' : 'Show'}</span>
+                        </button>
+                        {showIncomplete && (
+                            <div className="px-3 pb-3 space-y-2">
+                                <p className="text-[11px] text-amber-700 dark:text-amber-300 px-1 mb-2">Orders from previous days that haven't been completed yet.</p>
+                                {incompleteOrders.map(order => {
+                                    const content = (
+                                        <div className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-amber-200/50 dark:border-amber-800/30 flex items-center gap-3 hover:shadow-sm transition-shadow">
+                                            {isSelectionMode && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedOrders.includes(order.id)}
+                                                    onChange={(e) => { e.preventDefault(); toggleOrderSelection(order.id) }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-4 h-4 rounded border-amber-300 text-amber-600 shrink-0"
+                                                />
                                             )}
+                                            <div className={cn("w-2 h-2 rounded-full shrink-0",
+                                                order.status === 'in_progress' ? 'bg-purple-500' : order.status === 'assigned' ? 'bg-blue-500' : 'bg-yellow-500'
+                                            )} />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono text-[10px] text-muted-foreground">#{order.order_number}</span>
+                                                    <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", statusColors[order.status as keyof typeof statusColors])}>
+                                                        {order.status.replace('_', ' ')}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm font-medium text-foreground truncate">{order.customer_name}</p>
+                                                <p className="text-[10px] text-muted-foreground truncate">{order.address}</p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    {format(new Date(order.delivery_date || order.created_at), "MMM dd")}
+                                                </p>
+                                                {order.driver_id ? (
+                                                    <span className="text-[9px] text-blue-600 font-medium">Assigned</span>
+                                                ) : (
+                                                    <span className="text-[9px] text-amber-600 font-medium">Unassigned</span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                )
-                                return isSelectionMode ? (
-                                    <div key={order.id} className="block cursor-pointer" onClick={() => toggleOrderSelection(order.id)}>
-                                        {content}
-                                    </div>
-                                ) : (
-                                    <Link key={order.id} href={userRole === 'driver' ? `/my-editor?id=${order.id}` : `/orders`} className="block">
-                                        {content}
-                                    </Link>
-                                )
-                            })}
-                        </div>
-                    )}
-                </div>
-            )}
+                                    )
+                                    return isSelectionMode ? (
+                                        <div key={order.id} className="block cursor-pointer" onClick={() => toggleOrderSelection(order.id)}>
+                                            {content}
+                                        </div>
+                                    ) : (
+                                        <Link key={order.id} href={userRole === 'driver' ? `/my-editor?id=${order.id}` : `/orders`} className="block">
+                                            {content}
+                                        </Link>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )
+            }
 
-            <div className="space-y-3">
+            {/* --- MOBILE VIEW: CARDS --- */}
+            <div className="md:hidden space-y-4">
                 {filteredOrders.length > 0 && (
-                    <div className="flex items-center justify-between px-2">
+                    <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-muted-foreground">{filteredOrders.length} orders</span>
+                            <span className="text-sm font-bold text-slate-500">{filteredOrders.length} orders</span>
                         </div>
                         <Button
                             variant="ghost"
@@ -1726,7 +1887,7 @@ export default function OrdersPage() {
                                 setIsSelectionMode(!isSelectionMode)
                                 if (isSelectionMode) setSelectedOrders([]) // Clear on exit
                             }}
-                            className="text-primary hover:bg-primary/10 -mr-2"
+                            className="text-slate-900 dark:text-white hover:bg-slate-100 font-bold text-sm tracking-wide"
                         >
                             {isSelectionMode ? "Cancel" : "Select"}
                         </Button>
@@ -1734,38 +1895,35 @@ export default function OrdersPage() {
                 )}
 
                 {isSelectionMode && filteredOrders.length > 0 && (
-                    <div className="flex items-center gap-2 px-2 py-2 bg-muted/30 rounded-lg animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center gap-2 px-2 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
                         <input
                             type="checkbox"
                             checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
                             onChange={(e) => {
-                                if (e.target.checked) {
-                                    setSelectedOrders(filteredOrders.map(o => o.id))
-                                } else {
-                                    setSelectedOrders([])
-                                }
+                                if (e.target.checked) setSelectedOrders(filteredOrders.map(o => o.id))
+                                else setSelectedOrders([])
                             }}
-                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-2 focus:ring-primary cursor-pointer accent-primary"
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-slate-900 focus:ring-2 focus:ring-slate-900 cursor-pointer accent-slate-900"
                         />
-                        <span className="text-sm text-muted-foreground font-medium">Select All</span>
+                        <span className="text-sm text-slate-700 font-medium">Select All</span>
                         {selectedOrders.length > 0 && (
-                            <span className="text-xs text-primary font-bold ml-auto">{selectedOrders.length} selected</span>
+                            <span className="text-xs text-slate-900 font-bold ml-auto">{selectedOrders.length} selected</span>
                         )}
                     </div>
                 )}
 
                 {filteredOrders.length === 0 ? (
-                    <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed border-border">
-                        <Package className="mx-auto h-12 w-12 text-muted-foreground mb-3 opacity-50" />
-                        <p className="text-muted-foreground font-medium">No orders found</p>
+                    <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200/60 shadow-sm mt-4">
+                        <Package className="mx-auto h-14 w-14 text-slate-300 mb-4" />
+                        <p className="text-slate-500 font-bold text-lg">No orders found</p>
                     </div>
                 ) : (
                     filteredOrders.map((order) => (
-                        <div key={order.id} className="flex items-center gap-3 group px-1">
+                        <div key={order.id} className="flex items-center gap-3 group relative">
                             {/* Mobile Selection Checkbox */}
                             <div className={cn(
                                 "transition-all duration-300 overflow-hidden",
-                                isSelectionMode ? "w-6 opacity-100 mr-2" : "w-0 opacity-0"
+                                isSelectionMode ? "w-8 opacity-100 z-10" : "w-0 opacity-0 absolute"
                             )}>
                                 <input
                                     type="checkbox"
@@ -1774,76 +1932,101 @@ export default function OrdersPage() {
                                         e.stopPropagation()
                                         toggleOrderSelection(order.id)
                                     }}
-                                    className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600 text-primary focus:ring-0 cursor-pointer accent-primary"
+                                    className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-600 text-slate-900 focus:ring-0 cursor-pointer accent-slate-900"
                                 />
                             </div>
 
-                            <Link href={`/my-editor?id=${order.id}`} className="flex-1 min-w-0">
-                                <div className="bg-card p-4 rounded-2xl shadow-sm border border-border/60 space-y-3 active:scale-[0.98] active:bg-muted/50 transition-all cursor-pointer relative overflow-hidden touch-manipulation">
-                                    {/* Status Stripe */}
-                                    <div className={cn("absolute left-0 top-0 bottom-0 w-1.5",
+                            <Link href={`/my-editor?id=${order.id}`} className="flex-1 min-w-0 block">
+                                <div className="bg-white dark:bg-slate-900 p-5 rounded-[28px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-100 dark:border-slate-800 space-y-4 active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden hover:shadow-md group/card">
+
+                                    {/* Themed Background Accent Glow */}
+                                    <div className={cn(
+                                        "absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-20 -z-0 transition-opacity group-hover/card:opacity-30",
                                         order.status === 'delivered' ? 'bg-green-500' :
                                             order.status === 'in_progress' ? 'bg-purple-500' :
                                                 order.status === 'cancelled' ? 'bg-red-500' :
-                                                    order.status === 'assigned' ? 'bg-blue-500' : 'bg-yellow-500'
+                                                    order.status === 'assigned' ? 'bg-blue-500' : 'bg-amber-500'
                                     )} />
 
-                                    <div className="flex justify-between items-start pl-3">
-                                        <div className="min-w-0 pr-2">
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-bold text-base text-foreground truncate">#{order.order_number}</p>
-                                                {/* Status Badge (Mobile Optimized) */}
-                                                <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-full border uppercase tracking-wider shrink-0",
-                                                    statusColors[order.status].replace('bg-', 'bg-opacity-10 bg-').replace('border-', 'border-opacity-20 border-')
+                                    {/* Subdued Status Pill Indicator on the left */}
+                                    <div className={cn("absolute left-3 top-1/2 -translate-y-1/2 w-[6px] h-1/2 rounded-full",
+                                        order.status === 'delivered' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' :
+                                            order.status === 'in_progress' ? 'bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.4)]' :
+                                                order.status === 'cancelled' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' :
+                                                    order.status === 'assigned' ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.4)]' : 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                                    )} />
+
+                                    <div className="pl-6 relative z-10 flex flex-col gap-4">
+                                        {/* Header Row: ID + Status Pile + Priority */}
+                                        <div className="flex items-center justify-between min-w-0">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <p className="font-black text-[20px] text-slate-900 dark:text-white tracking-tight truncate">#{order.order_number}</p>
+
+                                                {/* Modern Soft Status Pill */}
+                                                <span className={cn("px-3 py-1 text-[11px] font-[900] rounded-[10px] uppercase tracking-widest shrink-0 shadow-sm border",
+                                                    order.status === 'delivered' ? 'bg-green-50 text-green-700 border-green-200/50' :
+                                                        order.status === 'in_progress' ? 'bg-purple-50 text-purple-700 border-purple-200/50' :
+                                                            order.status === 'cancelled' ? 'bg-red-50 text-red-700 border-red-200/50' :
+                                                                order.status === 'assigned' ? 'bg-blue-50 text-blue-700 border-blue-200/50' :
+                                                                    'bg-amber-50 text-amber-700 border-amber-200/50'
                                                 )}>
                                                     {order.status === 'in_progress' ? 'In Progress' : order.status}
                                                 </span>
+                                            </div>
+
+                                            {/* Priority Dot */}
+                                            {(order.priority_level === 'high' || order.priority_level === 'critical') && (
+                                                <div className={cn(
+                                                    "shrink-0 w-2.5 h-2.5 rounded-full ml-3 ring-4",
+                                                    order.priority_level === 'critical' ? "bg-red-500 ring-red-100 animate-pulse" : "bg-orange-500 ring-orange-100"
+                                                )} title="High Priority" />
+                                            )}
+                                        </div>
+
+                                        {/* Details Row: Customer & Time */}
+                                        <div className="flex items-center justify-between min-w-0">
+                                            <div className="flex items-center gap-2.5 text-[15px] font-bold text-slate-700 dark:text-slate-200 min-w-0">
+                                                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 shrink-0">
+                                                    <UserIcon size={14} strokeWidth={2.5} />
+                                                </div>
+                                                <span className="truncate">{order.customer_name}</span>
+                                            </div>
+
+                                            {/* Time block */}
+                                            {(order.delivered_at || order.time_window_start) && (
+                                                <div className="shrink-0 text-right">
+                                                    {order.status === 'delivered' && order.delivered_at ? (
+                                                        <p className="text-green-600 dark:text-green-500 text-[13px] font-black tracking-tight bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-md">
+                                                            {format(new Date(order.delivered_at), 'h:mm a')}
+                                                        </p>
+                                                    ) : (order.time_window_start) && (
+                                                        <p className="text-slate-500 dark:text-slate-400 text-[12px] font-bold tracking-tight bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-700">
+                                                            {order.time_window_start?.slice(0, 5)} - {order.time_window_end?.slice(0, 5)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Separator Subdued */}
+                                        <div className="h-[2px] w-full bg-gradient-to-r from-slate-100 via-slate-100 to-transparent dark:from-slate-800 dark:via-slate-800 rounded-full" />
+
+                                        {/* Address Row */}
+                                        <div className="flex items-start gap-3">
+                                            <div className="mt-1 shrink-0 bg-slate-100 dark:bg-slate-800 w-7 h-7 rounded-full flex items-center justify-center text-slate-400">
+                                                <MapPin size={14} strokeWidth={2.5} />
+                                            </div>
+                                            <div className="flex flex-col min-w-0 pr-2">
+                                                <p className="text-[14px] leading-snug line-clamp-2 font-medium text-slate-600 dark:text-slate-300">
+                                                    {order.address}{order.city ? `, ${order.city}` : ""}
+                                                </p>
                                                 {order.was_out_of_range && (
-                                                    <span className="flex items-center gap-1 text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">
-                                                        <AlertCircle size={9} /> Out of Range
+                                                    <span className="inline-flex items-center gap-1.5 text-[10px] bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-1 rounded-md font-bold w-fit mt-1 border border-red-100 dark:border-red-900/50">
+                                                        <AlertCircle size={10} strokeWidth={3} /> Out of Range
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1 font-medium truncate">
-                                                <UserIcon size={13} className="text-primary/70 shrink-0" />
-                                                <span className="truncate">{order.customer_name}</span>
-                                            </div>
                                         </div>
-
-                                        {/* PRIORITY ICON (More subtle) */}
-                                        {(order.priority_level === 'high' || order.priority_level === 'critical') && (
-                                            <div className={cn(
-                                                "shrink-0 w-2 h-2 rounded-full",
-                                                order.priority_level === 'critical' ? "bg-red-500 animate-pulse" : "bg-orange-500"
-                                            )} title="High Priority" />
-                                        )}
-                                    </div>
-
-                                    <div className="space-y-1.5 text-xs text-muted-foreground pl-3 border-t border-border/40 pt-2.5">
-                                        <div className="flex items-start gap-2">
-                                            <MapPin size={13} className="mt-0.5 flex-shrink-0 text-muted-foreground/70" />
-                                            <span className="leading-snug line-clamp-2">{order.address}{order.city ? `, ${order.city}` : ""}</span>
-                                        </div>
-
-                                        {(order.delivered_at || order.time_window_start) && (
-                                            <div className="flex items-center gap-2 font-medium pt-1">
-                                                {order.status === 'delivered' && order.delivered_at ? (
-                                                    <>
-                                                        <CheckCircle2 size={13} className="flex-shrink-0 text-green-600 dark:text-green-500" />
-                                                        <span className="text-green-700 dark:text-green-400">
-                                                            {format(new Date(order.delivered_at), 'h:mm a')}
-                                                        </span>
-                                                    </>
-                                                ) : (order.time_window_start) ? (
-                                                    <>
-                                                        <Clock size={13} className="flex-shrink-0 text-orange-600 dark:text-orange-400" />
-                                                        <span className="text-orange-700 dark:text-orange-300">
-                                                            {order.time_window_start?.slice(0, 5)} - {order.time_window_end?.slice(0, 5)}
-                                                        </span>
-                                                    </>
-                                                ) : null}
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             </Link>
@@ -1852,14 +2035,126 @@ export default function OrdersPage() {
                 )}
             </div>
 
-            {/* Load More (Pagination) - Manager View */}
-            {hasMore && (
-                <div className="flex justify-center pt-4 pb-4">
-                    <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMore} className="w-full max-w-xs">
-                        {loadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More Orders'}
-                    </Button>
+            {/* --- DESKTOP VIEW: DATA TABLE --- */}
+            <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden mb-6">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-200/80 dark:border-slate-800 text-xs uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                            <tr>
+                                <th scope="col" className="px-6 py-4">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
+                                        onChange={(e) => {
+                                            if (e.target.checked) setSelectedOrders(filteredOrders.map(o => o.id))
+                                            else setSelectedOrders([])
+                                        }}
+                                        className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 cursor-pointer accent-slate-900"
+                                    />
+                                </th>
+                                <th scope="col" className="px-6 py-4">Order ID</th>
+                                <th scope="col" className="px-6 py-4">Customer</th>
+                                <th scope="col" className="px-6 py-4">Destination</th>
+                                <th scope="col" className="px-6 py-4">Status</th>
+                                <th scope="col" className="px-6 py-4">Time</th>
+                                <th scope="col" className="px-6 py-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                            {filteredOrders.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                                        <Package className="mx-auto h-8 w-8 text-slate-300 mb-3" />
+                                        <p className="font-semibold">No orders found</p>
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredOrders.map((order) => (
+                                    <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                        <td className="px-6 py-4 w-12">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedOrders.includes(order.id)}
+                                                onChange={(e) => toggleOrderSelection(order.id)}
+                                                className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 cursor-pointer accent-slate-900"
+                                            />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-extrabold text-[15px] text-[#0f172a] dark:text-white">#{order.order_number}</p>
+                                                {(order.priority_level === 'high' || order.priority_level === 'critical') && (
+                                                    <div className={cn(
+                                                        "w-1.5 h-1.5 rounded-full",
+                                                        order.priority_level === 'critical' ? "bg-red-500 animate-pulse" : "bg-orange-500"
+                                                    )} title="High Priority" />
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap font-medium">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 shrink-0">
+                                                    <UserIcon size={14} />
+                                                </div>
+                                                <span className="truncate max-w-[150px]">{order.customer_name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="text-[13px] leading-snug line-clamp-2 max-w-[280px]">{order.address}{order.city ? `, ${order.city}` : ""}</p>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={cn("px-2.5 py-1 text-[10px] font-bold rounded-full uppercase tracking-widest",
+                                                order.status === 'delivered' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                    order.status === 'in_progress' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                        order.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                                            order.status === 'assigned' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                                'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                            )}>
+                                                {order.status === 'in_progress' ? 'In Progress' : order.status}
+                                            </span>
+                                            {order.was_out_of_range && (
+                                                <div className="mt-1">
+                                                    <span className="flex items-center gap-1 text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 px-1.5 py-0.5 rounded font-bold w-fit">
+                                                        <AlertCircle size={9} /> Out of Range
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold">
+                                            {order.status === 'delivered' && order.delivered_at ? (
+                                                <span className="text-green-600 dark:text-green-500">
+                                                    {format(new Date(order.delivered_at), 'h:mm a')}
+                                                </span>
+                                            ) : (order.time_window_start) ? (
+                                                <span className="text-slate-500">
+                                                    {order.time_window_start?.slice(0, 5)} - {order.time_window_end?.slice(0, 5)}
+                                                </span>
+                                            ) : <span className="text-slate-400">—</span>}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <Link href={`/my-editor?id=${order.id}`}>
+                                                <Button size="sm" variant="outline" className="rounded-lg h-8 px-3 text-xs font-bold text-slate-700 border-slate-200">
+                                                    Edit
+                                                </Button>
+                                            </Link>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
-            )}
+            </div>
+
+            {/* Load More (Pagination) - Manager View */}
+            {
+                hasMore && (
+                    <div className="flex justify-center pt-4 pb-4">
+                        <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMore} className="w-full max-w-xs">
+                            {loadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More Orders'}
+                        </Button>
+                    </div>
+                )
+            }
 
         </div>
     )

@@ -31,7 +31,7 @@ export function PullToRefresh({ onRefresh, children, threshold = 100 }: PullToRe
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true)
-        await Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {})
+        await Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => { })
         try {
             await stableOnRefresh.current()
         } catch (error) {
@@ -60,6 +60,7 @@ export function PullToRefresh({ onRefresh, children, threshold = 100 }: PullToRe
         }, 100)
 
         const handleTouchStart = (e: TouchEvent) => {
+            if (document.body.classList.contains('dragging-active')) return;
             const scrollTop = getPageScrollTop()
             if (scrollTop <= 0 && !refreshing) {
                 _startY = e.touches[0].clientY
@@ -69,7 +70,7 @@ export function PullToRefresh({ onRefresh, children, threshold = 100 }: PullToRe
         }
 
         const handleTouchMove = (e: TouchEvent) => {
-            if (refreshing) return
+            if (refreshing || document.body.classList.contains('dragging-active')) return
 
             const scrollTop = getPageScrollTop()
             if (scrollTop > 0) {
@@ -111,11 +112,12 @@ export function PullToRefresh({ onRefresh, children, threshold = 100 }: PullToRe
             // Haptic at threshold
             if (rubberBand >= threshold && !_hapticFired) {
                 _hapticFired = true
-                Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {})
+                Haptics.impact({ style: ImpactStyle.Medium }).catch(() => { })
             }
         }
 
         const handleTouchEnd = () => {
+            if (document.body.classList.contains('dragging-active')) return;
             if (!_isPulling || refreshing) {
                 _isPulling = false
                 _pullDistance = 0

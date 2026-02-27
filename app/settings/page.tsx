@@ -151,41 +151,44 @@ export default function SettingsPage() {
 
     return (
         <PullToRefresh onRefresh={fetchHubs}>
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-4">
-                <header className="ios-header sticky top-0 z-10 px-4 py-4 flex items-center justify-between safe-area-pt">
-                    <div className="flex items-center gap-3">
-                        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-                            <ArrowLeft size={20} />
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-slate-100 dark:from-blue-950/20 dark:via-slate-950 dark:to-slate-900">
+                <header
+                    className="sticky top-0 z-20 px-5 pb-5 flex items-center justify-between bg-white/70 dark:bg-slate-950/70 backdrop-blur-2xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm"
+                    style={{ paddingTop: 'max(env(safe-area-inset-top), 3.5rem)' }}
+                >
+                    <div className="flex items-center gap-4">
+                        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full shadow-sm shrink-0">
+                            <ArrowLeft size={20} className="text-slate-700 dark:text-slate-300" />
                         </Button>
-                        <div>
-                            <h1 className="text-xl font-bold">Company Settings</h1>
-                            <p className="text-xs text-muted-foreground">Manage warehouses & details</p>
+                        <div className="flex flex-col">
+                            <h1 className="text-[22px] leading-none font-black text-slate-900 dark:text-white tracking-tight">Settings</h1>
+                            <p className="text-[13px] font-semibold text-slate-500 mt-1">Manage warehouses</p>
                         </div>
                     </div>
                 </header>
 
-                <main className="p-4 max-w-3xl mx-auto space-y-6">
+                <main className="p-5 max-w-3xl mx-auto space-y-8 mt-2">
 
                     {/* Warehouses Section */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center">
-                                    <Building2 size={18} />
+                    <div className="space-y-5">
+                        <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 pl-4 rounded-[28px] border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-[16px] flex items-center justify-center shadow-inner shadow-blue-400/20">
+                                    <Building2 size={20} strokeWidth={2.5} />
                                 </div>
-                                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Warehouses / Hubs</h2>
+                                <h2 className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight">Hubs & Depots</h2>
                             </div>
 
                             <Sheet open={isAddOpen} onOpenChange={setIsAddOpen}>
                                 <SheetTrigger asChild>
-                                    <Button size="sm" className="gap-2">
-                                        <Plus size={16} /> Add New
+                                    <Button size="sm" className="gap-2 h-11 rounded-[20px] px-5 shadow-sm bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-200 dark:text-slate-900 transition-all font-bold">
+                                        <Plus size={18} strokeWidth={3} /> Add
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent side="bottom" className="h-[90vh] rounded-t-3xl p-6 overflow-y-auto safe-area-pt">
+                                <SheetContent side="bottom" className="h-[90vh] rounded-t-[32px] p-6 overflow-y-auto safe-area-pt bg-white/95 dark:bg-slate-950/95 backdrop-blur-2xl border-t border-slate-200/50 dark:border-slate-800/50 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
                                     <SheetHeader className="mb-6">
-                                        <SheetTitle>Add New Warehouse</SheetTitle>
-                                        <SheetDescription> Define a new start location for your fleet.</SheetDescription>
+                                        <SheetTitle className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Add New Warehouse</SheetTitle>
+                                        <SheetDescription className="text-slate-500 font-medium">Define a new start location for your fleet.</SheetDescription>
                                     </SheetHeader>
 
                                     <div className="space-y-6">
@@ -289,37 +292,39 @@ export default function SettingsPage() {
                         </div>
 
                         {hubs.length === 0 ? (
-                            <Card className="border-dashed border-2 bg-slate-50/50 dark:bg-slate-900/30">
-                                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                                    <Building2 className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
-                                    <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400">No warehouses defined</h3>
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[200px] mt-1">Add your depots or parking lots to easily assign drivers.</p>
-                                </CardContent>
-                            </Card>
+                            <div className="border-dashed border-2 border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 rounded-[32px] flex flex-col items-center justify-center py-20 text-center shadow-sm backdrop-blur-sm mx-2">
+                                <div className="h-16 w-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-5 rotate-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    <Building2 className="h-8 w-8 text-slate-400 dark:text-slate-500" strokeWidth={2} />
+                                </div>
+                                <h3 className="text-[17px] font-black text-slate-800 dark:text-slate-200 tracking-tight">No hubs defined yet</h3>
+                                <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400 mt-2 max-w-[260px] leading-relaxed">Add a starting point for your drivers to optimize routing from the depot.</p>
+                            </div>
                         ) : (
-                            <div className="grid gap-3">
+                            <div className="grid gap-4 mt-2">
                                 {hubs.map(hub => (
-                                    <Card key={hub.id} className="group overflow-hidden">
-                                        <div className="flex items-center p-4 gap-4">
-                                            <div className="h-10 w-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center shrink-0">
-                                                <Building2 size={20} className="text-slate-600 dark:text-slate-400" />
+                                    <div key={hub.id} className="group relative overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-lg transition-all rounded-[32px]">
+                                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 opacity-20" />
+                                        <div className="flex items-center p-5 gap-4">
+                                            <div className="h-14 w-14 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-[20px] shadow-sm flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700/60">
+                                                <Building2 size={24} className="text-blue-600 dark:text-blue-400 opacity-90" strokeWidth={2} />
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-bold text-slate-900 dark:text-slate-100 truncate">{hub.name}</h3>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
-                                                    <MapPin size={10} /> {hub.address}
-                                                </p>
+                                            <div className="flex-1 min-w-0 pr-2">
+                                                <h3 className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight truncate border-b border-transparent group-hover:border-slate-200 dark:group-hover:border-slate-800 pb-1 mb-1 transition-colors">{hub.name}</h3>
+                                                <div className="flex items-start gap-1.5 mt-1">
+                                                    <MapPin size={13} className="flex-shrink-0 text-slate-400 mt-0.5" strokeWidth={2.5} />
+                                                    <p className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 line-clamp-2 leading-snug">
+                                                        {hub.address}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                            <button
+                                                className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 h-12 w-12 flex items-center justify-center rounded-full transition-all flex-shrink-0 border border-transparent hover:border-rose-100 dark:hover:border-rose-900/50"
                                                 onClick={() => handleDeleteHub(hub.id)}
                                             >
-                                                <Trash2 size={18} />
-                                            </Button>
+                                                <Trash2 size={20} strokeWidth={2} />
+                                            </button>
                                         </div>
-                                    </Card>
+                                    </div>
                                 ))}
                             </div>
                         )}

@@ -115,28 +115,33 @@ body {
   }
 
   /* Re-enable text selection for inputs/textareas where users need to type/select */
-  input, textarea, [contenteditable="true"] {
+  input,
+  textarea,
+  [contenteditable="true"] {
     -webkit-user-select: text;
     user-select: text;
   }
 }
 
 /* Hide scrollbar globally - especially important for Capacitor WebView */
-html, body, * {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+html,
+body,
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
 html::-webkit-scrollbar,
 body::-webkit-scrollbar,
 *::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Prevent iOS zoom on focus for inputs + fix form width overflow */
 @media screen and (max-width: 768px) {
+
   input,
   select,
   textarea {
@@ -199,7 +204,35 @@ body::-webkit-scrollbar,
 
 /* iOS-native: Remove shadows on mobile for clean flat look */
 @media screen and (max-width: 768px) {
-  .shadow-sm, .shadow-md {
+
+  .shadow-sm,
+  .shadow-md {
     box-shadow: none !important;
   }
+}
+
+/* Nav item press animation for Liquid Glass tab bar */
+@keyframes navitem-press {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(0.95);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.nav-press {
+  animation: navitem-press 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* Prevent all background scrolling when dragging elements */
+body.dragging-active {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
 }
