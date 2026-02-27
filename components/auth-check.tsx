@@ -241,6 +241,25 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                         return
                     }
 
+                    // Check if access token is expired or about to expire.
+                    // getSession() returns cached data — if the refresh token is invalid,
+                    // the cached session has an expired access_token that will 403 on every API call.
+                    const expiresAt = data.session.expires_at
+                    const isExpired = expiresAt && expiresAt * 1000 < Date.now()
+
+                    if (isExpired) {
+                        console.warn('⚠️ Session token expired, attempting refresh...')
+                        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+                        if (refreshError || !refreshData.session) {
+                            console.error('❌ Token refresh failed:', refreshError?.message)
+                            try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                            clearTimeout(maxTimeout)
+                            redirectToLogin('token_refresh_failed')
+                            return
+                        }
+                        console.log('✅ Token refreshed successfully')
+                    }
+
                     console.log('✅ AuthCheck: session found', {
                         path: pathname,
                         userId: data.session.user.id.substring(0, 8)
@@ -385,26 +404,27 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
 
                 // False SIGNED_OUT: Supabase fires this when auto token refresh fails
                 // (e.g. AbortError on resume, race conditions with detectSessionInUrl).
-                // Wait a moment then check if user is still valid server-side.
+                // Verify server-side before redirecting — but do NOT trust getSession()
+                // because it returns stale cached data even after the token is invalid.
                 if (isMountedRef.current && !isPublicRoute) {
                     // Small delay — let any in-flight token refresh settle
                     await new Promise(resolve => setTimeout(resolve, 500))
                     if (!isMountedRef.current) return
 
                     try {
-                        // First check local session
-                        const { data } = await supabase.auth.getSession()
-                        if (data.session) {
-                            console.log('⚠️ SIGNED_OUT event but session still exists — ignoring redirect')
-                            sessionConfirmedRef.current = true
-                            return
-                        }
+                        // Go straight to server-side check — getUser() makes an actual API call.
+                        // Do NOT use getSession() here: it returns stale cached sessions
+                        // even when the refresh token is invalid (403), causing the app
+                        // to think the session is valid when it's not.
+                        const { data: userData, error: userError } = await Promise.race([
+                            supabase.auth.getUser(),
+                            new Promise<never>((_, reject) =>
+                                setTimeout(() => reject(new Error('getUser timeout')), 5000)
+                            ),
+                        ])
 
-                        // No local session — verify server-side (maybe token was just refreshed)
-                        const { data: userData } = await supabase.auth.getUser()
-                        if (userData.user) {
+                        if (!userError && userData.user) {
                             console.log('⚠️ SIGNED_OUT event but user still valid server-side — refreshing session')
-                            // Try to refresh the session
                             const { data: refreshData } = await supabase.auth.refreshSession()
                             if (refreshData.session) {
                                 console.log('✅ Session refreshed after false SIGNED_OUT')
@@ -413,10 +433,14 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                             }
                         }
 
-                        console.log('⛔ SIGNED_OUT confirmed — no session, redirecting')
+                        console.log('⛔ SIGNED_OUT confirmed — no valid session, redirecting')
+                        // Clear any stale cached session data
+                        try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
                         router.push('/login')
                     } catch {
-                        // If all checks fail, redirect to be safe
+                        // If all checks fail (timeout, network error), redirect to be safe
+                        console.log('⛔ SIGNED_OUT recovery failed — redirecting to login')
+                        try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
                         router.push('/login')
                     }
                 }
