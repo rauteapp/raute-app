@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, Database } from "lucide-react"
+import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, CloudOff, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
+import { cacheData, getCachedData, getLastSyncTime } from "@/lib/offline-cache"
 import { waitForSession } from "@/lib/wait-for-session"
 import { parseOrderAI, type ParsedOrder } from "@/lib/grok"
 import { smartGeocode, batchSmartGeocode } from "@/lib/smart-geocoder"
@@ -240,17 +241,15 @@ export default function OrdersPage() {
 
             if (!currentUserId) return
 
-            // ⚡ QUICK LOAD: Try to load from cache immediately for instant UI
-            if (typeof window !== 'undefined') {
-                const cachedOrders = localStorage.getItem('cached_orders')
-                if (cachedOrders && orders.length === 0) {
-                    try {
-                        const parsed = JSON.parse(cachedOrders)
-                        setOrders(parsed)
-                        // Don't verify integrity too strictly here, just show something
-                        console.log("Loaded cached orders:", parsed.length)
-                    } catch (e) { console.error("Cache parse error", e) }
-                }
+            // ⚡ QUICK LOAD: Try to load from IDB cache immediately for instant UI
+            if (orders.length === 0) {
+                try {
+                    const cached = await getCachedData<Order>('orders')
+                    if (cached.length > 0) {
+                        setOrders(cached)
+                        console.log("Loaded cached orders from IDB:", cached.length)
+                    }
+                } catch (e) { console.error("IDB cache read error", e) }
             }
 
             const { data: userProfile } = await supabase
@@ -306,8 +305,7 @@ export default function OrdersPage() {
                 fetchedOrders = data || []
                 setOrders(fetchedOrders)
                 if (data) {
-                    localStorage.setItem('cached_orders', JSON.stringify(data))
-                    localStorage.setItem('cached_orders_ts', new Date().toISOString())
+                    cacheData('orders', data).catch(() => {})
                 }
 
             } else {
@@ -326,8 +324,7 @@ export default function OrdersPage() {
                 fetchedOrders = data || []
                 setOrders(fetchedOrders)
                 if (data) {
-                    localStorage.setItem('cached_orders', JSON.stringify(data))
-                    localStorage.setItem('cached_orders_ts', new Date().toISOString())
+                    cacheData('orders', data).catch(() => {})
                 }
             }
             // Auto-expand date range if no orders match today but there are orders
@@ -346,21 +343,26 @@ export default function OrdersPage() {
             }
         } catch (error: any) {
             console.error("Fetch error:", error)
-            // 🛑 ERROR: Fallback to Cache if empty
-            const cachedOrders = localStorage.getItem('cached_orders')
-            if (orders.length === 0 && cachedOrders) {
+            // 🛑 ERROR: Fallback to IDB Cache if empty
+            if (orders.length === 0) {
                 try {
-                    const parsed = JSON.parse(cachedOrders)
-                    setOrders(parsed)
-                    const ts = localStorage.getItem('cached_orders_ts')
-                    toast({
-                        title: 'Offline Mode',
-                        description: `Showing data from ${ts ? new Date(ts).toLocaleTimeString() : 'cache'}`,
-                        type: 'info'
-                    })
-                } catch (e) { }
+                    const cached = await getCachedData<Order>('orders')
+                    if (cached.length > 0) {
+                        setOrders(cached)
+                        const lastSync = await getLastSyncTime('orders')
+                        toast({
+                            title: 'Offline Mode',
+                            description: `Showing data from ${lastSync ? new Date(lastSync).toLocaleTimeString() : 'cache'}`,
+                            type: 'info'
+                        })
+                    } else {
+                        toast({ title: 'Failed to load orders', description: error.message, type: 'error' })
+                    }
+                } catch (e) {
+                    toast({ title: 'Failed to load orders', description: error.message, type: 'error' })
+                }
             } else {
-                toast({ title: 'Failed to update order', description: error.message, type: 'error' })
+                toast({ title: 'Failed to update orders', description: error.message, type: 'error' })
             }
         } finally {
             setIsLoading(false)
@@ -1163,6 +1165,11 @@ export default function OrdersPage() {
                                                     <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", statusColors[order.status as keyof typeof statusColors])}>
                                                         {order.status.replace('_', ' ')}
                                                     </span>
+                                                    {(order as any)._pendingSync && (
+                                                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800">
+                                                            <CloudOff size={9} /> Pending Sync
+                                                        </span>
+                                                    )}
                                                     <p className="text-[10px] text-muted-foreground mt-1">
                                                         {format(new Date(order.delivery_date || order.created_at), "MMM dd")}
                                                     </p>
@@ -1253,6 +1260,11 @@ export default function OrdersPage() {
                                                             {order.priority_level === 'high' && (
                                                                 <span className="text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                                                     HIGH
+                                                                </span>
+                                                            )}
+                                                            {(order as any)._pendingSync && (
+                                                                <span className="flex items-center gap-1 text-[10px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800 uppercase tracking-wider">
+                                                                    <CloudOff size={10} /> Pending Sync
                                                                 </span>
                                                             )}
                                                         </div>
@@ -2117,6 +2129,11 @@ export default function OrdersPage() {
                                                 {order.was_out_of_range && (
                                                     <span className="inline-flex items-center gap-1.5 text-[10px] bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-1 rounded-md font-bold w-fit mt-1 border border-red-100 dark:border-red-900/50">
                                                         <AlertCircle size={10} strokeWidth={3} /> Out of Range
+                                                    </span>
+                                                )}
+                                                {(order as any)._pendingSync && (
+                                                    <span className="flex items-center gap-1 text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800">
+                                                        <CloudOff size={9} /> Pending Sync
                                                     </span>
                                                 )}
                                             </div>

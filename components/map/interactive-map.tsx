@@ -8,15 +8,17 @@ import { supabase, type Order, type Driver } from "@/lib/supabase"
 import { isDriverOnline } from "@/lib/driver-status"
 import * as L from "leaflet" // Import Leaflet directly
 import { useTheme } from "next-themes"
+import { Capacitor } from "@capacitor/core"
 import type { MapControllerProps } from "@/components/map/map-controller"
+
+const CachedTileLayer = dynamic(
+    () => import("@/components/map/cached-tile-layer"),
+    { ssr: false }
+)
 
 // Dynamic Leaflet Components
 const MapContainer = dynamic(
     () => import("react-leaflet").then((mod) => mod.MapContainer),
-    { ssr: false }
-)
-const TileLayer = dynamic(
-    () => import("react-leaflet").then((mod) => mod.TileLayer),
     { ssr: false }
 )
 const Marker = dynamic(
@@ -218,7 +220,7 @@ export default function InteractiveMap({ orders, drivers, selectedDriverIds, dri
             style={{ height: '100%', width: '100%', minHeight: '100%' }}
             zoomControl={false}
         >
-            <TileLayer
+            <CachedTileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url={isDark
                     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

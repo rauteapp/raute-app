@@ -3,23 +3,80 @@ import { Driver, Order } from './supabase'
 /**
  * OPTIMIZER CONFIGURATION
  */
+
+// Maximum allowed distance for auto-assignment (in km)
+// Prevents cross-continent assignments (e.g. US driver -> Egypt Order)
+const MAX_ASSIGNMENT_DISTANCE_KM = 2500
+
+// Average delivery speed in city (km/h) — used for ETA estimation
+const AVERAGE_SPEED_KMH = 30
+
+// Average time spent at each delivery stop (minutes)
+const AVERAGE_SERVICE_TIME_MIN = 5
+
+// Default route start hour (8:00 AM) — used for time window violation detection
+const ROUTE_START_HOUR = 8
+
+// Stale GPS threshold (minutes) — warn if driver location is older than this
+const STALE_GPS_THRESHOLD_MIN = 30
+
+// Driver overload threshold — warn if driver has more orders than this
+const OVERLOAD_THRESHOLD = 30
+
+export type OptimizationStrategy = 'fastest' | 'balanced' | 'efficient'
+
+interface DriverStats {
+    driverId: string
+    driverName: string
+    orderCount: number
+    totalDistanceKm: number
+    estimatedDurationMin: number
+}
+
+interface TimeWindowViolation {
+    orderId: string
+    orderNumber: string
+    windowEnd: string
+    estimatedArrival: string
+    driverName: string
+}
+
+interface StaleGpsDriver {
+    driverName: string
+    lastUpdate: string
+    minutesAgo: number
+}
+
+interface OverloadedDriver {
+    driverName: string
+    orderCount: number
+    estimatedHours: number
+}
+
+interface DepotReloadSuggestion {
+    driverName: string
+    splitAfterOrderNumber: string
+    ordersBefore: number
+    ordersAfter: number
+}
+
+interface OptimizationWarnings {
+    timeWindowViolations: TimeWindowViolation[]
+    staleGpsDrivers: StaleGpsDriver[]
+    overloadedDrivers: OverloadedDriver[]
+    depotReloadSuggestions: DepotReloadSuggestion[]
+}
+
 interface OptimizationResult {
     orders: Order[]
     summary: {
         totalDistance: number
         unassignedCount: number
     }
-    debug?: any // Allow passing back debug info
+    driverStats: DriverStats[]
+    warnings: OptimizationWarnings
+    debug?: any
 }
-
-// Maximum allowed distance for auto-assignment (in km)
-// Prevents cross-continent assignments (e.g. US driver -> Egypt Order)
-const MAX_ASSIGNMENT_DISTANCE_KM = 2500
-
-// Penalty per existing order to encourage load balancing (in effective km)
-const LOAD_PENALTY_KM = 10
-
-export type OptimizationStrategy = 'fastest' | 'balanced' | 'efficient'
 
 /**
  * Calculates straight-line distance between two points (Haversine approximation)
@@ -41,12 +98,34 @@ function deg2rad(deg: number): number {
 }
 
 /**
+ * Converts "HH:MM:SS" or "HH:MM" time string to minutes since midnight
+ */
+function timeToMinutes(timeStr: string): number {
+    const parts = timeStr.split(':')
+    return parseInt(parts[0]) * 60 + parseInt(parts[1])
+}
+
+/**
+ * Converts minutes since midnight to "h:mm AM/PM" format
+ */
+function minutesToTimeStr(minutes: number): string {
+    const hrs = Math.floor(minutes / 60)
+    const mins = Math.round(minutes % 60)
+    const period = hrs >= 12 ? 'PM' : 'AM'
+    const displayHrs = hrs > 12 ? hrs - 12 : hrs === 0 ? 12 : hrs
+    return `${displayHrs}:${mins.toString().padStart(2, '0')} ${period}`
+}
+
+/**
  * MAIN OPTIMIZATION FUNCTION
- * 
+ *
  * Improved Logic:
  * 1. Filtering: Max Distance Constraint (No assignments > 2500km).
  * 2. Scoring: Distance + Load Penalty.
  * 3. Sorting: Respect Time Windows inside driver routes.
+ * 4. Duration Estimation: Per-driver route distance and estimated time.
+ * 5. Time Window Validation: Detect orders that may miss their delivery window.
+ * 6. Smart Warnings: Stale GPS, driver overload, depot reload suggestions.
  */
 export async function optimizeRoute(
     orders: Order[],
@@ -56,6 +135,14 @@ export async function optimizeRoute(
 ): Promise<OptimizationResult> {
 
     let updatedOrders = [...orders]
+
+    // Warnings collector
+    const warnings: OptimizationWarnings = {
+        timeWindowViolations: [],
+        staleGpsDrivers: [],
+        overloadedDrivers: [],
+        depotReloadSuggestions: []
+    }
 
     // FILTER: Ignore 'delivered' or 'cancelled' orders from re-assignment
     const activeOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled')
@@ -80,10 +167,8 @@ export async function optimizeRoute(
     })
 
     // Map drivers to their starting positions
-    // Fallback logic: If driver has NO location, we try to use the average location of their LOCKED orders, 
-    // otherwise we skip auto-assigning to them (safer than defaulting to Cairo implied).
     const driverPositions = drivers.map(d => {
-        let lat, lng, source, address
+        let lat: number | undefined, lng: number | undefined, source: string | undefined, address: string | undefined
 
         // Priority 1: Manual Start Point (Manager override) -> ALWAYS FIRST
         if (d.use_manual_start && d.starting_point_lat && d.starting_point_lng) {
@@ -96,10 +181,45 @@ export async function optimizeRoute(
         else if (mode === 'reoptimize') {
             // Mid-Day Mode: Prioritize Live GPS
             if (d.current_lat && d.current_lng) {
-                lat = d.current_lat
-                lng = d.current_lng
-                address = 'Live Location'
-                source = 'live'
+                // Check if GPS is stale (>30 min old)
+                if (d.last_location_update) {
+                    const lastUpdate = new Date(d.last_location_update)
+                    const minutesAgo = Math.floor((Date.now() - lastUpdate.getTime()) / 60000)
+
+                    if (minutesAgo > STALE_GPS_THRESHOLD_MIN) {
+                        // GPS is stale — warn and try depot fallback
+                        warnings.staleGpsDrivers.push({
+                            driverName: d.name,
+                            lastUpdate: d.last_location_update,
+                            minutesAgo
+                        })
+
+                        // Prefer depot over stale GPS
+                        if (d.default_start_lat && d.default_start_lng) {
+                            lat = d.default_start_lat
+                            lng = d.default_start_lng
+                            address = d.default_start_address || 'Default Depot (GPS stale)'
+                            source = 'default'
+                        } else {
+                            // Use stale GPS as last resort
+                            lat = d.current_lat
+                            lng = d.current_lng
+                            address = `Live Location (${minutesAgo}min old)`
+                            source = 'stale'
+                        }
+                    } else {
+                        lat = d.current_lat
+                        lng = d.current_lng
+                        address = 'Live Location'
+                        source = 'live'
+                    }
+                } else {
+                    // No last_location_update timestamp — use GPS but mark as unknown freshness
+                    lat = d.current_lat
+                    lng = d.current_lng
+                    address = 'Live Location'
+                    source = 'live'
+                }
             }
             // Fallback to Depot
             else if (d.default_start_lat && d.default_start_lng) {
@@ -123,12 +243,12 @@ export async function optimizeRoute(
             address = 'Live Location'
             source = 'live'
         }
-        // Priority 4: Infer from locked orders (Last resort)
+        // Priority 5: Infer from locked orders (Last resort)
         else {
             const driversLockedOrders = pinnedOrders.filter(lo => lo.driver_id === d.id && lo.latitude)
             if (driversLockedOrders.length > 0) {
-                lat = driversLockedOrders[0].latitude
-                lng = driversLockedOrders[0].longitude
+                lat = driversLockedOrders[0].latitude ?? undefined
+                lng = driversLockedOrders[0].longitude ?? undefined
                 address = 'Inferred from Orders'
                 source = 'inferred'
             }
@@ -141,25 +261,14 @@ export async function optimizeRoute(
             lng,
             address,
             load: pinnedOrders.filter(o => o.driver_id === d.id).length,
-            valid: !!(lat && lng), // Only optimize for drivers with a known location
-            source
+            valid: !!(lat && lng),
+            source,
+            depotLat: d.default_start_lat,
+            depotLng: d.default_start_lng
         }
     })
 
-    // ... (rest of the file remains same until return)
-    // Actually, I can't skip the middle with replace_file_content easily if I changed the map.
-    // But wait, the return statement is all I need to change if I change the map above?
-    // No, I need to change the map above.
-    // And then the return statement at the bottom needs to pick it up.
-
-    // I will split this into two tool calls to be safe.
-    // First call: Update the driverPositions map.
-
-
     // Determine Strategy Weights
-    // Fastest: Low penalty (0.5km equivalent) -> Focus on proximity
-    // Balanced: High penalty (50km equivalent) -> Focus on equal count
-    // Efficient: Moderate (10km equivalent) -> Trade-off
     let loadBalanceWeight = 10
     if (strategy === 'fastest') loadBalanceWeight = 0.5
     else if (strategy === 'balanced') loadBalanceWeight = 50
@@ -169,19 +278,16 @@ export async function optimizeRoute(
     for (const order of availableOrders) {
         if (!order.latitude || !order.longitude) continue;
 
-        let bestDriverId = null
+        let bestDriverId: string | null = null
         let minScore = Infinity
 
         for (const driver of driverPositions) {
             if (!driver.valid || !driver.lat || !driver.lng) continue
 
-            // Calculate Distance Score
             const distance = getDistance(driver.lat, driver.lng, order.latitude, order.longitude)
 
-            // 🚫 CONSTRAINT: Max Distance Check
             if (distance > MAX_ASSIGNMENT_DISTANCE_KM) continue
 
-            // Calculate Load Balance Score
             const loadPenalty = driver.load * loadBalanceWeight
             const totalScore = distance + loadPenalty
 
@@ -192,7 +298,6 @@ export async function optimizeRoute(
         }
 
         if (bestDriverId) {
-            // Assign Order
             const orderIndex = updatedOrders.findIndex(o => o.id === order.id)
             if (orderIndex !== -1) {
                 updatedOrders[orderIndex] = {
@@ -202,27 +307,28 @@ export async function optimizeRoute(
                     is_pinned: false
                 }
 
-                // Update Driver Load
                 const driverPos = driverPositions.find(d => d.id === bestDriverId)
                 if (driverPos) driverPos.load++
             }
         }
     }
 
-    // 3. Sequence Orders (TSP-ish)
+    // 3. Sequence Orders (TSP-ish) + Calculate Stats
     const finalOrders: Order[] = []
+    const driverStats: DriverStats[] = []
+    let grandTotalDistance = 0
 
     for (const driver of drivers) {
         let driverOrders = updatedOrders.filter(o => o.driver_id === driver.id)
         if (driverOrders.length === 0) continue
 
-        // Start point
-        let currentLat = driver.current_lat || driver.default_start_lat
-        let currentLng = driver.current_lng || driver.default_start_lng
+        const driverPos = driverPositions.find(d => d.id === driver.id)
 
-        // If no start point, use first order's location as start (implied start)
-        // Note: With priority sorting, this logic might need adjustment if the first order is urgent but far away.
-        // But generally, we route from start point.
+        // Start point — use optimizer's resolved position
+        let currentLat = driverPos?.lat || driver.current_lat || driver.default_start_lat
+        let currentLng = driverPos?.lng || driver.current_lng || driver.default_start_lng
+
+        // If no start point, use first order's location
         if ((!currentLat || !currentLng) && driverOrders[0].latitude) {
             currentLat = driverOrders[0].latitude
             currentLng = driverOrders[0].longitude
@@ -231,12 +337,6 @@ export async function optimizeRoute(
         const sortedDriverOrders: Order[] = []
         let unrouted = [...driverOrders]
 
-        // SORT CANDIDATES BY PRIORITY FIRST, THEN TIME WINDOW
-        // We want to process Urgent orders first in the route if possible? 
-        // OR do we just sequence them first?
-        // The requirement is "Urgent orders will be delivered first in the route sequence".
-        // So we should pick them first.
-
         // Priority value map
         const getPriorityValue = (o: Order) => {
             if (o.priority_level === 'critical') return 3
@@ -244,33 +344,23 @@ export async function optimizeRoute(
             return 1
         }
 
-        // Sort unrouted set:
-        // 1. Pinned (Always top)
-        // 2. Time Window (Earliest Start First) - Hard Constraint
-        // 3. Priority (Critical > High > Normal) - Soft Constraint
+        // Sort: Pinned > Time Window > Priority
         unrouted.sort((a, b) => {
             if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
 
-            // 1. Time Window Check
-            // If both have windows, earlier window start goes first
             if (a.time_window_start && b.time_window_start) {
                 return a.time_window_start.localeCompare(b.time_window_start)
             }
-            // Orders WITH windows generally take precedence (Scheduled > Flexible)
             if (a.time_window_start && !b.time_window_start) return -1
             if (!a.time_window_start && b.time_window_start) return 1
 
-            // 2. Priority
             const pA = getPriorityValue(a)
             const pB = getPriorityValue(b)
             return pB - pA
         })
 
         while (unrouted.length > 0) {
-            // Greedy Nearest Neighbor from Top Candidates (to respect Time Window buckets)
-            // Increased pool size to 12 to prevent "zigzagging" (skipping nearby stops because they were 4th or 5th in the list).
-            // This allows better geographical clustering while still generally respecting the time-window sort order.
-            const candidatePoolSize = 12 // Look ahead limit
+            const candidatePoolSize = 12
             const candidates = unrouted.slice(0, candidatePoolSize)
 
             let bestNextIndex = -1
@@ -288,7 +378,6 @@ export async function optimizeRoute(
                     }
                 }
             } else {
-                // If we still have no GPS reference, just take the first one (Time Window priority)
                 bestNextIndex = 0
             }
 
@@ -308,19 +397,19 @@ export async function optimizeRoute(
 
                 unrouted.splice(realIndex, 1)
             } else {
-                // Fallback
                 const fallback = unrouted.shift()
                 if (fallback) sortedDriverOrders.push({ ...fallback, route_index: sortedDriverOrders.length + 1 })
             }
         }
 
         // --- POST-PROCESSING: 2-OPT OPTIMIZATION ---
-        // The sortedDriverOrders is now a valid route, but might have "crossings" (zigzags).
-        // We apply a simple 2-Opt pass to untangle these crossings and reduce travel time.
-
         let improvement = true
-        while (improvement) {
+        let iterations = 0
+        const maxIterations = 500 // Safety limit for large routes
+
+        while (improvement && iterations < maxIterations) {
             improvement = false
+            iterations++
             for (let i = 0; i < sortedDriverOrders.length - 2; i++) {
                 for (let j = i + 2; j < sortedDriverOrders.length - 1; j++) {
                     const A = sortedDriverOrders[i]
@@ -331,17 +420,13 @@ export async function optimizeRoute(
                     if (A.latitude && A.longitude && B.latitude && B.longitude &&
                         C.latitude && C.longitude && D.latitude && D.longitude) {
 
-                        // Distance of current edges: A->B + C->D
                         const currentDist = getDistance(A.latitude, A.longitude, B.latitude, B.longitude) +
                             getDistance(C.latitude, C.longitude, D.latitude, D.longitude)
 
-                        // Distance of swapped edges: A->C + B->D
                         const newDist = getDistance(A.latitude, A.longitude, C.latitude, C.longitude) +
                             getDistance(B.latitude, B.longitude, D.latitude, D.longitude)
 
-                        // If swapping reduces total distance, perform the swap
                         if (newDist < currentDist) {
-                            // Reverse the segment between i+1 and j
                             const segment = sortedDriverOrders.slice(i + 1, j + 1).reverse()
                             sortedDriverOrders.splice(i + 1, segment.length, ...segment)
                             improvement = true
@@ -356,6 +441,118 @@ export async function optimizeRoute(
             o.route_index = index + 1
         })
 
+        // --- CALCULATE ROUTE DISTANCE & DURATION ---
+        let routeDistanceKm = 0
+        const startLat = driverPos?.lat || driver.default_start_lat
+        const startLng = driverPos?.lng || driver.default_start_lng
+
+        // Distance from start to first order
+        if (startLat && startLng && sortedDriverOrders[0]?.latitude && sortedDriverOrders[0]?.longitude) {
+            routeDistanceKm += getDistance(startLat, startLng, sortedDriverOrders[0].latitude, sortedDriverOrders[0].longitude)
+        }
+
+        // Distance between consecutive orders
+        for (let i = 0; i < sortedDriverOrders.length - 1; i++) {
+            const curr = sortedDriverOrders[i]
+            const next = sortedDriverOrders[i + 1]
+            if (curr.latitude && curr.longitude && next.latitude && next.longitude) {
+                routeDistanceKm += getDistance(curr.latitude, curr.longitude, next.latitude, next.longitude)
+            }
+        }
+
+        const travelTimeMin = (routeDistanceKm / AVERAGE_SPEED_KMH) * 60
+        const serviceTimeMin = sortedDriverOrders.length * AVERAGE_SERVICE_TIME_MIN
+        const estimatedDurationMin = travelTimeMin + serviceTimeMin
+
+        grandTotalDistance += routeDistanceKm
+
+        driverStats.push({
+            driverId: driver.id,
+            driverName: driver.name,
+            orderCount: sortedDriverOrders.length,
+            totalDistanceKm: Math.round(routeDistanceKm * 10) / 10,
+            estimatedDurationMin: Math.round(estimatedDurationMin)
+        })
+
+        // --- TIME WINDOW VIOLATION DETECTION ---
+        let currentTimeMin = ROUTE_START_HOUR * 60 // Start at 8:00 AM
+
+        // Travel time from start to first stop
+        if (startLat && startLng && sortedDriverOrders[0]?.latitude && sortedDriverOrders[0]?.longitude) {
+            const distToFirst = getDistance(startLat, startLng, sortedDriverOrders[0].latitude, sortedDriverOrders[0].longitude)
+            currentTimeMin += (distToFirst / AVERAGE_SPEED_KMH) * 60
+        }
+
+        for (let i = 0; i < sortedDriverOrders.length; i++) {
+            const order = sortedDriverOrders[i]
+
+            // Check if arrival time violates the time window
+            if (order.time_window_end) {
+                const windowEndMin = timeToMinutes(order.time_window_end)
+                if (currentTimeMin > windowEndMin) {
+                    warnings.timeWindowViolations.push({
+                        orderId: order.id,
+                        orderNumber: order.order_number || order.id,
+                        windowEnd: order.time_window_end.slice(0, 5),
+                        estimatedArrival: minutesToTimeStr(currentTimeMin),
+                        driverName: driver.name
+                    })
+                }
+            }
+
+            // Add service time
+            currentTimeMin += AVERAGE_SERVICE_TIME_MIN
+
+            // Add travel time to next stop
+            if (i < sortedDriverOrders.length - 1) {
+                const next = sortedDriverOrders[i + 1]
+                if (order.latitude && order.longitude && next.latitude && next.longitude) {
+                    const dist = getDistance(order.latitude, order.longitude, next.latitude, next.longitude)
+                    currentTimeMin += (dist / AVERAGE_SPEED_KMH) * 60
+                }
+            }
+        }
+
+        // --- OVERLOAD WARNING ---
+        if (sortedDriverOrders.length > OVERLOAD_THRESHOLD) {
+            warnings.overloadedDrivers.push({
+                driverName: driver.name,
+                orderCount: sortedDriverOrders.length,
+                estimatedHours: Math.round(estimatedDurationMin / 60 * 10) / 10
+            })
+
+            // --- DEPOT RELOAD SUGGESTION ---
+            // Only suggest if driver has a known depot
+            if (driverPos?.depotLat && driverPos?.depotLng) {
+                // Find the order closest to depot near the middle of the route
+                const midStart = Math.floor(sortedDriverOrders.length * 0.3)
+                const midEnd = Math.floor(sortedDriverOrders.length * 0.7)
+
+                let bestSplitIndex = -1
+                let minDepotDist = Infinity
+
+                for (let i = midStart; i < midEnd; i++) {
+                    const o = sortedDriverOrders[i]
+                    if (o.latitude && o.longitude) {
+                        const distToDepot = getDistance(o.latitude, o.longitude, driverPos.depotLat, driverPos.depotLng)
+                        if (distToDepot < minDepotDist) {
+                            minDepotDist = distToDepot
+                            bestSplitIndex = i
+                        }
+                    }
+                }
+
+                if (bestSplitIndex >= 0) {
+                    warnings.depotReloadSuggestions.push({
+                        driverName: driver.name,
+                        splitAfterOrderNumber: sortedDriverOrders[bestSplitIndex].order_number || `Stop #${bestSplitIndex + 1}`,
+                        ordersBefore: bestSplitIndex + 1,
+                        ordersAfter: sortedDriverOrders.length - bestSplitIndex - 1
+                    })
+                }
+            }
+        }
+
         finalOrders.push(...sortedDriverOrders)
     }
 
@@ -365,11 +562,13 @@ export async function optimizeRoute(
     return {
         orders: finalOrders,
         summary: {
-            totalDistance: 0,
+            totalDistance: Math.round(grandTotalDistance * 10) / 10,
             unassignedCount: unassigned.length
         },
+        driverStats,
+        warnings,
         debug: {
-            drivers: driverPositions.map(d => ({ name: d.name, valid: d.valid, lat: d.lat, lng: d.lng, address: d.address })),
+            drivers: driverPositions.map(d => ({ name: d.name, valid: d.valid, lat: d.lat, lng: d.lng, address: d.address, source: d.source })),
         }
     }
 }
