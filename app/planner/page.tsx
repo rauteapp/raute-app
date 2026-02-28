@@ -23,10 +23,10 @@ import { PullToRefresh } from '@/components/pull-to-refresh'
 import {
     DndContext,
     DragOverlay,
-    closestCorners,
+    pointerWithin,
+    closestCenter,
     KeyboardSensor,
-    MouseSensor,
-    TouchSensor,
+    PointerSensor,
     useSensor,
     useSensors,
     DragStartEvent,
@@ -315,15 +315,9 @@ export default function PlannerPage() {
 
     // Sensors - Optimized for Mobile (higher thresholds to prevent jumpiness)
     const sensors = useSensors(
-        useSensor(MouseSensor, {
+        useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8, // Allow quick drag without long delays for desktop
-            }
-        }),
-        useSensor(TouchSensor, {
-            activationConstraint: {
-                delay: 100, // Faster touch hold response
-                tolerance: 8 // Forgiveness for finger wiggle
+                distance: 8, // Move 8px to start drag (works for mouse + touch)
             }
         }),
         useSensor(KeyboardSensor)
@@ -835,7 +829,11 @@ export default function PlannerPage() {
     return (
         <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={(args) => {
+                // pointerWithin works better with scroll containers — fallback to closestCenter
+                const within = pointerWithin(args)
+                return within.length > 0 ? within : closestCenter(args)
+            }}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
