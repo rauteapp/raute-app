@@ -1399,7 +1399,11 @@ export default function PlannerPage() {
                     duration: 250,
                     easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)' // Smooth ease-out, no overshoot
                 }}>
-                    {activeDragOrder ? <DraggableOrderCard order={activeDragOrder} isOverlay /> : null}
+                    {activeDragOrder ? (
+                        <div className="w-[340px] max-w-[80vw]">
+                            <DraggableOrderCard order={activeDragOrder} isOverlay />
+                        </div>
+                    ) : null}
                 </DragOverlay>
 
                 {/* QUICK VIEW SHEET */}
