@@ -25,7 +25,8 @@ import {
     DragOverlay,
     closestCenter,
     KeyboardSensor,
-    PointerSensor,
+    MouseSensor,
+    TouchSensor,
     useSensor,
     useSensors,
     DragStartEvent,
@@ -74,7 +75,7 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
 
     const style: React.CSSProperties = isDragging
         ? { opacity: 0.4, willChange: 'transform', touchAction: 'none', zIndex: 9999 }
-        : { touchAction: 'none' } // Prevent browser scroll from intercepting dnd-kit drag gestures
+        : {} // TouchSensor uses delay-based activation, so no touchAction needed when not dragging
 
     return (
         <Card
@@ -314,9 +315,15 @@ export default function PlannerPage() {
 
     // Sensors - Optimized for Mobile (higher thresholds to prevent jumpiness)
     const sensors = useSensors(
-        useSensor(PointerSensor, {
+        useSensor(MouseSensor, {
             activationConstraint: {
-                distance: 8, // Move 8px to start drag (works for mouse + touch)
+                distance: 8, // 8px movement to start drag on desktop
+            }
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 200, // Hold 200ms to start drag (allows scroll on touch)
+                tolerance: 8,
             }
         }),
         useSensor(KeyboardSensor)
