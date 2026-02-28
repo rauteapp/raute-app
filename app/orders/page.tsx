@@ -462,46 +462,51 @@ export default function OrdersPage() {
         setFilteredOrders(filtered)
     }
 
+    const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+
     async function toggleOnlineStatus() {
-        if (!driverId) {
-            toast({ title: "Error", description: "Driver profile not found.", type: "error" })
+        if (!driverId || isTogglingStatus) {
+            if (!driverId) toast({ title: "Error", description: "Driver profile not found.", type: "error" })
             return
         }
+        setIsTogglingStatus(true)
 
-        const currentStatus = isOnline
-        const newStatus = !currentStatus
-
-        // 1. Optimistic Update
-        setIsOnline(newStatus)
-        // Save to localStorage for persistence across refreshes
-        localStorage.setItem('driver_online_status', String(newStatus))
+        const newStatus = !isOnline
 
         try {
-            // 2. Perform DB Update
-            const { data, error } = await supabase
+            // Update DB first — also set last_location_update so isDriverOnline() works immediately
+            const updatePayload: Record<string, any> = { is_online: newStatus }
+            if (newStatus) {
+                updatePayload.last_location_update = new Date().toISOString()
+            }
+            const { error } = await supabase
                 .from('drivers')
-                .update({ is_online: newStatus })
+                .update(updatePayload)
                 .eq('id', driverId)
-                .select()
 
             if (error) throw error
 
-            // 3. Log Activity
-            await supabase.from('driver_activity_logs').insert({
+            // Only update UI after DB succeeds
+            setIsOnline(newStatus)
+            localStorage.setItem('driver_online_status', String(newStatus))
+
+            // Log Activity (non-blocking)
+            Promise.resolve(supabase.from('driver_activity_logs').insert({
                 driver_id: driverId,
                 status: newStatus ? 'online' : 'offline',
                 timestamp: new Date().toISOString()
-            })
+            })).catch(() => {})
 
             toast({ title: newStatus ? "You are ONLINE 🟢" : "You are OFFLINE ⚫", type: "success" })
 
         } catch (error: any) {
-            setIsOnline(currentStatus) // Revert UI
             toast({
                 title: "Failed to update status",
-                description: error.message || "Database permission denied",
+                description: error?.message || "Database permission denied",
                 type: "error"
             })
+        } finally {
+            setIsTogglingStatus(false)
         }
     }
 
@@ -1025,15 +1030,17 @@ export default function OrdersPage() {
 
                             <button
                                 onClick={toggleOnlineStatus}
+                                disabled={isTogglingStatus}
                                 className={cn(
                                     "flex items-center gap-2 px-4 py-2 rounded-full shadow-sm border transition-all text-sm font-bold",
+                                    isTogglingStatus && "opacity-50 cursor-not-allowed",
                                     isOnline
                                         ? "bg-green-500/10 text-green-600 border-green-200 dark:border-green-900"
                                         : "bg-muted text-muted-foreground border-border"
                                 )}
                             >
                                 <div className={cn("w-2 h-2 rounded-full transition-colors", isOnline ? "bg-green-500 animate-pulse" : "bg-slate-400")} />
-                                {isOnline ? "ONLINE" : "OFFLINE"}
+                                {isTogglingStatus ? "..." : isOnline ? "ONLINE" : "OFFLINE"}
                             </button>
                         </div>
                     </div>

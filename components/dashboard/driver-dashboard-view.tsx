@@ -245,37 +245,46 @@ export function DriverDashboardView({ userId }: { userId: string }) {
         }
     }
 
+    const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+
     async function toggleOnlineStatus() {
-        if (!driverId) return
+        if (!driverId || isTogglingStatus) return
+        setIsTogglingStatus(true)
 
         const newStatus = !isOnline
-        setIsOnline(newStatus) // Optimistic
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('driver_online_status', String(newStatus))
-        }
 
         try {
-            await supabase.from('drivers').update({ is_online: newStatus }).eq('id', driverId)
+            // Update DB first — also set last_location_update so isDriverOnline() works immediately
+            const updatePayload: Record<string, any> = { is_online: newStatus }
+            if (newStatus) {
+                updatePayload.last_location_update = new Date().toISOString()
+            }
+            const { error } = await supabase.from('drivers').update(updatePayload).eq('id', driverId)
+            if (error) throw error
 
-            // Log Activity
-            await supabase.from('driver_activity_logs').insert({
+            // Only update UI after DB succeeds
+            setIsOnline(newStatus)
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('driver_online_status', String(newStatus))
+            }
+
+            // Log Activity (non-blocking)
+            Promise.resolve(supabase.from('driver_activity_logs').insert({
                 driver_id: driverId,
                 status: newStatus ? 'online' : 'offline',
                 timestamp: new Date().toISOString()
-            })
+            })).catch(() => {})
 
             toast({ title: newStatus ? "You are ONLINE 🟢" : "You are OFFLINE ⚫", type: "success" })
         } catch (error: any) {
-            console.error(error)
-            setIsOnline(!newStatus) // Revert on failure
-            if (typeof window !== 'undefined') {
-                localStorage.setItem('driver_online_status', String(!newStatus))
-            }
+            console.error('Toggle status failed:', error)
             toast({
                 title: "Failed to update status",
                 description: error?.message || "Database permission denied",
                 type: "error"
             })
+        } finally {
+            setIsTogglingStatus(false)
         }
     }
 
@@ -395,8 +404,9 @@ export function DriverDashboardView({ userId }: { userId: string }) {
                         variant={isOnline ? "default" : "secondary"}
                         className={isOnline ? "bg-green-600 hover:bg-green-700 text-white" : ""}
                         onClick={toggleOnlineStatus}
+                        disabled={isTogglingStatus}
                     >
-                        {isOnline ? 'Go Offline' : 'Go Online'}
+                        {isTogglingStatus ? 'Updating...' : isOnline ? 'Go Offline' : 'Go Online'}
                     </Button>
                 </div>
             )}
