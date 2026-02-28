@@ -152,9 +152,9 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
 /**
  * DROPPABLE DRIVER CONTAINER COMPONENT
  */
-function DroppableDriverContainer({ driver, orders, children, isLocked = false }: { driver: Driver, orders: Order[], children: React.ReactNode, isLocked?: boolean }) {
+function DroppableDriverContainer({ driver, orders, children, isLocked = false, idPrefix = '' }: { driver: Driver, orders: Order[], children: React.ReactNode, isLocked?: boolean, idPrefix?: string }) {
     const { setNodeRef, isOver } = useDroppable({
-        id: `driver-${driver.id}`,
+        id: `${idPrefix}driver-${driver.id}`,
         data: { driver }
     })
 
@@ -210,9 +210,9 @@ function DroppableDriverContainer({ driver, orders, children, isLocked = false }
 /**
  * DROPPABLE UNASSIGNED AREA
  */
-function UnassignedArea({ children, count }: { children: React.ReactNode, count: number }) {
+function UnassignedArea({ children, count, idPrefix = '' }: { children: React.ReactNode, count: number, idPrefix?: string }) {
     const { setNodeRef, isOver } = useDroppable({
-        id: 'unassigned-zone'
+        id: `${idPrefix}unassigned-zone`
     })
 
     return (
@@ -759,12 +759,13 @@ export default function PlannerPage() {
         if (!over) return
 
         const orderId = active.id as string
-        const targetId = over.id as string
+        // Strip layout prefix (d- for desktop, m- for mobile) from droppable IDs
+        const rawTargetId = (over.id as string).replace(/^[dm]-/, '')
 
         // Determine destination
         let newDriverId: string | null = null
-        if (targetId.startsWith('driver-')) {
-            newDriverId = targetId.replace('driver-', '')
+        if (rawTargetId.startsWith('driver-')) {
+            newDriverId = rawTargetId.replace('driver-', '')
 
             // 🛑 SUBSCRIPTION ENFORCEMENT: Block dispatch to drivers beyond limit
             if (newDriverId) {
@@ -778,7 +779,7 @@ export default function PlannerPage() {
                     return // Block the assignment
                 }
             }
-        } else if (targetId === 'unassigned-zone') {
+        } else if (rawTargetId === 'unassigned-zone') {
             newDriverId = null
         } else {
             return // Dropped somewhere invalid
@@ -1020,7 +1021,7 @@ export default function PlannerPage() {
 
                         <div className="px-5 mb-5 flex flex-col min-h-0 flex-shrink-0">
                             <div className="max-h-[30vh] overflow-y-auto rounded-[24px] border border-slate-200/60 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-2 shadow-sm custom-scrollbar">
-                                <UnassignedArea count={unassignedOrders.length}>
+                                <UnassignedArea count={unassignedOrders.length} idPrefix="d-">
                                     {unassignedOrders.map(order => (
                                         <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
                                     ))}
@@ -1042,6 +1043,7 @@ export default function PlannerPage() {
                                         driver={driver}
                                         orders={orders.filter(o => o.driver_id === driver.id)}
                                         isLocked={index >= driverLimit}
+                                        idPrefix="d-"
                                     >
                                         {orders.filter(o => o.driver_id === driver.id).map(order => (
                                             <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
@@ -1354,7 +1356,7 @@ export default function PlannerPage() {
                         {/* Unassigned Orders - scrollable */}
                         <div className="flex-1 min-h-[300px] h-full flex flex-col rounded-[24px] border border-slate-200/60 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-2 shadow-sm">
                             <div className="flex-1 overflow-y-auto">
-                                <UnassignedArea count={unassignedOrders.length}>
+                                <UnassignedArea count={unassignedOrders.length} idPrefix="m-">
                                     {unassignedOrders.map(order => (
                                         <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
                                     ))}
@@ -1374,6 +1376,7 @@ export default function PlannerPage() {
                                         driver={driver}
                                         orders={orders.filter(o => o.driver_id === driver.id)}
                                         isLocked={index >= driverLimit}
+                                        idPrefix="m-"
                                     >
                                         {orders.filter(o => o.driver_id === driver.id).map(order => (
                                             <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
