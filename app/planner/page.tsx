@@ -67,10 +67,11 @@ const fixLeafletIcons = () => {
 /**
  * DRAGGABLE ORDER CARD COMPONENT
  */
-function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order: Order, isOverlay?: boolean, onViewDetails?: (o: Order) => void }) {
+function DraggableOrderCard({ order, isOverlay = false, onViewDetails, idPrefix = '' }: { order: Order, isOverlay?: boolean, onViewDetails?: (o: Order) => void, idPrefix?: string }) {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-        id: order.id,
-        data: { order }
+        id: isOverlay ? `overlay-${order.id}` : `${idPrefix}${order.id}`,
+        data: { order },
+        disabled: isOverlay, // Overlay is just visual — don't register as draggable
     })
 
     const style: React.CSSProperties = isDragging
@@ -737,7 +738,8 @@ export default function PlannerPage() {
 
     // Handlers
     function handleDragStart(event: DragStartEvent) {
-        setActiveDragId(event.active.id as string)
+        // Strip layout prefix (d-/m-) to get the raw order ID
+        setActiveDragId((event.active.id as string).replace(/^[dm]-/, ''))
 
         // Add haptic feedback on mobile
         if (typeof window !== 'undefined') {
@@ -765,8 +767,8 @@ export default function PlannerPage() {
 
         if (!over) return
 
-        const orderId = active.id as string
-        // Strip layout prefix (d- for desktop, m- for mobile) from droppable IDs
+        // Strip layout prefix (d-/m-) from both draggable and droppable IDs
+        const orderId = (active.id as string).replace(/^[dm]-/, '')
         const rawTargetId = (over.id as string).replace(/^[dm]-/, '')
 
         // Determine destination
@@ -1030,7 +1032,7 @@ export default function PlannerPage() {
                             <div className="max-h-[30vh] overflow-y-auto rounded-[24px] border border-slate-200/60 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-2 shadow-sm custom-scrollbar">
                                 <UnassignedArea count={unassignedOrders.length} idPrefix="d-">
                                     {unassignedOrders.map(order => (
-                                        <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
+                                        <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} idPrefix="d-" />
                                     ))}
                                 </UnassignedArea>
                             </div>
@@ -1053,7 +1055,7 @@ export default function PlannerPage() {
                                         idPrefix="d-"
                                     >
                                         {orders.filter(o => o.driver_id === driver.id).map(order => (
-                                            <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
+                                            <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} idPrefix="d-" />
                                         ))}
                                     </DroppableDriverContainer>
                                 ))}
@@ -1365,7 +1367,7 @@ export default function PlannerPage() {
                             <div className="flex-1 overflow-y-auto">
                                 <UnassignedArea count={unassignedOrders.length} idPrefix="m-">
                                     {unassignedOrders.map(order => (
-                                        <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
+                                        <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} idPrefix="m-" />
                                     ))}
                                 </UnassignedArea>
                             </div>
@@ -1386,7 +1388,7 @@ export default function PlannerPage() {
                                         idPrefix="m-"
                                     >
                                         {orders.filter(o => o.driver_id === driver.id).map(order => (
-                                            <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
+                                            <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} idPrefix="m-" />
                                         ))}
                                     </DroppableDriverContainer>
                                 ))}
