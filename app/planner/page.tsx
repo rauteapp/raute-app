@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import "leaflet/dist/leaflet.css"
 import { useRouter } from 'next/navigation'
 import { supabase, type Order, type Driver } from '@/lib/supabase'
 import { isDriverOnline } from '@/lib/driver-status'
@@ -12,18 +13,20 @@ import { calculateEvenSplit, type SplitSuggestion } from '@/lib/split-calculator
 import { WorkloadDashboard } from '@/components/WorkloadDashboard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { MapPin, Truck, Sparkles, AlertCircle, AlertTriangle, Lock, Unlock, Clock, ExternalLink, CheckCircle2, User as UserIcon, Edit, Route, Timer, RotateCcw, MapPinOff } from 'lucide-react'
+import { MapPin, Truck, Sparkles, AlertCircle, AlertTriangle, Lock, Unlock, Clock, ExternalLink, CheckCircle2, User as UserIcon, Edit, Loader2, Route, Timer, RotateCcw, MapPinOff } from 'lucide-react'
+import { smartGeocode } from '@/lib/smart-geocoder'
 import Link from 'next/link'
 import { useToast } from "@/components/toast-provider"
 import { useTheme } from 'next-themes'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { PullToRefresh } from '@/components/pull-to-refresh'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import {
     DndContext,
     DragOverlay,
-    closestCorners,
+    closestCenter,
     KeyboardSensor,
-    PointerSensor,
+    MouseSensor,
     TouchSensor,
     useSensor,
     useSensors,
@@ -41,7 +44,7 @@ const TileLayer = dynamic(() => import('react-leaflet').then(m => m.TileLayer), 
 const Marker = dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(m => m.Popup), { ssr: false })
 const Polyline = dynamic(() => import('react-leaflet').then(m => m.Polyline), { ssr: false })
-// const useMap = dynamic(() => import('react-leaflet').then(m => m.useMap), { ssr: false }) // Disabled for simpler implementation
+const MapResizer = dynamic(() => import('@/components/map/map-resizer'), { ssr: false })
 
 
 
@@ -67,13 +70,14 @@ const fixLeafletIcons = () => {
  */
 function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order: Order, isOverlay?: boolean, onViewDetails?: (o: Order) => void }) {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-        id: order.id,
-        data: { order }
+        id: isOverlay ? `overlay-${order.id}` : order.id,
+        data: { order },
+        disabled: isOverlay, // Overlay is just visual — don't register as draggable
     })
 
     const style: React.CSSProperties = isDragging
-        ? { opacity: 0.4, willChange: 'transform', touchAction: 'none' }
-        : {} // Don't set touchAction: 'none' when not dragging — it blocks page scrolling
+        ? { opacity: 0.4, willChange: 'transform', touchAction: 'none', zIndex: 9999 }
+        : {} // TouchSensor uses delay-based activation, so no touchAction needed when not dragging
 
     return (
         <Card
@@ -82,25 +86,25 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
             {...listeners}
             {...attributes}
             onDoubleClick={() => onViewDetails?.(order)} // Quick View on Double Click
-            className={`cursor-grab active:cursor-grabbing hover:border-primary dark:hover:border-primary transition-colors group ${isOverlay ? 'shadow-2xl scale-105 rotate-2 border-primary' : ''} ${order.is_pinned ? 'border-l-4 border-l-red-500' : ''} ${order.status === 'cancelled' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900 opacity-80' : 'bg-card dark:bg-slate-900 border-border dark:border-slate-800'}`}
+            className={`cursor-grab active:cursor-grabbing hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-all duration-200 group rounded-[20px] shadow-sm hover:shadow-md ${isOverlay ? 'shadow-2xl scale-105 rotate-2 border-blue-500 ring-4 ring-blue-500/20' : ''} ${order.is_pinned ? 'border-l-4 border-l-rose-500' : ''} ${order.status === 'cancelled' ? 'bg-rose-50/80 dark:bg-rose-900/10 border-rose-200/60 dark:border-rose-900/40 opacity-80' : 'bg-white dark:bg-slate-900 border-slate-200/60 dark:border-slate-800'}`}
         >
-            <CardContent className="p-3">
-                <div className="flex justify-between items-start mb-1">
-                    <span className="font-medium text-sm group-hover:text-primary transition-colors flex items-center gap-1">
-                        #{order.order_number}
-                        {order.is_pinned && <Lock size={10} className="text-red-500" />}
+            <CardContent className="p-3.5">
+                <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-[14px] text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1.5">
+                        <span className="text-slate-400 dark:text-slate-500 font-medium">#</span>{order.order_number}
+                        {order.is_pinned && <Lock size={12} className="text-rose-500" />}
                         {/* PRIORITY BADGE */}
                         {(order.priority_level === 'high' || order.priority_level === 'critical') && (
-                            <span className={`text-[8px] uppercase font-extrabold px-1 py-0.5 rounded border ${order.priority_level === 'critical'
-                                ? "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800"
-                                : "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800"
+                            <span className={`text-[9px] uppercase font-black tracking-widest px-1.5 py-0.5 rounded border ${order.priority_level === 'critical'
+                                ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800"
+                                : "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
                                 }`}>
                                 {order.priority_level === 'critical' ? 'CRIT' : 'HIGH'}
                             </span>
                         )}
                     </span>
                     <div className="flex items-center gap-1">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${order.status === 'cancelled' ? 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 font-bold' : order.status === 'assigned' ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' : 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800'}`}>
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${order.status === 'cancelled' ? 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800' : order.status === 'assigned' ? 'bg-blue-100/50 text-blue-700 border-blue-200/50 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' : 'bg-amber-100/50 text-amber-700 border-amber-200/50 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800'}`}>
                             {order.status === 'cancelled' ? 'FAILED' : order.status}
                         </span>
                         {/* Open in New Tab Button */}
@@ -110,33 +114,33 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
                                 e.stopPropagation();
                                 onViewDetails?.(order); // Open Side Panel
                             }}
-                            className="text-muted-foreground hover:text-primary p-0.5 hover:bg-muted rounded"
+                            className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                         >
-                            <ExternalLink size={12} />
+                            <ExternalLink size={14} />
                         </button>
                     </div>
                 </div>
-                <p className="text-xs text-muted-foreground line-clamp-1">{order.customer_name}</p>
-                <div className="flex flex-col gap-1 mt-1">
-                    <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                        <MapPin size={10} />
-                        <span className="truncate">{order.address}</span>
+                <p className="text-[13px] font-semibold text-slate-600 dark:text-slate-400 line-clamp-1">{order.customer_name}</p>
+                <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/50">
+                    <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate-500 dark:text-slate-500">
+                        <MapPin size={12} className="text-slate-400" />
+                        <span className="truncate leading-relaxed">{order.address}</span>
                     </div>
                     {(!order.latitude || !order.longitude) && (
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-1.5 py-0.5 rounded w-fit border border-red-100 dark:border-red-800 animate-pulse">
-                            <AlertCircle size={10} />
+                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-2 py-1 rounded-md w-fit border border-rose-100 dark:border-rose-800 animate-pulse">
+                            <AlertCircle size={12} />
                             <span>No GPS</span>
                         </div>
                     )}
                     {(order.geocoding_confidence && order.geocoding_confidence !== 'exact') && (
-                        <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded w-fit border ${order.geocoding_confidence === 'failed' ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-red-100 dark:border-red-800' : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 border-orange-100 dark:border-orange-800'}`}>
-                            <AlertTriangle size={10} />
+                        <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md w-fit border ${order.geocoding_confidence === 'failed' ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 border-rose-100 dark:border-rose-800' : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border-amber-100 dark:border-amber-800'}`}>
+                            <AlertTriangle size={12} />
                             <span>{order.geocoding_confidence === 'failed' ? 'GPS Failed' : 'Unverified GPS'}</span>
                         </div>
                     )}
                     {(order.time_window_start || order.time_window_end) && (
-                        <div className="flex items-center gap-1 text-[10px] font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded w-fit">
-                            <Clock size={10} />
+                        <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded-md w-fit">
+                            <Clock size={12} />
                             <span>
                                 {order.time_window_start?.slice(0, 5) || 'Any'} - {order.time_window_end?.slice(0, 5) || 'Any'}
                             </span>
@@ -162,42 +166,44 @@ function DroppableDriverContainer({ driver, orders, children, isLocked = false }
     return (
         <div
             ref={setNodeRef}
-            className={`bg-card dark:bg-slate-900 border rounded-md p-2 transition-colors ${isLocked
-                ? 'border-red-300 dark:border-red-900 bg-red-50/50 dark:bg-red-950/30 opacity-60'
+            className={`bg-white dark:bg-slate-900 border rounded-[20px] p-2.5 transition-all duration-200 shadow-sm ${isLocked
+                ? 'border-rose-200 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 opacity-70'
                 : isOver
-                    ? 'border-primary bg-primary/5 dark:bg-primary/20 ring-2 ring-primary/20'
-                    : 'border-border dark:border-slate-800'
+                    ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 ring-4 ring-blue-500/20 scale-[1.02] z-10 relative'
+                    : 'border-slate-200/60 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
         >
             <div
-                className="flex items-center justify-between mb-2 cursor-pointer hover:bg-muted/30 -m-2 p-2 rounded transition-colors"
+                className="flex items-center justify-between mb-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 -m-2.5 p-3 rounded-[20px] transition-colors"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                     {/* Expand/Collapse Arrow */}
-                    <svg
-                        className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                    {isLocked && <Lock size={14} className="text-red-500" />}
-                    <div className={`w-2 h-2 rounded-full ${driver.status === 'active' ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
-                    <span className={`font-medium text-sm ${isLocked ? 'text-red-600 dark:text-red-400' : ''}`}>{driver.name}</span>
-                    {isLocked && <span className="text-[10px] bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded font-bold">LOCKED</span>}
+                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
+                        <svg
+                            className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
+                    {isLocked && <Lock size={14} className="text-rose-500" />}
+                    <div className={`w-2 h-2 rounded-full ${driver.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                    <span className={`font-bold text-[14px] ${isLocked ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>{driver.name}</span>
+                    {isLocked && <span className="text-[10px] bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-rose-200 dark:border-rose-800">LOCKED</span>}
                 </div>
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2.5 py-1 rounded-full">
                     {orders.length} orders
                 </span>
             </div>
 
             {/* Collapsible Orders List */}
             {isExpanded && (
-                <div className="space-y-2 pl-2 border-l-2 border-muted min-h-[20px] mt-2">
+                <div className="space-y-2 mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/50 min-h-[40px]">
                     {children}
-                    {orders.length === 0 && <p className="text-[10px] text-muted-foreground italic">{isLocked ? 'Upgrade to unlock' : 'No orders assigned'}</p>}
+                    {orders.length === 0 && <p className="text-[12px] font-bold text-slate-400 text-center py-4 bg-slate-50 dark:bg-slate-800/30 rounded-[16px] border border-dashed border-slate-200 dark:border-slate-800">{isLocked ? 'Upgrade to unlock' : 'No orders assigned'}</p>}
                 </div>
             )}
         </div>
@@ -215,17 +221,18 @@ function UnassignedArea({ children, count }: { children: React.ReactNode, count:
     return (
         <div
             ref={setNodeRef}
-            className="flex flex-col min-h-0 flex-shrink-0"
+            className="flex flex-col min-h-0 flex-shrink-0 h-full"
         >
-            <h2 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2 flex items-center gap-2 px-4 pt-4">
-                <AlertCircle size={12} /> Unassigned ({count})
+            <h2 className="text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest flex items-center gap-2 mb-3 px-2 pt-2">
+                <AlertCircle size={14} /> Unassigned ({count})
             </h2>
             <div
-                className={`p-4 space-y-3 transition-colors ${isOver ? 'bg-primary/5 dark:bg-primary/10' : ''}`}
+                className={`flex-1 p-2 space-y-3 transition-colors rounded-[24px] ${isOver ? 'bg-blue-50/50 dark:bg-blue-900/20 ring-4 ring-blue-500/20' : ''}`}
             >
                 {count === 0 && !isOver ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm border border-dashed rounded-lg bg-muted/50">
-                        All orders assigned! 🎉
+                    <div className="flex flex-col items-center justify-center h-40 text-center text-slate-400 dark:text-slate-500 text-[13px] font-bold bg-white/50 dark:bg-slate-900/30 rounded-[20px] border border-dashed border-slate-200 dark:border-slate-800 shadow-sm">
+                        <span className="text-2xl mb-2">🎉</span>
+                        All orders assigned!
                     </div>
                 ) : children}
             </div>
@@ -251,6 +258,8 @@ export default function PlannerPage() {
     // Subscription State
     const [driverLimit, setDriverLimit] = useState(1)
     const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false)
+    const [companyId, setCompanyId] = useState<string | null>(null)
+    const [isRetryingGeocode, setIsRetryingGeocode] = useState(false)
 
     const [optimizationReport, setOptimizationReport] = useState<{
         totalProcessed: number
@@ -295,8 +304,8 @@ export default function PlannerPage() {
 
     // Driver Selection Logic
     const toggleDriverSelection = (driverId: string) => {
-        setSelectedDrivers(prev => 
-            prev.includes(driverId) 
+        setSelectedDrivers(prev =>
+            prev.includes(driverId)
                 ? prev.filter(id => id !== driverId)
                 : [...prev, driverId]
         )
@@ -315,17 +324,15 @@ export default function PlannerPage() {
 
     // Sensors - Optimized for Mobile (higher thresholds to prevent jumpiness)
     const sensors = useSensors(
-        useSensor(PointerSensor, {
+        useSensor(MouseSensor, {
             activationConstraint: {
-                distance: 10, // Minimum drag distance before activation
-                delay: 150, // Delay prevents accidental drags on desktop
-                tolerance: 5
+                distance: 8, // 8px movement to start drag on desktop
             }
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 250, // Longer delay for touch to distinguish from scroll
-                tolerance: 10 // Higher tolerance for finger imprecision
+                delay: 200, // Hold 200ms to start drag (allows scroll on touch)
+                tolerance: 8,
             }
         }),
         useSensor(KeyboardSensor)
@@ -379,7 +386,7 @@ export default function PlannerPage() {
                 try {
                     const { data: userData } = await supabase.auth.getUser()
                     if (userData.user) userId = userData.user.id
-                } catch {}
+                } catch { }
             }
 
             if (!userId) {
@@ -394,6 +401,7 @@ export default function PlannerPage() {
             // Set subscription limit
             const limit = user.driver_limit || 1
             setDriverLimit(limit)
+            setCompanyId(user.company_id)
 
             // Get Active Data
             const [ordersRes, driversRes] = await Promise.all([
@@ -684,19 +692,92 @@ export default function PlannerPage() {
         }
     }
 
+    async function retryFailedGeocoding() {
+        if (!companyId) return
+        setIsRetryingGeocode(true)
+        try {
+            const { data: failedOrders } = await supabase
+                .from('orders')
+                .select('id, address, city, state, zip_code')
+                .eq('company_id', companyId)
+                .is('latitude', null)
+                .not('status', 'in', '("delivered","cancelled")')
+
+            if (!failedOrders?.length) {
+                toast({ title: "No orders need geocoding", type: "info" })
+                return
+            }
+
+            let fixed = 0
+            for (const order of failedOrders) {
+                try {
+                    const result = await smartGeocode(
+                        order.address || '', order.city || '', order.state || '', order.zip_code || ''
+                    )
+                    if (result) {
+                        const updates: Record<string, any> = {
+                            latitude: result.lat, longitude: result.lng,
+                            geocoding_confidence: result.confidence,
+                            geocoded_address: `${result.foundAddress} [${result.strategy}]`,
+                            geocoding_attempted_at: new Date().toISOString()
+                        }
+                        if (result.correctedAddress) {
+                            updates.address = result.correctedAddress
+                        }
+                        await supabase.from('orders').update(updates).eq('id', order.id)
+                        fixed++
+                    } else {
+                        await supabase.from('orders').update({
+                            geocoding_confidence: 'failed',
+                            geocoding_attempted_at: new Date().toISOString(),
+                            geocoded_address: 'All geocoding strategies failed'
+                        }).eq('id', order.id)
+                    }
+                } catch {
+                    // Continue with next order
+                }
+            }
+
+            toast({
+                title: fixed > 0 ? `Fixed ${fixed}/${failedOrders.length} orders` : "Could not fix addresses",
+                description: fixed > 0 ? "GPS coordinates updated" : "Addresses may need manual correction",
+                type: fixed > 0 ? "success" : "error"
+            })
+            fetchData()
+        } catch (error: any) {
+            toast({ title: "Retry failed", description: error.message, type: "error" })
+        } finally {
+            setIsRetryingGeocode(false)
+        }
+    }
+
     // Handlers
     function handleDragStart(event: DragStartEvent) {
         setActiveDragId(event.active.id as string)
-        
+
         // Add haptic feedback on mobile
-        if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-            navigator.vibrate(50)
+        if (typeof window !== 'undefined') {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(50)
+            }
+            document.body.classList.add('dragging-active')
+        }
+    }
+
+    function handleDragCancel() {
+        setActiveDragId(null)
+        if (typeof window !== 'undefined') {
+            document.body.classList.remove('dragging-active')
         }
     }
 
     async function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
         setActiveDragId(null)
+
+        if (typeof window !== 'undefined') {
+            document.body.classList.remove('dragging-active')
+        }
 
         if (!over) return
 
@@ -764,521 +845,196 @@ export default function PlannerPage() {
     }
 
     // Derived State
+    const isDesktop = useMediaQuery('(min-width: 768px)')
     const unassignedOrders = orders.filter(o => !o.driver_id)
     const activeDragOrder = orders.find(o => o.id === activeDragId)
 
     return (
-        <PullToRefresh onRefresh={fetchData}>
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCorners}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-            >
-                <div className="flex h-screen w-full bg-background overflow-hidden">
-                    {/* SIDEBAR - Desktop Only */}
-                    <div className="hidden md:flex md:w-96 border-r border-border flex-col bg-card dark:bg-card z-20 shadow-xl transition-colors">
-                        <div className="p-4 border-b border-border bg-muted/20 dark:bg-muted/10 flex-shrink-0 safe-area-pt">
-                            <h1 className="text-xl font-bold tracking-tight mb-1 text-foreground">Route Planner</h1>
-                            <p className="text-xs text-muted-foreground">Drag orders to assign manually.</p>
-                        </div>
+        <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+        >
+            <div className="flex w-full bg-slate-50 dark:bg-slate-950 overflow-hidden" style={{ height: '100dvh' }}>
+                {/* SIDEBAR - Desktop Only */}
+                {isDesktop && <div className="flex w-[420px] border-r border-slate-200/60 dark:border-slate-800 flex-col bg-slate-50/50 dark:bg-slate-950 z-20 shadow-[8px_0_30px_rgba(0,0,0,0.04)] transition-colors">
+                    <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl flex-shrink-0 safe-area-pt">
+                        <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Route Planner</h1>
+                        <p className="text-[14px] font-semibold text-slate-500 dark:text-slate-400 mt-1">Drag orders to assign manually.</p>
+                    </div>
 
-                        {/* SCROLLABLE CONTENT AREA */}
-                        <div className="flex-1 overflow-y-auto flex flex-col min-h-0 pb-20">
-                            {/* GLOBAL WARNING: MISSING GPS */}
-                            {orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
-                                <div className="m-3 mb-0 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg flex items-start gap-3 shadow-sm">
-                                    <AlertCircle className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" size={16} />
-                                    <div className="space-y-1">
-                                        <h3 className="text-xs font-bold text-red-800 dark:text-red-300">
+                    {/* SCROLLABLE CONTENT AREA */}
+                    <div className="flex-1 overflow-y-auto flex flex-col min-h-0 pb-20 custom-scrollbar overscroll-y-contain">
+                        {/* GLOBAL WARNING: MISSING GPS */}
+                        {orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
+                            <div className="mx-5 mt-5 p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-[24px] flex items-center justify-between gap-3 shadow-sm relative group">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
+                                    <div>
+                                        <h3 className="text-[13px] font-black tracking-tight text-rose-800 dark:text-rose-300">
                                             {orders.filter(o => !o.latitude || !o.longitude).length} Orders Missing GPS
                                         </h3>
-                                        <p className="text-[10px] text-red-600 dark:text-red-400 leading-tight">
-                                            These orders are hidden from the map but appear in the list below marked "No GPS".
+                                        <p className="text-[11px] font-semibold text-rose-600/80 dark:text-rose-400/80">
+                                            Hidden from map, cannot be optimized.
                                         </p>
                                     </div>
                                 </div>
-                            )}
-                            <div className="p-4 border-b border-border bg-card flex-shrink-0">
-                                <div className="mb-4">
-                                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
-                                        Strategy
-                                    </label>
-                                    <div className="grid grid-cols-3 gap-1 bg-muted p-1 rounded-lg">
-                                        <button
-                                            onClick={() => setStrategy('fastest')}
-                                            className={`text - [10px] font - medium py - 1.5 rounded - md transition - all ${strategy === 'fastest' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-                                                } `}
-                                        >
-                                            Fastest
-                                        </button>
-                                        <button
-                                            onClick={() => setStrategy('balanced')}
-                                            className={`text - [10px] font - medium py - 1.5 rounded - md transition - all ${strategy === 'balanced' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-                                                } `}
-                                        >
-                                            Balanced
-                                        </button>
-                                        <button
-                                            onClick={() => setStrategy('efficient')}
-                                            className={`text - [10px] font - medium py - 1.5 rounded - md transition - all ${strategy === 'efficient' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-                                                } `}
-                                        >
-                                            Efficient
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Driver Selection */}
-                                <div className="mb-4">
-                                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
-                                        Select Drivers
-                                    </label>
-
-                                    <div className="space-y-2">
-                                        {/* Quick Actions */}
-                                        <div className="flex gap-2 text-xs">
-                                            <button
-                                                onClick={() => setSelectedDrivers(drivers.map(d => d.id))}
-                                                className="text-blue-600 hover:underline"
-                                            >
-                                                All
-                                            </button>
-                                            <span className="text-muted-foreground">|</span>
-                                            <button
-                                                onClick={() => setSelectedDrivers(
-                                                    drivers.filter(d => isDriverReallyOnline(d)).map(d => d.id)
-                                                )}
-                                                className="text-green-600 hover:underline"
-                                            >
-                                                Online ({drivers.filter(d => isDriverReallyOnline(d)).length})
-                                            </button>
-                                            <span className="text-muted-foreground">|</span>
-                                            <button
-                                                onClick={() => setSelectedDrivers([])}
-                                                className="text-red-600 hover:underline"
-                                            >
-                                                None
-                                            </button>
-                                        </div>
-
-                                        {/* Driver Checkboxes */}
-                                        <div className="max-h-40 overflow-y-auto space-y-1 bg-muted/30 rounded-lg p-2 border border-border/50">
-                                            {drivers.map(driver => {
-                                                const isOnline = isDriverReallyOnline(driver)
-                                                const isSelected = selectedDrivers.includes(driver.id)
-
-                                                return (
-                                                    <label
-                                                        key={driver.id}
-                                                        className={`flex items - center gap - 2 p - 2 rounded cursor - pointer transition - colors ${isSelected ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted/50 border border-transparent'
-                                                            } `}
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            onChange={(e) => {
-                                                                if (e.target.checked) {
-                                                                    setSelectedDrivers([...selectedDrivers, driver.id])
-                                                                } else {
-                                                                    setSelectedDrivers(selectedDrivers.filter(id => id !== driver.id))
-                                                                }
-                                                            }}
-                                                            className="h-3 w-3 rounded border-gray-300 accent-primary"
-                                                        />
-
-                                                        {/* Online Status */}
-                                                        <div className={`w - 1.5 h - 1.5 rounded - full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'
-                                                            } `} />
-
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center justify-between">
-                                                                <span className={`text - xs font - medium truncate ${isOnline ? 'text-foreground' : 'text-muted-foreground'
-                                                                    } `}>
-                                                                    {driver.name}
-                                                                </span>
-                                                                <span className={`text - [9px] px - 1 py - 0.5 rounded font - medium ${isOnline
-                                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                                                                    } `}>
-                                                                    {isOnline ? 'Online' : 'Offline'}
-                                                                </span>
-                                                            </div>
-                                                            {!isOnline && driver.last_location_update && (
-                                                                <p className="text-[9px] text-muted-foreground truncate">
-                                                                    Seen: {formatRelativeTime(driver.last_location_update)}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </label>
-                                                )
-                                            })}
-                                            {drivers.length === 0 && (
-                                                <p className="text-xs text-muted-foreground text-center py-2">No drivers found</p>
-                                            )}
-                                        </div>
-                                        <div className="text-[10px] text-muted-foreground text-right">
-                                            {selectedDrivers.length} / {drivers.length} selected
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Warning if no drivers selected */}
-                                {selectedDrivers.length === 0 && (
-                                    <div className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 text-xs rounded-md mb-4 border border-orange-200 dark:border-orange-900">
-                                        <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                                        <p>Please select at least one driver to optimize routes.</p>
-                                    </div>
-                                )}
-
                                 <Button
-                                    onClick={() => handleOptimize(false)}
-                                    disabled={isLoading}
-                                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md transition-all active:scale-95 border-0"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={retryFailedGeocoding}
+                                    disabled={isRetryingGeocode}
+                                    className="shrink-0 border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/30 text-xs"
                                 >
-                                    <Sparkles size={16} className={`mr - 2 ${isLoading ? 'animate-spin' : ''} `} />
-                                    {isLoading ? 'Optimizing...' : 'Smart Optimize'}
+                                    {isRetryingGeocode ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Fixing...</> : <><Sparkles size={12} className="mr-1" /> Fix with AI</>}
                                 </Button>
                             </div>
-
-                            {/* Optimization Mode Toggle */}
-                            <div className="mb-4 flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border">
-                                <input
-                                    type="checkbox"
-                                    id="reoptimize-mode"
-                                    checked={optimizationMode === 'reoptimize'}
-                                    onChange={(e) => setOptimizationMode(e.target.checked ? 'reoptimize' : 'morning')}
-                                    className="h-4 w-4 rounded border-gray-300 accent-primary"
-                                />
-                                <label htmlFor="reoptimize-mode" className="text-sm cursor-pointer flex-1 user-select-none">
-                                    <span className="font-medium text-foreground">Use driver current locations</span>
-                                    <span className="block text-[10px] text-muted-foreground mt-0.5 leading-tight">
-                                        {optimizationMode === 'reoptimize'
-                                            ? '📍 Routes start from where drivers are now (mid-day re-routing)'
-                                            : '🏢 Routes start from depot/warehouse (morning planning)'}
-                                    </span>
+                        )}
+                        <div className="p-5 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 flex-shrink-0">
+                            <div className="mb-6">
+                                <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2.5 pl-1">
+                                    Optimization Strategy
                                 </label>
-                            </div>
-
-                            {/* Workload Dashboard */}
-                            <WorkloadDashboard />
-
-                            <SplitSuggestionsModal
-                                open={isSplitModalOpen}
-                                onOpenChange={setIsSplitModalOpen}
-                                suggestions={splitSuggestions}
-                                onConfirm={() => handleOptimize(true)}
-                            />
-
-                            <UnassignedArea count={unassignedOrders.length}>
-                                {unassignedOrders.map(order => (
-                                    <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
-                                ))}
-                            </UnassignedArea>
-
-                            {/* Droppable Drivers List */}
-                            <div className="border-t border-border bg-muted/10 flex flex-col flex-shrink-0">
-                                <div className="p-3 border-b border-border bg-muted/30 flex-shrink-0">
-                                    <h2 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-2">
-                                        <Truck size={12} /> Drivers ({drivers.length})
-                                    </h2>
-                                </div>
-                                <div className="p-3 space-y-3">
-                                    {drivers.map((driver, index) => (
-                                        <DroppableDriverContainer
-                                            key={driver.id}
-                                            driver={driver}
-                                            orders={orders.filter(o => o.driver_id === driver.id)}
-                                            isLocked={index >= driverLimit}
+                                <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-slate-200/50 dark:bg-slate-800/50 rounded-[20px]">
+                                    {(['fastest', 'balanced', 'efficient'] as const).map(s => (
+                                        <button
+                                            key={s}
+                                            onClick={() => setStrategy(s)}
+                                            className={`text-[13px] font-bold py-2.5 rounded-[16px] transition-all capitalize ${strategy === s
+                                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm scale-[1.02]'
+                                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                                                }`}
                                         >
-                                            {orders.filter(o => o.driver_id === driver.id).map(order => (
-                                                <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
-                                            ))}
-                                        </DroppableDriverContainer>
+                                            {s}
+                                        </button>
                                     ))}
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    {/* MAP AREA — DESKTOP ONLY */}
-                    <div className="hidden md:block flex-1 relative z-10">
-                        {/* Map Theme Toggle */}
-                        <div className="absolute top-4 right-4 z-[500]">
+
+                            {/* Driver Selection */}
+                            <div className="mb-6">
+                                <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2 px-1 flex justify-between">
+                                    <span>Select Drivers</span>
+                                    <span className="text-slate-400">{selectedDrivers.length} / {drivers.length}</span>
+                                </label>
+
+                                <div className="space-y-3">
+                                    {/* Quick Actions */}
+                                    <div className="flex gap-3 text-[13px] mb-3 pl-1 font-bold">
+                                        <button onClick={() => setSelectedDrivers(drivers.map(d => d.id))} className="text-blue-600 hover:text-blue-700">All</button>
+                                        <span className="text-slate-300 dark:text-slate-700">|</span>
+                                        <button onClick={() => setSelectedDrivers(drivers.filter(d => isDriverReallyOnline(d)).map(d => d.id))} className="text-emerald-600 hover:text-emerald-700">
+                                            Online ({drivers.filter(d => isDriverReallyOnline(d)).length})
+                                        </button>
+                                        <span className="text-slate-300 dark:text-slate-700">|</span>
+                                        <button onClick={() => setSelectedDrivers([])} className="text-rose-600 hover:text-rose-700">None</button>
+                                    </div>
+
+                                    {/* Driver Checkboxes */}
+                                    <div className="max-h-[200px] overflow-y-auto space-y-1.5 bg-white dark:bg-slate-900 rounded-[28px] p-3 border border-slate-200/60 dark:border-slate-800 shadow-sm custom-scrollbar">
+                                        {drivers.map(driver => {
+                                            const isOnline = isDriverReallyOnline(driver)
+                                            const isSelected = selectedDrivers.includes(driver.id)
+
+                                            return (
+                                                <label
+                                                    key={driver.id}
+                                                    className={`flex items-center gap-3 p-3 rounded-[20px] cursor-pointer transition-colors ${isSelected
+                                                        ? 'bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30'
+                                                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent'
+                                                        }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedDrivers([...selectedDrivers, driver.id])
+                                                            } else {
+                                                                setSelectedDrivers(selectedDrivers.filter(id => id !== driver.id))
+                                                            }
+                                                        }}
+                                                        className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20"
+                                                    />
+
+                                                    {/* Online Status */}
+                                                    <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-300 dark:bg-slate-600'}`} />
+
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className={`text-[14px] font-bold truncate ${isOnline ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                                {driver.name}
+                                                            </span>
+                                                            <span className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded-full font-black ${isOnline
+                                                                ? 'bg-emerald-100/50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                                                }`}>
+                                                                {isOnline ? 'Online' : 'Offline'}
+                                                            </span>
+                                                        </div>
+                                                        {!isOnline && driver.last_location_update && (
+                                                            <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                                                                Seen: {formatRelativeTime(driver.last_location_update)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            )
+                                        })}
+                                        {drivers.length === 0 && (
+                                            <p className="text-[13px] font-bold text-slate-500 dark:text-slate-400 text-center py-4">No drivers found</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Warning if no drivers selected */}
+                            {selectedDrivers.length === 0 && (
+                                <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 rounded-[24px] mb-5 border border-amber-200/60 dark:border-amber-900/40 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 to-orange-500 opacity-30"></div>
+                                    <AlertCircle size={18} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                                    <p className="text-[13px] font-bold">Please select at least one driver to optimize routes.</p>
+                                </div>
+                            )}
+
                             <Button
-                                variant="secondary"
-                                size="icon"
-                                className="shadow-lg h-10 w-10 rounded-full border border-primary/20 bg-background/80 backdrop-blur"
-                                onClick={toggleMapTheme}
-                                title="Toggle Map Theme"
+                                onClick={() => handleOptimize(false)}
+                                disabled={isLoading}
+                                className="w-full h-14 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.3)] text-[16px] font-black tracking-wide transition-all active:scale-[0.98] rounded-2xl border-0 flex items-center justify-center group mb-2"
                             >
-                                {mapTheme === 'dark' ? '🌙' : '☀️'}
+                                <Sparkles size={20} className={`mr-2 ${isLoading ? 'animate-spin' : 'group-hover:rotate-12 transition-transform'}`} />
+                                {isLoading ? 'Optimizing Routes...' : 'Smart Optimize Routes'}
                             </Button>
                         </div>
 
-                        <div style={{ height: '100%', width: '100%' }}>
-                            <MapContainer key={`${mapCenter[0]} -${mapCenter[1]} `} center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
-                                <TileLayer
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                    url={mapTheme === 'dark'
-                                        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                                        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
-                                />
-                                {/* Driver Meters (Depots) */}
-                                {drivers.map(driver => (
-                                    driver.default_start_lat && driver.default_start_lng && (
-                                        <Marker
-                                            key={`driver - ${driver.id} `}
-                                            position={[driver.default_start_lat, driver.default_start_lng]}
-                                            icon={typeof window !== 'undefined' ? require('leaflet').icon({
-                                                iconUrl: 'https://cdn-icons-png.flaticon.com/512/713/713342.png',
-                                                iconSize: [30, 30],
-                                                className: 'hue-rotate-180'
-                                            }) : undefined}
-                                        >
-                                            <Popup>
-                                                <div className="p-1">
-                                                    <strong className="block text-sm">{driver.name} (Start)</strong>
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400">{driver.default_start_address}</div>
-                                                </div>
-                                            </Popup>
-                                        </Marker>
-                                    )
-                                ))}
-                                {/* Driver Routes (Polylines) */}
-                                {drivers.map((driver, index) => {
-                                    const driverOrders = orders
-                                        .filter(o => o.driver_id === driver.id && o.latitude && o.longitude)
-                                        .sort((a, b) => (a.route_index || 0) - (b.route_index || 0))
-
-                                    if (driverOrders.length === 0) return null
-
-                                    const positions: [number, number][] = []
-
-                                    // Start from depot if available
-                                    if (driver.default_start_lat && driver.default_start_lng) {
-                                        positions.push([driver.default_start_lat, driver.default_start_lng])
-                                    }
-
-                                    // Add Order points
-                                    driverOrders.forEach(o => positions.push([o.latitude!, o.longitude!]))
-
-                                    // Assign color based on driver index
-                                    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1']
-                                    const color = colors[index % colors.length]
-
-                                    return (
-                                        <React.Fragment key={`route - ${driver.id} `}>
-                                            <Polyline positions={positions} pathOptions={{ color, weight: 4, opacity: 0.7 }} />
-                                        </React.Fragment>
-                                    )
-                                })}
-
-                                {/* Order Markers */}
-                                {orders.map(order => {
-                                    if (!order.latitude || !order.longitude) return null
-
-                                    const isCancelled = order.status === 'cancelled'
-                                    const customIcon = (typeof window !== 'undefined' && isCancelled)
-                                        ? require('leaflet').icon({
-                                            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-                                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-                                            iconSize: [25, 41],
-                                            iconAnchor: [12, 41],
-                                            popupAnchor: [1, -34],
-                                            className: 'hue-rotate-[140deg]' // Blue -> Red shift
-                                        })
-                                        : null
-
-                                    return (
-                                        <Marker
-                                            key={order.id}
-                                            position={[order.latitude, order.longitude]}
-                                            {...(customIcon ? { icon: customIcon } : {})}
-                                        >
-                                            <Popup>
-                                                <div className="p-1">
-                                                    <strong className="block text-sm">{order.customer_name}</strong>
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{order.address}</div>
-                                                    <div className="flex gap-1">
-                                                        <div className={`text - [10px] font - bold px - 1 rounded w - fit ${order.driver_id ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'} `}>
-                                                            {order.driver_id ? 'Assigned' : 'Unassigned'}
-                                                        </div>
-                                                        {order.route_index !== null && order.driver_id && (
-                                                            <div className="text-[10px] font-bold px-1.5 rounded-full bg-slate-800 text-white">
-                                                                #{order.route_index}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </Popup>
-                                        </Marker>
-                                    )
-                                })}
-                            </MapContainer>
-                        </div>
-                    </div>
-
-                    {/* ============================================= */}
-                    {/* MOBILE PLANNER UI — Card/List layout           */}
-                    {/* ============================================= */}
-                    <div className="md:hidden flex-1 flex flex-col bg-background overflow-y-auto pb-4" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)` }}>
-                        {/* Header */}
-                        <div className="px-4 pt-2 pb-3 border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-30">
-                            <h1 className="text-lg font-bold tracking-tight text-foreground">Route Planner</h1>
-                            <p className="text-xs text-muted-foreground">Assign orders to drivers &amp; optimize routes</p>
-                        </div>
-
-                        {/* Stats Bar */}
-                        <div className="grid grid-cols-3 gap-2 px-4 py-3">
-                            <div className="bg-blue-50 dark:bg-blue-950/40 rounded-lg p-2 text-center border border-blue-100 dark:border-blue-900">
-                                <div className="text-lg font-bold text-blue-700 dark:text-blue-400">{orders.length}</div>
-                                <div className="text-[10px] text-blue-600 dark:text-blue-500 font-medium">Total</div>
-                            </div>
-                            <div className="bg-green-50 dark:bg-green-950/40 rounded-lg p-2 text-center border border-green-100 dark:border-green-900">
-                                <div className="text-lg font-bold text-green-700 dark:text-green-400">{orders.filter(o => o.driver_id).length}</div>
-                                <div className="text-[10px] text-green-600 dark:text-green-500 font-medium">Assigned</div>
-                            </div>
-                            <div className="bg-yellow-50 dark:bg-yellow-950/40 rounded-lg p-2 text-center border border-yellow-100 dark:border-yellow-900">
-                                <div className="text-lg font-bold text-yellow-700 dark:text-yellow-400">{unassignedOrders.length}</div>
-                                <div className="text-[10px] text-yellow-600 dark:text-yellow-500 font-medium">Unassigned</div>
-                            </div>
-                        </div>
-
-                        {/* GPS Warning */}
-                        {orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
-                            <div className="mx-4 mb-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg flex items-start gap-2">
-                                <AlertCircle className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" size={14} />
-                                <div>
-                                    <p className="text-xs font-bold text-red-800 dark:text-red-300">
-                                        {orders.filter(o => !o.latitude || !o.longitude).length} orders missing GPS
-                                    </p>
-                                    <p className="text-[10px] text-red-600 dark:text-red-400">These cannot be optimized until GPS is resolved.</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Strategy Selector */}
-                        <div className="px-4 mb-3">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                                Strategy
-                            </label>
-                            <div className="grid grid-cols-3 gap-1 bg-muted p-1 rounded-lg">
-                                {(['fastest', 'balanced', 'efficient'] as const).map(s => (
-                                    <button
-                                        key={s}
-                                        onClick={() => setStrategy(s)}
-                                        className={`text-xs font-medium py-2 rounded-md transition-all capitalize ${strategy === s
-                                            ? 'bg-background shadow text-foreground'
-                                            : 'text-muted-foreground hover:text-foreground'
-                                        }`}
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Driver Selection */}
-                        <div className="px-4 mb-3">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                                Drivers ({selectedDrivers.length}/{drivers.length})
-                            </label>
-                            <div className="flex gap-2 text-xs mb-2">
-                                <button onClick={() => setSelectedDrivers(drivers.map(d => d.id))} className="text-blue-600 hover:underline font-medium">All</button>
-                                <span className="text-muted-foreground">|</span>
-                                <button onClick={() => setSelectedDrivers(drivers.filter(d => isDriverReallyOnline(d)).map(d => d.id))} className="text-green-600 hover:underline font-medium">
-                                    Online ({drivers.filter(d => isDriverReallyOnline(d)).length})
-                                </button>
-                                <span className="text-muted-foreground">|</span>
-                                <button onClick={() => setSelectedDrivers([])} className="text-red-600 hover:underline font-medium">None</button>
-                            </div>
-                            <div className="space-y-1 bg-muted/30 rounded-lg p-2 border border-border/50 max-h-36 overflow-y-auto">
-                                {drivers.map(driver => {
-                                    const isOnline = isDriverReallyOnline(driver)
-                                    const isSelected = selectedDrivers.includes(driver.id)
-                                    return (
-                                        <label
-                                            key={driver.id}
-                                            className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${isSelected
-                                                ? 'bg-primary/10 border border-primary/20'
-                                                : 'hover:bg-muted/50 border border-transparent'
-                                            }`}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        setSelectedDrivers([...selectedDrivers, driver.id])
-                                                    } else {
-                                                        setSelectedDrivers(selectedDrivers.filter(id => id !== driver.id))
-                                                    }
-                                                }}
-                                                className="h-3.5 w-3.5 rounded border-gray-300 accent-primary"
-                                            />
-                                            <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'}`} />
-                                            <span className={`text-xs font-medium truncate ${isOnline ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                                {driver.name}
-                                            </span>
-                                            <span className={`text-[9px] ml-auto px-1 py-0.5 rounded font-medium ${isOnline
-                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                                            }`}>
-                                                {isOnline ? 'Online' : 'Offline'}
-                                            </span>
-                                        </label>
-                                    )
-                                })}
-                                {drivers.length === 0 && (
-                                    <p className="text-xs text-muted-foreground text-center py-2">No drivers found</p>
-                                )}
-                            </div>
-                        </div>
-
                         {/* Optimization Mode Toggle */}
-                        <div className="mx-4 mb-3 flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border">
+                        <div className="m-5 flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-[24px] shadow-sm relative group">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-[24px]"></div>
                             <input
                                 type="checkbox"
-                                id="mobile-reoptimize-mode"
+                                id="reoptimize-mode"
                                 checked={optimizationMode === 'reoptimize'}
                                 onChange={(e) => setOptimizationMode(e.target.checked ? 'reoptimize' : 'morning')}
-                                className="h-4 w-4 rounded border-gray-300 accent-primary"
+                                className="h-5 w-5 rounded-md border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20"
                             />
-                            <label htmlFor="mobile-reoptimize-mode" className="text-sm cursor-pointer flex-1">
-                                <span className="font-medium text-foreground">Use current locations</span>
-                                <span className="block text-[10px] text-muted-foreground mt-0.5 leading-tight">
+                            <label htmlFor="reoptimize-mode" className="text-sm cursor-pointer flex-1 user-select-none">
+                                <span className="font-black text-slate-900 dark:text-white">Use driver current locations</span>
+                                <span className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                                     {optimizationMode === 'reoptimize'
-                                        ? '📍 Routes start from where drivers are now'
-                                        : '🏢 Routes start from depot (morning)'}
+                                        ? '📍 Routes start from where drivers are now (mid-day re-routing)'
+                                        : '🏢 Routes start from depot/warehouse (morning planning)'}
                                 </span>
                             </label>
                         </div>
 
-                        {/* No Drivers Warning */}
-                        {selectedDrivers.length === 0 && (
-                            <div className="mx-4 mb-3 flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 text-xs rounded-lg border border-orange-200 dark:border-orange-900">
-                                <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                                <p>Select at least one driver to optimize routes.</p>
-                            </div>
-                        )}
-
-                        {/* Optimize Button */}
-                        <div className="px-4 mb-4">
-                            <Button
-                                onClick={() => handleOptimize(false)}
-                                disabled={isLoading}
-                                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md transition-all active:scale-95 border-0 py-3 text-base"
-                            >
-                                <Sparkles size={18} className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                                {isLoading ? 'Optimizing...' : 'Smart Optimize'}
-                            </Button>
-                        </div>
-
                         {/* Workload Dashboard */}
-                        <div className="px-4 mb-4">
+                        <div className="px-5 mb-5">
                             <WorkloadDashboard />
                         </div>
 
+                        {/* Split Suggestions */}
                         <SplitSuggestionsModal
                             open={isSplitModalOpen}
                             onOpenChange={setIsSplitModalOpen}
@@ -1286,31 +1042,363 @@ export default function PlannerPage() {
                             onConfirm={() => handleOptimize(true)}
                         />
 
-                        {/* Divider */}
-                        <div className="border-t border-border mx-4 mb-3" />
-
-                        {/* Unassigned Orders */}
-                        <div className="px-4 mb-4">
-                            <UnassignedArea count={unassignedOrders.length}>
-                                {unassignedOrders.map(order => (
-                                    <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
-                                ))}
-                            </UnassignedArea>
+                        <div className="px-5 mb-5 flex flex-col min-h-0 flex-shrink-0">
+                            <div className="max-h-[30vh] overflow-y-auto rounded-[24px] border border-slate-200/60 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-2 shadow-sm custom-scrollbar">
+                                <UnassignedArea count={unassignedOrders.length}>
+                                    {unassignedOrders.map(order => (
+                                        <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
+                                    ))}
+                                </UnassignedArea>
+                            </div>
                         </div>
 
-                        {/* Assigned — By Driver */}
-                        <div className="px-4 pb-4">
-                            <h2 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider flex items-center gap-2 mb-3">
-                                <Truck size={12} /> Drivers ({drivers.length})
-                            </h2>
-                            <div className="space-y-3">
+                        {/* Droppable Drivers List */}
+                        <div className="border-t border-slate-200/60 dark:border-slate-800/60 bg-white/30 dark:bg-slate-900/30 flex flex-col flex-shrink-0 pt-5">
+                            <div className="px-5 pb-2 flex-shrink-0">
+                                <h2 className="text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest flex items-center gap-2 pl-1">
+                                    <Truck size={14} /> Assigned Drivers ({drivers.length})
+                                </h2>
+                            </div>
+                            <div className="p-5 pt-2 space-y-4">
                                 {drivers.map((driver, index) => (
                                     <DroppableDriverContainer
                                         key={driver.id}
                                         driver={driver}
                                         orders={orders.filter(o => o.driver_id === driver.id)}
                                         isLocked={index >= driverLimit}
+                                                                           >
+                                        {orders.filter(o => o.driver_id === driver.id).map(order => (
+                                            <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
+                                        ))}
+                                    </DroppableDriverContainer>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>}
+                {/* MAP AREA — DESKTOP ONLY (same pattern as map page) */}
+                {isDesktop && <div className="flex flex-1 relative h-full z-10">
+                    {/* Map Theme Toggle */}
+                    <div className="absolute top-6 right-6 z-[500]">
+                        <button
+                            onClick={toggleMapTheme}
+                            title="Toggle Map Theme"
+                            className="h-12 w-12 rounded-[20px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center text-xl hover:scale-105 active:scale-95 transition-transform"
+                        >
+                            {mapTheme === 'dark' ? '🌙' : '☀️'}
+                        </button>
+                    </div>
+
+                    <MapContainer key={`${mapCenter[0]} -${mapCenter[1]} `} center={mapCenter} zoom={13} className="h-full w-full bg-slate-100 dark:bg-slate-900 z-0" style={{ height: '100%', width: '100%', minHeight: '100%' }}>
+                        <MapResizer />
+                        <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            url={mapTheme === 'dark'
+                                ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                                : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
+                        />
+                        {/* Driver Meters (Depots) */}
+                        {drivers.map(driver => (
+                            driver.default_start_lat && driver.default_start_lng && (
+                                <Marker
+                                    key={`driver - ${driver.id} `}
+                                    position={[driver.default_start_lat, driver.default_start_lng]}
+                                    icon={typeof window !== 'undefined' ? require('leaflet').icon({
+                                        iconUrl: 'https://cdn-icons-png.flaticon.com/512/713/713342.png',
+                                        iconSize: [30, 30],
+                                        className: 'hue-rotate-180'
+                                    }) : undefined}
+                                >
+                                    <Popup>
+                                        <div className="p-1">
+                                            <strong className="block text-sm">{driver.name} (Start)</strong>
+                                            <div className="text-xs text-slate-500 dark:text-slate-400">{driver.default_start_address}</div>
+                                        </div>
+                                    </Popup>
+                                </Marker>
+                            )
+                        ))}
+                        {/* Driver Routes (Polylines) */}
+                        {drivers.map((driver, index) => {
+                            const driverOrders = orders
+                                .filter(o => o.driver_id === driver.id && o.latitude && o.longitude)
+                                .sort((a, b) => (a.route_index || 0) - (b.route_index || 0))
+
+                            if (driverOrders.length === 0) return null
+
+                            const positions: [number, number][] = []
+
+                            // Start from depot if available
+                            if (driver.default_start_lat && driver.default_start_lng) {
+                                positions.push([driver.default_start_lat, driver.default_start_lng])
+                            }
+
+                            // Add Order points
+                            driverOrders.forEach(o => positions.push([o.latitude!, o.longitude!]))
+
+                            // Assign color based on driver index
+                            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1']
+                            const color = colors[index % colors.length]
+
+                            return (
+                                <React.Fragment key={`route - ${driver.id} `}>
+                                    <Polyline positions={positions} pathOptions={{ color, weight: 4, opacity: 0.7 }} />
+                                </React.Fragment>
+                            )
+                        })}
+
+                        {/* Order Markers */}
+                        {orders.map(order => {
+                            if (!order.latitude || !order.longitude) return null
+
+                            const isCancelled = order.status === 'cancelled'
+                            const customIcon = (typeof window !== 'undefined' && isCancelled)
+                                ? require('leaflet').icon({
+                                    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+                                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                                    iconSize: [25, 41],
+                                    iconAnchor: [12, 41],
+                                    popupAnchor: [1, -34],
+                                    className: 'hue-rotate-[140deg]' // Blue -> Red shift
+                                })
+                                : null
+
+                            return (
+                                <Marker
+                                    key={order.id}
+                                    position={[order.latitude, order.longitude]}
+                                    {...(customIcon ? { icon: customIcon } : {})}
+                                >
+                                    <Popup>
+                                        <div className="p-1">
+                                            <strong className="block text-sm">{order.customer_name}</strong>
+                                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{order.address}</div>
+                                            <div className="flex gap-1">
+                                                <div className={`text - [10px] font - bold px - 1 rounded w - fit ${order.driver_id ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'} `}>
+                                                    {order.driver_id ? 'Assigned' : 'Unassigned'}
+                                                </div>
+                                                {order.route_index !== null && order.driver_id && (
+                                                    <div className="text-[10px] font-bold px-1.5 rounded-full bg-slate-800 text-white">
+                                                        #{order.route_index}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </Popup>
+                                </Marker>
+                            )
+                        })}
+                    </MapContainer>
+                </div>}
+
+                {/* ============================================= */}
+                {/* MOBILE PLANNER UI — Card/List layout           */}
+                {/* ============================================= */}
+                {!isDesktop && <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-950 overflow-y-auto overscroll-y-contain pb-36" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)` }}>
+                    {/* Header */}
+                    <div className="px-5 pt-3 pb-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl sticky top-0 z-30 shadow-sm">
+                        <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Route Planner</h1>
+                        <p className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Assign orders to drivers & optimize routes</p>
+                    </div>
+
+                    {/* Stats Bar */}
+                    <div className="grid grid-cols-3 gap-3 px-5 py-5">
+                        <div className="bg-white dark:bg-slate-900 rounded-[24px] p-4 text-center shadow-sm border border-slate-200/60 dark:border-slate-800 border-b-4 border-b-blue-500">
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{orders.length}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">Total</div>
+                        </div>
+                        <div className="bg-emerald-50 dark:bg-emerald-950/20 rounded-[24px] p-4 text-center shadow-sm border border-emerald-200/60 dark:border-emerald-900/40 border-b-4 border-b-emerald-500">
+                            <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400 tracking-tight">{orders.filter(o => o.driver_id).length}</div>
+                            <div className="text-[11px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-widest mt-1">Assigned</div>
+                        </div>
+                        <div className="bg-amber-50 dark:bg-amber-950/20 rounded-[24px] p-4 text-center shadow-sm border border-amber-200/60 dark:border-amber-900/40 border-b-4 border-b-amber-500">
+                            <div className="text-2xl font-black text-amber-700 dark:text-amber-400 tracking-tight">{unassignedOrders.length}</div>
+                            <div className="text-[11px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-widest mt-1">Unassigned</div>
+                        </div>
+                    </div>
+
+                    {/* GPS Warning */}
+                    {orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
+                        <div className="mx-5 mb-5 p-4 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/50 dark:border-rose-800/50 rounded-3xl flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
+                                <div>
+                                    <p className="text-[13px] font-extrabold tracking-tight text-rose-800 dark:text-rose-300">
+                                        {orders.filter(o => !o.latitude || !o.longitude).length} orders missing GPS
+                                    </p>
+                                    <p className="text-[11px] font-semibold text-rose-600/80 dark:text-rose-400/80">Cannot be optimized</p>
+                                </div>
+                            </div>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={retryFailedGeocoding}
+                                disabled={isRetryingGeocode}
+                                className="shrink-0 border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300 text-xs"
+                            >
+                                {isRetryingGeocode ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Fixing...</> : <><Sparkles size={12} className="mr-1" /> Fix</>}
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* Strategy Selector */}
+                    <div className="px-5 mb-5">
+                        <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2.5 pl-1">
+                            Strategy
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-slate-200/50 dark:bg-slate-800/50 rounded-[20px]">
+                            {(['fastest', 'balanced', 'efficient'] as const).map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setStrategy(s)}
+                                    className={`text-[13px] font-bold py-2.5 rounded-[16px] transition-all capitalize ${strategy === s
+                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm scale-[1.02]'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                                        }`}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Driver Selection */}
+                    <div className="px-5 mb-5">
+                        <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1.5 pl-1">
+                            Drivers ({selectedDrivers.length}/{drivers.length})
+                        </label>
+                        <div className="flex gap-3 text-[13px] mb-3 pl-1 font-bold">
+                            <button onClick={() => setSelectedDrivers(drivers.map(d => d.id))} className="text-blue-600 hover:text-blue-700">All</button>
+                            <span className="text-slate-300 dark:text-slate-700">|</span>
+                            <button onClick={() => setSelectedDrivers(drivers.filter(d => isDriverReallyOnline(d)).map(d => d.id))} className="text-emerald-600 hover:text-emerald-700">
+                                Online ({drivers.filter(d => isDriverReallyOnline(d)).length})
+                            </button>
+                            <span className="text-slate-300 dark:text-slate-700">|</span>
+                            <button onClick={() => setSelectedDrivers([])} className="text-rose-600 hover:text-rose-700">None</button>
+                        </div>
+                        <div className="space-y-1.5 bg-white dark:bg-slate-900 rounded-[28px] p-3 border border-slate-200/60 dark:border-slate-800 shadow-sm max-h-[160px] overflow-y-auto">
+                            {drivers.map(driver => {
+                                const isOnline = isDriverReallyOnline(driver)
+                                const isSelected = selectedDrivers.includes(driver.id)
+                                return (
+                                    <label
+                                        key={driver.id}
+                                        className={`flex items-center gap-3 p-3 rounded-[20px] cursor-pointer transition-colors ${isSelected
+                                            ? 'bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30'
+                                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent'
+                                            }`}
                                     >
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedDrivers([...selectedDrivers, driver.id])
+                                                } else {
+                                                    setSelectedDrivers(selectedDrivers.filter(id => id !== driver.id))
+                                                }
+                                            }}
+                                            className="h-4 w-4 rounded-md border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20"
+                                        />
+                                        <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                                        <span className={`text-[14px] font-bold truncate ${isOnline ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            {driver.name}
+                                        </span>
+                                        <span className={`text-[10px] uppercase tracking-widest ml-auto px-2 py-1 rounded-full font-black ${isOnline
+                                            ? 'bg-emerald-100/50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                            }`}>
+                                            {isOnline ? 'Online' : 'Offline'}
+                                        </span>
+                                    </label>
+                                )
+                            })}
+                            {drivers.length === 0 && (
+                                <p className="text-[13px] font-bold text-slate-500 dark:text-slate-400 text-center py-4">No drivers found</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Optimization Mode Toggle */}
+                    <div className="mx-5 mb-5 flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-full shadow-sm">
+                        <input
+                            type="checkbox"
+                            id="mobile-reoptimize-mode"
+                            checked={optimizationMode === 'reoptimize'}
+                            onChange={(e) => setOptimizationMode(e.target.checked ? 'reoptimize' : 'morning')}
+                            className="h-5 w-5 ml-1 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20"
+                        />
+                        <label htmlFor="mobile-reoptimize-mode" className="text-sm cursor-pointer flex-1">
+                            <span className="font-black text-slate-900 dark:text-white">Use current locations</span>
+                            <span className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-tight">
+                                {optimizationMode === 'reoptimize'
+                                    ? '📍 Routes start from where drivers are now'
+                                    : '🏢 Routes start from depot (morning)'}
+                            </span>
+                        </label>
+                    </div>
+
+                    {/* No Drivers Warning */}
+                    {selectedDrivers.length === 0 && (
+                        <div className="mx-5 mb-5 flex items-center gap-2.5 px-4 py-3 bg-amber-50/80 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 rounded-2xl border border-amber-200/50 dark:border-amber-900/40">
+                            <AlertCircle size={16} className="shrink-0 text-amber-500 dark:text-amber-400" />
+                            <p className="text-[13px] font-semibold">Select at least one driver to optimize routes.</p>
+                        </div>
+                    )}
+
+                    {/* Optimize Button */}
+                    <div className="px-5 mb-6">
+                        <Button
+                            onClick={() => handleOptimize(false)}
+                            disabled={isLoading}
+                            className="w-full h-14 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.3)] text-[16px] font-black tracking-wide transition-all active:scale-[0.98] rounded-2xl border-0 flex items-center justify-center group"
+                        >
+                            <Sparkles size={20} className={`mr-2 ${isLoading ? 'animate-spin' : 'group-hover:rotate-12 transition-transform'}`} />
+                            {isLoading ? 'Optimizing Routes...' : 'Smart Optimize Routes'}
+                        </Button>
+                    </div>
+
+                    {/* Workload Dashboard */}
+                    <div className="px-5 mb-6">
+                        <WorkloadDashboard />
+                    </div>
+
+                    <SplitSuggestionsModal
+                        open={isSplitModalOpen}
+                        onOpenChange={setIsSplitModalOpen}
+                        suggestions={splitSuggestions}
+                        onConfirm={() => handleOptimize(true)}
+                    />
+
+                    {/* Divider */}
+                    <div className="border-t border-slate-200/50 dark:border-slate-800/50 mx-5 mb-5" />
+
+                    {/* Split view: Unassigned Orders + Drivers side by side for easy drag-and-drop */}
+                    <div className="px-5 pb-5 flex flex-col gap-4" style={{ minHeight: '60vh' }}>
+                        {/* Unassigned Orders - scrollable */}
+                        <div className="flex-1 min-h-[300px] h-full flex flex-col rounded-[24px] border border-slate-200/60 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-2 shadow-sm">
+                            <div className="flex-1 overflow-y-auto">
+                                <UnassignedArea count={unassignedOrders.length}>
+                                    {unassignedOrders.map(order => (
+                                        <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
+                                    ))}
+                                </UnassignedArea>
+                            </div>
+                        </div>
+
+                        {/* Drivers - scrollable, always visible below */}
+                        <div className="flex-1 min-h-[300px] flex flex-col rounded-[24px] border border-slate-200/60 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-3 shadow-sm">
+                            <h2 className="text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest flex items-center gap-2 mb-3 pl-1 pt-1">
+                                <Truck size={14} /> Drivers ({drivers.length})
+                            </h2>
+                            <div className="flex-1 overflow-y-auto space-y-3">
+                                {drivers.map((driver, index) => (
+                                    <DroppableDriverContainer
+                                        key={driver.id}
+                                        driver={driver}
+                                        orders={orders.filter(o => o.driver_id === driver.id)}
+                                        isLocked={index >= driverLimit}
+                                                                           >
                                         {orders.filter(o => o.driver_id === driver.id).map(order => (
                                             <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
                                         ))}
@@ -1320,23 +1408,32 @@ export default function PlannerPage() {
                         </div>
                     </div>
 
+
+                    {/* SPACER FOR MOBILE BOTTOM NAV - Ensures scroll clears the bottom bar */}
+                    <div className="h-48 flex-shrink-0 w-full" />
+                </div>}
+
                 {/* DRAG OVERLAY (Visual Feedback) */}
                 <DragOverlay dropAnimation={{
                     duration: 250,
                     easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)' // Smooth ease-out, no overshoot
                 }}>
-                    {activeDragOrder ? <DraggableOrderCard order={activeDragOrder} isOverlay /> : null}
+                    {activeDragOrder ? (
+                        <div className="w-[340px] max-w-[80vw]">
+                            <DraggableOrderCard order={activeDragOrder} isOverlay />
+                        </div>
+                    ) : null}
                 </DragOverlay>
 
                 {/* QUICK VIEW SHEET */}
                 <Sheet open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-                    <SheetContent>
+                    <SheetContent className="safe-area-pt">
                         <SheetHeader>
                             <SheetTitle>Order Details</SheetTitle>
                             <SheetDescription>#{selectedOrder?.order_number}</SheetDescription>
                         </SheetHeader>
                         {selectedOrder && (
-                            <div className="space-y-4 mt-6">
+                            <div className="space-y-4 mt-6 px-4">
                                 <div className="space-y-1">
                                     <h3 className="text-sm font-medium text-muted-foreground">Customer</h3>
                                     <p className="font-semibold">{selectedOrder.customer_name}</p>
@@ -1374,65 +1471,70 @@ export default function PlannerPage() {
 
                 {/* OPTIMIZATION REPORT DIALOG */}
                 <Sheet open={!!optimizationReport} onOpenChange={(open) => !open && setOptimizationReport(null)}>
-                    <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto safe-area-pt">
-                        <SheetHeader>
-                            <SheetTitle className="flex items-center gap-2">
-                                <Sparkles className="text-blue-600" size={20} />
+                    <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto pt-14 pb-32 z-[10000] bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-3xl border-l-white/50 [&>button]:top-14 [&>button]:right-6">
+                        <SheetHeader className="px-2">
+                            <SheetTitle className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white mt-2">
+                                <Sparkles className="text-blue-600 dark:text-blue-400" size={24} />
                                 Optimization Report
                             </SheetTitle>
-                            <SheetDescription>
+                            <SheetDescription className="text-slate-500 dark:text-slate-400">
                                 Smart route optimization results
                             </SheetDescription>
                         </SheetHeader>
 
                         {optimizationReport && (
-                            <div className="space-y-6 mt-6">
+                            <div className="space-y-8 mt-8 px-2">
                                 {/* Summary Cards */}
                                 <div className="grid grid-cols-3 gap-3">
-                                    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800">
-                                        <CardContent className="p-4 text-center">
-                                            <div className="text-3xl font-bold text-green-700 dark:text-green-400">{optimizationReport.assigned}</div>
-                                            <div className="text-xs text-green-600 dark:text-green-500 font-medium mt-1">Assigned</div>
+                                    <Card className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-white/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden group">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-emerald-600/5 opacity-50 transition-opacity group-hover:opacity-100" />
+                                        <CardContent className="p-4 text-center relative z-10">
+                                            <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-br from-green-600 to-emerald-500 dark:from-green-400 dark:to-emerald-300 drop-shadow-sm mb-1">{optimizationReport.assigned}</div>
+                                            <div className="text-[10px] uppercase tracking-wider text-green-700 dark:text-green-400 font-bold">Assigned</div>
                                         </CardContent>
                                     </Card>
-                                    <Card className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-950 dark:to-amber-950 border-yellow-200 dark:border-yellow-800">
-                                        <CardContent className="p-4 text-center">
-                                            <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-400">{optimizationReport.unassigned}</div>
-                                            <div className="text-xs text-yellow-600 dark:text-yellow-500 font-medium mt-1">Unassigned</div>
+
+                                    <Card className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-white/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden group">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-orange-400/10 to-amber-600/5 opacity-50 transition-opacity group-hover:opacity-100" />
+                                        <CardContent className="p-4 text-center relative z-10">
+                                            <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-br from-orange-500 to-amber-500 dark:from-orange-400 dark:to-amber-300 drop-shadow-sm mb-1">{optimizationReport.unassigned}</div>
+                                            <div className="text-[10px] uppercase tracking-wider text-orange-700 dark:text-orange-400 font-bold">Unassigned</div>
                                         </CardContent>
                                     </Card>
-                                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800">
-                                        <CardContent className="p-4 text-center">
-                                            <div className="text-3xl font-bold text-blue-700 dark:text-blue-400">{optimizationReport.totalDistanceKm > 0 ? `${optimizationReport.totalDistanceKm}` : '—'}</div>
-                                            <div className="text-xs text-blue-600 dark:text-blue-500 font-medium mt-1">Total km</div>
+
+                                    <Card className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-white/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden group">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-indigo-600/5 opacity-50 transition-opacity group-hover:opacity-100" />
+                                        <CardContent className="p-4 text-center relative z-10">
+                                            <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-br from-blue-600 to-indigo-500 dark:from-blue-400 dark:to-indigo-300 drop-shadow-sm mb-1">{optimizationReport.totalDistanceKm > 0 ? `${optimizationReport.totalDistanceKm}` : '—'}</div>
+                                            <div className="text-[10px] uppercase tracking-wider text-blue-700 dark:text-blue-400 font-bold">Total km</div>
                                         </CardContent>
                                     </Card>
                                 </div>
 
                                 {/* Driver Breakdown */}
                                 {optimizationReport.driverBreakdown.length > 0 && (
-                                    <div className="space-y-3">
+                                    <div className="space-y-4">
                                         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                            <Truck size={16} className="text-blue-600" />
+                                            <Truck size={18} className="text-blue-600 dark:text-blue-400" />
                                             Driver Assignment Breakdown
                                         </h3>
-                                        <div className="space-y-2">
+                                        <div className="space-y-3">
                                             {optimizationReport.driverBreakdown.map((driver) => (
                                                 <div
                                                     key={driver.driverId}
-                                                    className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg"
+                                                    className="p-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-white/60 dark:border-slate-800 rounded-2xl shadow-sm"
                                                 >
                                                     <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="h-2 w-2 rounded-full bg-blue-600" />
-                                                            <span className="font-medium text-sm text-slate-800 dark:text-slate-200">{driver.driverName}</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-3 w-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{driver.driverName}</span>
                                                         </div>
-                                                        <span className="text-sm font-bold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded-full">
+                                                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-900/50 px-3 py-1.5 rounded-full border border-blue-200/50 dark:border-blue-800/50">
                                                             {driver.orderCount} orders
                                                         </span>
                                                     </div>
                                                     {(driver.totalDistanceKm || driver.estimatedDurationMin) && (
-                                                        <div className="flex items-center gap-3 mt-2 pl-4 text-[11px] text-slate-500 dark:text-slate-400">
+                                                        <div className="flex items-center gap-3 mt-2 pl-6 text-[11px] text-slate-500 dark:text-slate-400">
                                                             {driver.totalDistanceKm != null && (
                                                                 <span className="flex items-center gap-1">
                                                                     <Route size={11} /> {driver.totalDistanceKm} km
@@ -1566,21 +1668,21 @@ export default function PlannerPage() {
 
                                 {/* Issues / Warnings */}
                                 {optimizationReport.issues.length > 0 && (
-                                    <div className="space-y-3">
+                                    <div className="space-y-4">
                                         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                            <AlertCircle size={16} className="text-orange-600" />
+                                            <AlertCircle size={18} className="text-rose-500" />
                                             Issues & Warnings
                                         </h3>
                                         <div className="space-y-3">
                                             {optimizationReport.issues.map((issue, index) => (
-                                                <Card key={index} className="border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/50">
-                                                    <CardContent className="p-3">
-                                                        <div className="flex items-start justify-between mb-2">
-                                                            <div className="flex-1">
-                                                                <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">{issue.reason}</p>
-                                                                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">{issue.count} affected</p>
+                                                <Card key={index} className="border-rose-200/50 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-950/20 backdrop-blur-sm shadow-sm rounded-2xl overflow-hidden">
+                                                    <CardContent className="p-4">
+                                                        <div className="flex items-start justify-between mb-3">
+                                                            <div className="flex-1 pr-4">
+                                                                <p className="text-sm font-bold text-rose-800 dark:text-rose-300 leading-tight">{issue.reason}</p>
+                                                                <p className="text-[11px] font-medium text-rose-600/80 dark:text-rose-400/80 mt-1 uppercase tracking-wider">{issue.count} affected</p>
                                                             </div>
-                                                            <span className="text-xs bg-orange-200 dark:bg-orange-900 text-orange-800 dark:text-orange-300 px-2 py-1 rounded-full font-bold">
+                                                            <span className="text-xs bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 px-2.5 py-1 rounded-full font-bold border border-rose-200 dark:border-rose-800/50">
                                                                 {issue.count}
                                                             </span>
                                                         </div>
@@ -1613,21 +1715,32 @@ export default function PlannerPage() {
 
                                 {/* Driver Diagnostics (Debug Info for User) */}
                                 {optimizationReport.driverDiagnostics && (
-                                    <div className="space-y-3 pt-4 border-t border-border">
+                                    <div className="space-y-4 pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
                                         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                            <Truck size={16} className="text-purple-600" />
+                                            <Truck size={18} className="text-purple-500" />
                                             Drivers Availability Check
                                         </h3>
-                                        <div className="grid grid-cols-1 gap-2">
+                                        <div className="grid grid-cols-1 gap-3">
                                             {optimizationReport.driverDiagnostics.map((d, i) => (
-                                                <div key={i} className={`flex items - center justify - between p - 2 rounded text - xs border ${d.valid ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-950 dark:border-green-800 dark:text-green-300' : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-300'} `}>
-                                                    <div className="flex flex-col">
-                                                        <span className="font-semibold">{d.name}</span>
-                                                        <span className="opacity-70 text-[10px] truncate max-w-[250px] block" title={d.address}>
-                                                            {d.address || `Lat: ${d.lat?.toFixed(4) || '?'}, Lng: ${d.lng?.toFixed(4) || '?'} `}
+                                                <div
+                                                    key={i}
+                                                    className={`flex items-center justify-between p-3.5 rounded-2xl text-xs border backdrop-blur-md shadow-sm transition-all ${d.valid
+                                                        ? 'bg-emerald-50/60 border-emerald-200/60 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-800/30 dark:text-emerald-100'
+                                                        : 'bg-rose-50/60 border-rose-200/60 text-rose-900 dark:bg-rose-950/20 dark:border-rose-800/30 dark:text-rose-100'
+                                                        }`}
+                                                >
+                                                    <div className="flex flex-col gap-1 pr-3">
+                                                        <span className="font-bold text-sm tracking-tight">{d.name}</span>
+                                                        <span className={`text-[10px] truncate max-w-[220px] block font-medium uppercase tracking-wider ${d.valid ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`} title={d.address}>
+                                                            {d.address || `Lat: ${d.lat?.toFixed(4) || '?'}, Lng: ${d.lng?.toFixed(4) || '?'}`}
                                                         </span>
                                                     </div>
-                                                    <span className="font-bold">{d.valid ? 'READY' : 'INVALID LOC'}</span>
+                                                    <span className={`font-black tracking-widest px-2.5 py-1 rounded border ${d.valid
+                                                        ? 'bg-emerald-100/80 text-emerald-700 border-emerald-200/50 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/50'
+                                                        : 'bg-rose-100/80 text-rose-700 border-rose-200/50 dark:bg-rose-900/50 dark:text-rose-300 dark:border-rose-700/50'
+                                                        }`}>
+                                                        {d.valid ? 'READY' : 'INVALID'}
+                                                    </span>
                                                 </div>
                                             ))}
                                         </div>
@@ -1636,25 +1749,33 @@ export default function PlannerPage() {
 
                                 {/* Success Summary */}
                                 {optimizationReport.assigned > 0 && (
-                                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border border-green-200 dark:border-green-800 rounded-lg">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <CheckCircle2 className="text-green-600 dark:text-green-400" size={18} />
-                                            <h4 className="font-bold text-green-800 dark:text-green-300">Optimization Successful!</h4>
-                                        </div>
-                                        <p className="text-sm text-green-700 dark:text-green-400">
-                                            {optimizationReport.assigned} out of {optimizationReport.totalProcessed} orders were successfully assigned to {optimizationReport.driverBreakdown.length} driver(s).
-                                        </p>
-                                        {optimizationReport.unassigned > 0 && (
-                                            <p className="text-xs text-green-600 dark:text-green-500 mt-2">
-                                                {optimizationReport.unassigned} orders remain unassigned and require manual review.
+                                    <div className="p-5 mt-4 relative overflow-hidden bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-white/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] rounded-3xl">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-emerald-600/5 opacity-50 pointer-events-none" />
+                                        <div className="relative z-10">
+                                            <div className="flex items-center gap-2.5 mb-3">
+                                                <div className="p-1.5 bg-green-100 dark:bg-green-900/50 rounded-full">
+                                                    <CheckCircle2 className="text-green-600 dark:text-green-400" size={20} strokeWidth={2.5} />
+                                                </div>
+                                                <h4 className="font-extrabold text-green-900 dark:text-green-300 text-base">Optimization Successful!</h4>
+                                            </div>
+                                            <p className="text-[13px] font-medium text-green-800/90 dark:text-green-200/90 leading-relaxed">
+                                                <span className="font-bold text-green-700 dark:text-green-400">{optimizationReport.assigned}</span> out of {optimizationReport.totalProcessed} orders were successfully assigned to <span className="font-bold text-green-700 dark:text-green-400">{optimizationReport.driverBreakdown.length}</span> driver(s).
                                             </p>
-                                        )}
+                                            {optimizationReport.unassigned > 0 && (
+                                                <div className="mt-3 p-2.5 bg-white/40 dark:bg-black/20 rounded-xl border border-white/50 dark:border-white/5">
+                                                    <p className="text-[12px] font-semibold text-emerald-700/90 dark:text-emerald-400/90 flex items-center gap-1.5">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                        {optimizationReport.unassigned} orders remain unassigned and require manual review.
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
                                 {/* Close Button */}
                                 <Button
-                                    className="w-full"
+                                    className="w-full h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-base shadow-lg shadow-blue-900/20 dark:shadow-white/10 transition-all active:scale-[0.98] mt-6"
                                     onClick={() => setOptimizationReport(null)}
                                 >
                                     Close Report
@@ -1666,7 +1787,7 @@ export default function PlannerPage() {
 
                 {/* ORDER DETAILS SHEET (QUICK VIEW) */}
                 <Sheet open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-                    <SheetContent>
+                    <SheetContent className="safe-area-pt">
                         {selectedOrder && (
                             <>
                                 <SheetHeader>
@@ -1681,7 +1802,7 @@ export default function PlannerPage() {
                                     </SheetDescription>
                                 </SheetHeader>
 
-                                <div className="mt-6 space-y-6">
+                                <div className="mt-6 space-y-6 px-4">
                                     {/* PRIORITY & STATUS */}
                                     <div className="flex gap-4">
                                         {/* Priority Badge */}
@@ -1800,8 +1921,7 @@ export default function PlannerPage() {
                     </SheetContent>
                 </Sheet>
 
-                </div>
-            </DndContext>
-        </PullToRefresh>
+            </div>
+        </DndContext>
     )
 }

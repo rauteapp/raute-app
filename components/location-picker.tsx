@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import "leaflet/dist/leaflet.css"
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 
 import L from 'leaflet'

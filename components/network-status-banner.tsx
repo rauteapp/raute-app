@@ -9,8 +9,10 @@ import { WifiOff } from 'lucide-react'
 export function NetworkStatusBanner() {
     const [isOnline, setIsOnline] = useState(true)
     const [showBanner, setShowBanner] = useState(false)
+    const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
+        setMounted(true)
         // Check initial status
         setIsOnline(navigator.onLine)
         setShowBanner(!navigator.onLine)
@@ -35,6 +37,7 @@ export function NetworkStatusBanner() {
         }
     }, [])
 
+    if (!mounted) return null
     if (!showBanner) return null
 
     return (

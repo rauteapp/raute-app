@@ -287,7 +287,7 @@ export default function MapPage() {
                                 <Menu className="h-6 w-6" />
                             </Button>
                         </SheetTrigger>
-                        <SheetContent side="bottom" className="h-[60vh] p-0 rounded-t-xl z-[1000] sm:max-w-2xl mx-auto pb-20">
+                        <SheetContent side="bottom" className="h-[65vh] p-0 rounded-t-[32px] z-[1000] sm:max-w-2xl mx-auto border-t border-slate-200/50 dark:border-slate-800/50 bg-white/90 dark:bg-slate-950/90 backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
                             <SheetTitle className="sr-only">Fleet Overview</SheetTitle>
                             <FleetPanel
                                 drivers={drivers}

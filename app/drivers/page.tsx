@@ -646,16 +646,20 @@ export default function DriversPage() {
 
     return (
         <PullToRefresh onRefresh={fetchDrivers}>
-            <div className="container mx-auto py-8 px-4 max-w-6xl safe-area-pt">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Driver Management</h1>
-                        <p className="text-muted-foreground mt-1">Manage your fleet, assignments, and driver accounts.</p>
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-slate-100 dark:from-blue-950/20 dark:via-slate-950 dark:to-slate-900">
+                <header
+                    className="sticky top-0 z-20 px-5 pb-5 flex items-center justify-between bg-white/70 dark:bg-slate-950/70 backdrop-blur-2xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm"
+                    style={{ paddingTop: 'max(env(safe-area-inset-top), 3.5rem)' }}
+                >
+                    <div className="flex flex-col">
+                        <h1 className="text-[22px] leading-none font-black text-slate-900 dark:text-white tracking-tight">Driver Management</h1>
+                        <p className="text-[13px] font-semibold text-slate-500 mt-1">Manage your fleet and assignments.</p>
                     </div>
                     <Sheet open={isAddDriverOpen} onOpenChange={setIsAddDriverOpen}>
                         <SheetTrigger asChild>
-                            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
-                                <Plus className="mr-2 h-4 w-4" /> Add Driver ({drivers.length}/{maxDrivers})
+                            <Button size="sm" className="gap-2 h-10 rounded-[20px] px-4 shadow-sm bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-200 dark:text-slate-900 transition-all font-bold group">
+                                <Plus size={18} strokeWidth={3} /> <span className="hidden sm:inline">Add Driver</span><span className="sm:hidden">Add</span>
+                                <span className="opacity-70 text-[10px] ml-1 bg-white/20 dark:bg-black/20 px-1.5 py-0.5 rounded-full">{drivers.length}/{maxDrivers}</span>
                             </Button>
                         </SheetTrigger>
 
@@ -722,11 +726,11 @@ export default function DriversPage() {
                                 </div>
                             </DialogContent>
                         </Dialog>
-                        <SheetContent className="h-[90vh] overflow-y-auto w-full max-w-md mx-auto rounded-l-2xl border-l border-border/50 shadow-2xl safe-area-pt">
+                        <SheetContent side="bottom" className="h-[85vh] overflow-y-auto rounded-t-3xl border-t border-border shadow-2xl safe-area-pt">
                             <SheetHeader className="mb-6">
                                 <SheetTitle className="text-2xl font-bold text-primary">Add New Driver</SheetTitle>
                             </SheetHeader>
-                            <form onSubmit={handleFormSubmit} className="space-y-5 pb-20">
+                            <form onSubmit={handleFormSubmit} className="space-y-5 mt-6 px-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
                                     <div className="relative">
@@ -938,7 +942,7 @@ export default function DriversPage() {
                                     </div>
                                 )}
 
-                                <div className="pt-4">
+                                <div className="pt-4 pb-32">
                                     <Button type="submit" className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20" disabled={isCreatingDriver}>
                                         {isCreatingDriver ? 'Creating...' : 'Create Driver Account'}
                                     </Button>
@@ -946,16 +950,15 @@ export default function DriversPage() {
                             </form>
                         </SheetContent>
                     </Sheet>
-                </div>
+                </header>
 
-                {/* Drivers List */}
-                <div className="space-y-6">
+                <main className="p-5 max-w-5xl mx-auto space-y-6 mt-2">
                     {/* Search */}
                     <div className="relative">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                         <Input
                             placeholder="Search drivers by name, phone, or vehicle..."
-                            className="pl-10 h-10 bg-background"
+                            className="pl-12 h-14 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 rounded-[24px] shadow-sm text-[15px] font-medium transition-all focus-visible:ring-1 focus-visible:ring-blue-500/50"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -966,14 +969,14 @@ export default function DriversPage() {
                         {isLoading ? (
                             <div className="space-y-4">
                                 {[1, 2, 3].map((i) => (
-                                    <div key={i} className="bg-card rounded-xl border border-border p-4 flex items-center justify-between gap-4 animate-pulse">
+                                    <div key={i} className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-[32px] border border-slate-200/50 dark:border-slate-800/50 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse shadow-sm">
                                         <div className="flex items-center gap-4 w-full">
-                                            <div className="h-12 w-12 rounded-full bg-slate-200 dark:bg-slate-800" />
+                                            <div className="h-14 w-14 rounded-[20px] bg-slate-200 dark:bg-slate-800 shrink-0" />
                                             <div className="space-y-2 flex-1">
-                                                <div className="h-5 w-48 bg-slate-200 dark:bg-slate-800 rounded" />
+                                                <div className="h-5 w-48 bg-slate-200 dark:bg-slate-800 rounded-full" />
                                                 <div className="flex gap-4">
-                                                    <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
-                                                    <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
+                                                    <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded-full" />
+                                                    <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded-full" />
                                                 </div>
                                             </div>
                                         </div>
@@ -981,113 +984,115 @@ export default function DriversPage() {
                                 ))}
                             </div>
                         ) : filteredDrivers.length === 0 ? (
-                            <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed border-border">
-                                <Truck className="mx-auto h-12 w-12 mb-2 text-muted-foreground opacity-50" />
-                                <p className="text-muted-foreground">No drivers found</p>
+                            <div className="text-center py-20 bg-white/50 dark:bg-slate-900/40 backdrop-blur-sm rounded-[32px] border-2 border-dashed border-slate-200 dark:border-slate-800 shadow-sm mx-2">
+                                <div className="h-16 w-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-5 rotate-3 border border-slate-200 dark:border-slate-700 mx-auto shadow-sm">
+                                    <Truck className="h-8 w-8 text-slate-400 dark:text-slate-500" strokeWidth={2} />
+                                </div>
+                                <h3 className="text-[17px] font-black text-slate-800 dark:text-slate-200 tracking-tight">No drivers found</h3>
+                                <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400 mt-2 max-w-[260px] mx-auto leading-relaxed">Add a driver to your fleet to start assigning them routes.</p>
                             </div>
                         ) : (
                             filteredDrivers.map((driver) => (
                                 <div
                                     key={driver.id}
-                                    className="bg-card rounded-xl border border-border p-4 hover:shadow-md hover:border-primary/50 transition-all duration-200"
+                                    className={`group relative flex flex-col sm:flex-row overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-lg transition-all rounded-[32px] p-5 sm:items-center justify-between gap-4 ${driver.status !== 'active' ? 'opacity-70 grayscale-[0.3]' : ''}`}
                                 >
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                        <div className="flex items-start gap-4">
-                                            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary font-bold text-lg">
-                                                {driver.name ? driver.name.charAt(0).toUpperCase() : <User size={24} />}
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                                    <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-20" />
+                                    <div className="flex items-start sm:items-center gap-4">
+                                        <div className="h-14 w-14 rounded-[20px] bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 shadow-sm flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700/60 text-blue-600 dark:text-blue-400 font-black text-xl">
+                                            {driver.name ? driver.name.charAt(0).toUpperCase() : <User size={24} />}
+                                        </div>
+                                        <div>
+                                            <div className="flex flex-wrap items-center gap-2 pb-0.5">
+                                                <h3 className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                                     {driver.name || "Unknown Driver"}
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full ${driver.status === 'active'
-                                                        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                                                        : 'bg-slate-500/10 text-slate-600 dark:text-slate-400'
-                                                        }`}>
-                                                        {driver.status}
-                                                    </span>
-                                                    {driver.is_active === false && (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400" title="Account pending manager activation">
-                                                            <ShieldAlert size={12} />
-                                                            Pending Activation
-                                                        </span>
-                                                    )}
-                                                    {driver.is_active === true && (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400" title="Account activated by manager">
-                                                            <ShieldCheck size={12} />
-                                                            Activated
-                                                        </span>
-                                                    )}
                                                 </h3>
-                                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
-                                                    <p className="flex items-center gap-1.5">
-                                                        <User size={14} />
-                                                        {driver.email}
+                                                <span className={`px-2 py-0.5 text-[10px] font-black tracking-wider uppercase rounded-full border ${driver.status === 'active'
+                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/60'
+                                                    : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                                    }`}>
+                                                    {driver.status}
+                                                </span>
+                                                {driver.is_active === false && (
+                                                    <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-black tracking-widest uppercase rounded-full border bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/60" title="Account pending manager activation">
+                                                        <ShieldAlert size={10} strokeWidth={3} />
+                                                        Pending
+                                                    </span>
+                                                )}
+                                                {driver.is_active === true && (
+                                                    <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-black tracking-widest uppercase rounded-full border bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900/60" title="Account activated by manager">
+                                                        <ShieldCheck size={10} strokeWidth={3} />
+                                                        Activated
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[13px] font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                                                <p className="flex items-center gap-1">
+                                                    <User size={13} className="text-slate-400" />
+                                                    {driver.email}
+                                                </p>
+                                                {driver.phone && (
+                                                    <p className="flex items-center gap-1">
+                                                        <Phone size={13} className="text-slate-400" />
+                                                        {driver.phone}
                                                     </p>
-                                                    {driver.phone && (
-                                                        <p className="flex items-center gap-1.5">
-                                                            <Phone size={14} />
-                                                            {driver.phone}
-                                                        </p>
-                                                    )}
-                                                    {driver.vehicle_type && (
-                                                        <p className="flex items-center gap-1.5">
-                                                            <Truck size={14} />
-                                                            {driver.vehicle_type}
-                                                        </p>
-                                                    )}
-                                                </div>
+                                                )}
+                                                {driver.vehicle_type && (
+                                                    <p className="flex items-center gap-1">
+                                                        <Truck size={13} className="text-slate-400" />
+                                                        {driver.vehicle_type}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="flex gap-2 w-full sm:w-auto justify-end">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                title={driver.is_active ? 'Deactivate Account' : 'Activate Account'}
-                                                onClick={async () => {
-                                                    const newStatus = !driver.is_active
-                                                    const { error } = await supabase
-                                                        .from('drivers')
-                                                        .update({ is_active: newStatus })
-                                                        .eq('id', driver.id)
+                                    </div>
 
-                                                    if (error) {
-                                                        toast({ title: 'Failed to update activation', description: error.message, type: 'error' })
-                                                    } else {
-                                                        toast({ title: newStatus ? '✅ Driver activated!' : '⏸️ Driver deactivated', type: 'success' })
-                                                        fetchDrivers()
-                                                    }
-                                                }}
-                                                className={`h-9 w-9 p-0 ${driver.is_active
-                                                    ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/10'
-                                                    : 'text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/10'
-                                                    }`}
-                                            >
-                                                {driver.is_active ? <ShieldAlert size={15} /> : <ShieldCheck size={15} />}
-                                            </Button>
+                                    <div className="flex gap-2 w-full sm:w-auto justify-end border-t sm:border-t-0 border-slate-100 dark:border-slate-800/60 pt-3 sm:pt-0 mt-2 sm:mt-0">
+                                        <button
+                                            title={driver.is_active ? 'Deactivate Account' : 'Activate Account'}
+                                            onClick={async () => {
+                                                const newStatus = !driver.is_active
+                                                const { error } = await supabase
+                                                    .from('drivers')
+                                                    .update({ is_active: newStatus })
+                                                    .eq('id', driver.id)
 
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => setEditingDriver(driver)}
-                                                className="h-9 w-9 p-0 hover:bg-muted"
-                                            >
-                                                <Edit size={15} />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-9 w-9 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/10"
-                                                onClick={() => setDeleteingDriver(driver)}
-                                            >
-                                                <Trash2 size={15} />
-                                            </Button>
-                                        </div>
+                                                if (error) {
+                                                    toast({ title: 'Failed to update activation', description: error.message, type: 'error' })
+                                                } else {
+                                                    toast({ title: newStatus ? '✅ Driver activated!' : '⏸️ Driver deactivated', type: 'success' })
+                                                    fetchDrivers()
+                                                }
+                                            }}
+                                            className={`h-11 w-11 flex items-center justify-center rounded-full transition-colors border ${driver.is_active
+                                                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 border-amber-200/50 dark:border-amber-900/50 hover:bg-amber-100 dark:hover:bg-amber-900/60'
+                                                : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border-emerald-200/50 dark:border-emerald-900/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+                                                }`}
+                                        >
+                                            {driver.is_active ? <ShieldAlert size={18} strokeWidth={2.5} /> : <ShieldCheck size={18} strokeWidth={2.5} />}
+                                        </button>
+
+                                        <button
+                                            onClick={() => setEditingDriver(driver)}
+                                            className="h-11 w-11 flex items-center justify-center rounded-full bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200/50 dark:border-slate-700/50"
+                                            title="Edit Driver"
+                                        >
+                                            <Edit size={18} strokeWidth={2} />
+                                        </button>
+
+                                        <button
+                                            className="h-11 w-11 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors border border-rose-100/50 dark:border-rose-900/50"
+                                            onClick={() => setDeleteingDriver(driver)}
+                                            title="Delete Driver"
+                                        >
+                                            <Trash2 size={18} strokeWidth={2} />
+                                        </button>
                                     </div>
                                 </div>
                             ))
                         )}
                     </div>
-                </div>
+                </main>
 
                 {/* Edit Driver Sheet */}
                 <Sheet open={!!editingDriver} onOpenChange={(open) => !open && setEditingDriver(null)}>
@@ -1096,7 +1101,7 @@ export default function DriversPage() {
                             <SheetTitle>Edit Driver Details</SheetTitle>
                         </SheetHeader>
                         {editingDriver && (
-                            <form action={handleEditDriver} className="space-y-4 mt-6 pb-20">
+                            <form action={handleEditDriver} className="space-y-4 mt-6 px-4">
                                 <div className="space-y-2">
                                     <Label>Full Name</Label>
                                     <Input name="name" defaultValue={editingDriver.name} required />
@@ -1321,7 +1326,7 @@ export default function DriversPage() {
                                 <input type="hidden" name="map_lat" value={defaultStartLoc?.lat || ''} />
                                 <input type="hidden" name="map_lng" value={defaultStartLoc?.lng || ''} />
 
-                                <div className="pt-4">
+                                <div className="pt-4 pb-32">
                                     <Button type="submit" className="w-full h-12">Update Changes</Button>
                                 </div>
                             </form>
