@@ -23,7 +23,6 @@ import { PullToRefresh } from '@/components/pull-to-refresh'
 import {
     DndContext,
     DragOverlay,
-    pointerWithin,
     closestCenter,
     KeyboardSensor,
     PointerSensor,
@@ -829,11 +828,7 @@ export default function PlannerPage() {
     return (
         <DndContext
             sensors={sensors}
-            collisionDetection={(args) => {
-                // pointerWithin works better with scroll containers — fallback to closestCenter
-                const within = pointerWithin(args)
-                return within.length > 0 ? within : closestCenter(args)
-            }}
+            collisionDetection={closestCenter}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
