@@ -13,7 +13,8 @@ import { calculateEvenSplit, type SplitSuggestion } from '@/lib/split-calculator
 import { WorkloadDashboard } from '@/components/WorkloadDashboard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { MapPin, Truck, Sparkles, AlertCircle, AlertTriangle, Lock, Unlock, Clock, ExternalLink, CheckCircle2, User as UserIcon, Edit } from 'lucide-react'
+import { MapPin, Truck, Sparkles, AlertCircle, AlertTriangle, Lock, Unlock, Clock, ExternalLink, CheckCircle2, User as UserIcon, Edit, Loader2 } from 'lucide-react'
+import { smartGeocode } from '@/lib/smart-geocoder'
 import Link from 'next/link'
 import { useToast } from "@/components/toast-provider"
 import { useTheme } from 'next-themes'
@@ -74,7 +75,7 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
 
     const style: React.CSSProperties = isDragging
         ? { opacity: 0.4, willChange: 'transform', touchAction: 'none', zIndex: 9999 }
-        : { touchAction: 'manipulation' } // Allow browser to know this is interactive so it handles touches better
+        : { touchAction: 'none' } // Prevent browser scroll from intercepting dnd-kit drag gestures
 
     return (
         <Card
@@ -255,6 +256,8 @@ export default function PlannerPage() {
     // Subscription State
     const [driverLimit, setDriverLimit] = useState(1)
     const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false)
+    const [companyId, setCompanyId] = useState<string | null>(null)
+    const [isRetryingGeocode, setIsRetryingGeocode] = useState(false)
 
     const [optimizationReport, setOptimizationReport] = useState<{
         totalProcessed: number
@@ -389,6 +392,7 @@ export default function PlannerPage() {
             // Set subscription limit
             const limit = user.driver_limit || 1
             setDriverLimit(limit)
+            setCompanyId(user.company_id)
 
             // Get Active Data
             const [ordersRes, driversRes] = await Promise.all([
@@ -672,6 +676,65 @@ export default function PlannerPage() {
         }
     }
 
+    async function retryFailedGeocoding() {
+        if (!companyId) return
+        setIsRetryingGeocode(true)
+        try {
+            const { data: failedOrders } = await supabase
+                .from('orders')
+                .select('id, address, city, state, zip_code')
+                .eq('company_id', companyId)
+                .is('latitude', null)
+                .not('status', 'in', '("delivered","cancelled")')
+
+            if (!failedOrders?.length) {
+                toast({ title: "No orders need geocoding", type: "info" })
+                return
+            }
+
+            let fixed = 0
+            for (const order of failedOrders) {
+                try {
+                    const result = await smartGeocode(
+                        order.address || '', order.city || '', order.state || '', order.zip_code || ''
+                    )
+                    if (result) {
+                        const updates: Record<string, any> = {
+                            latitude: result.lat, longitude: result.lng,
+                            geocoding_confidence: result.confidence,
+                            geocoded_address: `${result.foundAddress} [${result.strategy}]`,
+                            geocoding_attempted_at: new Date().toISOString()
+                        }
+                        if (result.correctedAddress) {
+                            updates.address = result.correctedAddress
+                        }
+                        await supabase.from('orders').update(updates).eq('id', order.id)
+                        fixed++
+                    } else {
+                        await supabase.from('orders').update({
+                            geocoding_confidence: 'failed',
+                            geocoding_attempted_at: new Date().toISOString(),
+                            geocoded_address: 'All geocoding strategies failed'
+                        }).eq('id', order.id)
+                    }
+                } catch {
+                    // Continue with next order
+                }
+            }
+
+            toast({
+                title: fixed > 0 ? `Fixed ${fixed}/${failedOrders.length} orders` : "Could not fix addresses",
+                description: fixed > 0 ? "GPS coordinates updated" : "Addresses may need manual correction",
+                type: fixed > 0 ? "success" : "error"
+            })
+            fetchData()
+        } catch (error: any) {
+            toast({ title: "Retry failed", description: error.message, type: "error" })
+        } finally {
+            setIsRetryingGeocode(false)
+        }
+    }
+
     // Handlers
     function handleDragStart(event: DragStartEvent) {
         setActiveDragId(event.active.id as string)
@@ -789,17 +852,27 @@ export default function PlannerPage() {
                     <div className="flex-1 overflow-y-auto flex flex-col min-h-0 pb-20 custom-scrollbar overscroll-y-contain">
                         {/* GLOBAL WARNING: MISSING GPS */}
                         {orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
-                            <div className="mx-5 mt-5 p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-[24px] flex items-start gap-3 shadow-sm relative overflow-hidden group">
-                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-400 to-red-500 opacity-20"></div>
-                                <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" size={18} />
-                                <div className="space-y-1">
-                                    <h3 className="text-[14px] font-black tracking-tight text-rose-800 dark:text-rose-300">
-                                        {orders.filter(o => !o.latitude || !o.longitude).length} Orders Missing GPS
-                                    </h3>
-                                    <p className="text-[12px] font-semibold text-rose-600/80 dark:text-rose-400/80 leading-relaxed">
-                                        These orders are hidden from the map but appear in the list below marked "No GPS".
-                                    </p>
+                            <div className="mx-5 mt-5 p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-[24px] flex items-center justify-between gap-3 shadow-sm relative group">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
+                                    <div>
+                                        <h3 className="text-[13px] font-black tracking-tight text-rose-800 dark:text-rose-300">
+                                            {orders.filter(o => !o.latitude || !o.longitude).length} Orders Missing GPS
+                                        </h3>
+                                        <p className="text-[11px] font-semibold text-rose-600/80 dark:text-rose-400/80">
+                                            Hidden from map, cannot be optimized.
+                                        </p>
+                                    </div>
                                 </div>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={retryFailedGeocoding}
+                                    disabled={isRetryingGeocode}
+                                    className="shrink-0 border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/30 text-xs"
+                                >
+                                    {isRetryingGeocode ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Fixing...</> : <><Sparkles size={12} className="mr-1" /> Fix with AI</>}
+                                </Button>
                             </div>
                         )}
                         <div className="p-5 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 flex-shrink-0">
@@ -920,7 +993,7 @@ export default function PlannerPage() {
                         </div>
 
                         {/* Optimization Mode Toggle */}
-                        <div className="m-5 flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-[24px] shadow-sm relative overflow-hidden group">
+                        <div className="m-5 flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-[24px] shadow-sm relative group">
                             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-[24px]"></div>
                             <input
                                 type="checkbox"
@@ -1129,17 +1202,25 @@ export default function PlannerPage() {
 
                     {/* GPS Warning */}
                     {orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
-                        <div className="mx-5 mb-5 p-5 bg-rose-50/80 dark:bg-rose-950/40 backdrop-blur-md border border-rose-200/50 dark:border-rose-800/50 rounded-3xl flex items-center gap-4 shadow-sm shadow-rose-100/50 dark:shadow-none relative overflow-hidden group">
-                            <div className="absolute inset-0 bg-gradient-to-br from-rose-400/5 to-red-500/10 opacity-50" />
-                            <div className="p-2.5 bg-rose-100 dark:bg-rose-900/50 rounded-full relative z-10 shrink-0">
-                                <AlertCircle className="text-rose-600 dark:text-rose-400" size={20} strokeWidth={2.5} />
+                        <div className="mx-5 mb-5 p-4 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/50 dark:border-rose-800/50 rounded-3xl flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
+                                <div>
+                                    <p className="text-[13px] font-extrabold tracking-tight text-rose-800 dark:text-rose-300">
+                                        {orders.filter(o => !o.latitude || !o.longitude).length} orders missing GPS
+                                    </p>
+                                    <p className="text-[11px] font-semibold text-rose-600/80 dark:text-rose-400/80">Cannot be optimized</p>
+                                </div>
                             </div>
-                            <div className="relative z-10 flex-1 pr-2">
-                                <p className="text-[14px] font-extrabold tracking-tight text-rose-800 dark:text-rose-300">
-                                    {orders.filter(o => !o.latitude || !o.longitude).length} orders missing GPS
-                                </p>
-                                <p className="text-[12px] font-semibold text-rose-600/90 dark:text-rose-400/80 mt-0.5 leading-tight">These cannot be optimized until fixed.</p>
-                            </div>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={retryFailedGeocoding}
+                                disabled={isRetryingGeocode}
+                                className="shrink-0 border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300 text-xs"
+                            >
+                                {isRetryingGeocode ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Fixing...</> : <><Sparkles size={12} className="mr-1" /> Fix</>}
+                            </Button>
                         </div>
                     )}
 

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
 import { waitForSession } from "@/lib/wait-for-session"
 import { parseOrderAI, type ParsedOrder } from "@/lib/grok"
-import { cleanAddressesWithAI } from "@/lib/address-cleaner"
+import { smartGeocode, batchSmartGeocode } from "@/lib/smart-geocoder"
 import { reverseGeocode } from "@/lib/geocoding"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import LocationPicker from "@/components/location-picker"
@@ -635,55 +635,35 @@ export default function OrdersPage() {
                 }
                 console.log(`✅ Successfully inserted ${insertedData.length} orders`)
 
-                // Geocode in background with AI address cleaning — don't block the user
+                // Smart geocode in background — tries fast/free strategies first, AI only as last resort
                 const orderIds = insertedData.map(d => d.id)
                 setTimeout(async () => {
-                    // Step 1: AI-clean all addresses in one batch call
                     const addressInputs = results.map(r => ({
                         address: r.address || '', city: r.city || '', state: r.state || '', zip_code: r.zip_code || ''
                     }))
-                    let cleanedAddresses = await cleanAddressesWithAI(addressInputs)
+                    const geoResults = await batchSmartGeocode(addressInputs)
 
-                    // Step 2: Geocode using cleaned addresses
                     let geocodedCount = 0
-                    for (let i = 0; i < cleanedAddresses.length; i++) {
-                        const cleaned = cleanedAddresses[i]
-                        try {
-                            const coords = await geocodeAddress(
-                                [cleaned.address, cleaned.city, cleaned.state].filter(Boolean).join(', ')
-                            )
-                            if (coords && orderIds[i]) {
-                                const updates: Record<string, any> = {
-                                    latitude: coords.lat,
-                                    longitude: coords.lng,
-                                    geocoding_confidence: coords.confidence,
-                                    geocoded_address: coords.foundAddress,
-                                    geocoding_attempted_at: new Date().toISOString()
-                                }
-                                // If AI corrected the address, update stored address too
-                                if (cleaned.was_corrected) {
-                                    updates.address = cleaned.address
-                                    if (cleaned.city) updates.city = cleaned.city
-                                    if (cleaned.state) updates.state = cleaned.state
-                                    if (cleaned.zip_code) updates.zip_code = cleaned.zip_code
-                                }
-                                await supabase.from('orders').update(updates).eq('id', orderIds[i])
-                                geocodedCount++
-                            } else if (orderIds[i]) {
-                                // Geocoding failed — store the failure
-                                await supabase.from('orders').update({
-                                    geocoding_confidence: 'failed',
-                                    geocoding_attempted_at: new Date().toISOString(),
-                                    geocoded_address: cleaned.correction_notes || 'Address could not be geocoded'
-                                }).eq('id', orderIds[i])
+                    for (let i = 0; i < geoResults.length; i++) {
+                        const geo = geoResults[i]
+                        if (geo && orderIds[i]) {
+                            const updates: Record<string, any> = {
+                                latitude: geo.lat,
+                                longitude: geo.lng,
+                                geocoding_confidence: geo.confidence,
+                                geocoded_address: geo.foundAddress,
+                                geocoding_attempted_at: new Date().toISOString()
                             }
-                        } catch {
-                            if (orderIds[i]) {
-                                await supabase.from('orders').update({
-                                    geocoding_confidence: 'failed',
-                                    geocoding_attempted_at: new Date().toISOString()
-                                }).eq('id', orderIds[i])
+                            if (geo.correctedAddress) {
+                                updates.address = geo.correctedAddress
                             }
+                            await supabase.from('orders').update(updates).eq('id', orderIds[i])
+                            geocodedCount++
+                        } else if (orderIds[i]) {
+                            await supabase.from('orders').update({
+                                geocoding_confidence: 'failed',
+                                geocoding_attempted_at: new Date().toISOString()
+                            }).eq('id', orderIds[i])
                         }
                     }
                     console.log(`✅ Background geocoding complete: ${geocodedCount}/${orderIds.length} orders geocoded`)
@@ -814,42 +794,28 @@ export default function OrdersPage() {
                 return
             }
 
-            // AI-clean the batch
-            const cleaned = await cleanAddressesWithAI(
-                failedOrders.map(o => ({
-                    address: o.address || '', city: o.city || '', state: o.state || '', zip_code: o.zip_code || ''
-                }))
-            )
+            // Smart geocode — tries fast/free strategies first, AI only as last resort
+            const addressInputs = failedOrders.map(o => ({
+                address: o.address || '', city: o.city || '', state: o.state || '', zip_code: o.zip_code || ''
+            }))
+            const geoResults = await batchSmartGeocode(addressInputs)
 
             let fixed = 0
-            for (let i = 0; i < cleaned.length; i++) {
-                try {
-                    const coords = await geocodeAddress(
-                        [cleaned[i].address, cleaned[i].city, cleaned[i].state].filter(Boolean).join(', ')
-                    )
-                    if (coords) {
-                        const updates: Record<string, any> = {
-                            latitude: coords.lat, longitude: coords.lng,
-                            geocoding_confidence: coords.confidence,
-                            geocoded_address: coords.foundAddress,
-                            geocoding_attempted_at: new Date().toISOString()
-                        }
-                        if (cleaned[i].was_corrected) {
-                            updates.address = cleaned[i].address
-                            if (cleaned[i].city) updates.city = cleaned[i].city
-                            if (cleaned[i].state) updates.state = cleaned[i].state
-                            if (cleaned[i].zip_code) updates.zip_code = cleaned[i].zip_code
-                        }
-                        await supabase.from('orders').update(updates).eq('id', failedOrders[i].id)
-                        fixed++
-                    } else {
-                        await supabase.from('orders').update({
-                            geocoding_confidence: 'failed',
-                            geocoding_attempted_at: new Date().toISOString(),
-                            geocoded_address: cleaned[i].correction_notes || 'Address could not be geocoded'
-                        }).eq('id', failedOrders[i].id)
+            for (let i = 0; i < geoResults.length; i++) {
+                const geo = geoResults[i]
+                if (geo) {
+                    const updates: Record<string, any> = {
+                        latitude: geo.lat, longitude: geo.lng,
+                        geocoding_confidence: geo.confidence,
+                        geocoded_address: geo.foundAddress,
+                        geocoding_attempted_at: new Date().toISOString()
                     }
-                } catch {
+                    if (geo.correctedAddress) {
+                        updates.address = geo.correctedAddress
+                    }
+                    await supabase.from('orders').update(updates).eq('id', failedOrders[i].id)
+                    fixed++
+                } else {
                     await supabase.from('orders').update({
                         geocoding_confidence: 'failed',
                         geocoding_attempted_at: new Date().toISOString()
