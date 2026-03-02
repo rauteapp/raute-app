@@ -84,13 +84,54 @@ function createSupabaseClient() {
     // Without this, createBrowserClient sets session cookies (no maxAge) via document.cookie,
     // which get cleared when the browser closes — even if the middleware sets maxAge on the
     // server side, the client overwrites them without it.
-    return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    const client = createBrowserClient(supabaseUrl, supabaseAnonKey, {
         cookieOptions: {
             maxAge: 365 * 24 * 60 * 60, // 1 year — let Supabase Auth control session validity
             path: '/',
             sameSite: 'lax' as const,
         }
     })
+
+    // CRITICAL: Monkey-patch _acquireLock on web to prevent navigator.locks hangs.
+    //
+    // Supabase's GoTrueClient uses navigator.locks (Web Locks API) to coordinate
+    // token refreshes across browser tabs. However, when a token refresh is in
+    // progress, ALL subsequent getSession() calls queue behind the lock and can
+    // hang for 10+ seconds or indefinitely. This causes:
+    // - Dashboard "Connection Timeout" errors
+    // - Endless skeleton loaders
+    // - "Lock busy / getSession timeout" cascades
+    //
+    // Fix: Use a 2-second timeout on navigator.locks. If the lock can't be
+    // acquired within 2s (e.g. another tab is refreshing), proceed without it.
+    // The risk of concurrent token refresh is low and recoverable (server rejects
+    // stale refresh tokens gracefully — user just needs to refresh the page).
+    const webAuth = client.auth as any
+    const originalAcquireLock = webAuth._acquireLock?.bind(webAuth)
+    if (originalAcquireLock) {
+        webAuth._acquireLock = async function (acquireTimeout: number, fn: () => Promise<any>) {
+            if (typeof navigator !== 'undefined' && navigator.locks) {
+                try {
+                    const lockName = 'sb-' + supabaseUrl.split('//')[1]?.split('.')[0] + '-auth-token'
+                    return await Promise.race([
+                        navigator.locks.request(lockName, { mode: 'exclusive' }, async () => fn()),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error('lock-timeout')), 2000)
+                        ),
+                    ])
+                } catch (err: any) {
+                    if (err?.message === 'lock-timeout') {
+                        console.warn('⚠️ navigator.locks timeout — proceeding without lock')
+                        return await fn()
+                    }
+                    throw err
+                }
+            }
+            return await fn()
+        }
+    }
+
+    return client
 }
 
 export const supabase = createSupabaseClient()

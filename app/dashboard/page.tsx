@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { cacheData, getCachedData } from '@/lib/offline-cache'
-import { waitForSession } from '@/lib/wait-for-session'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity, CheckCircle2, Clock, Package, Truck, AlertCircle, AlertTriangle, TrendingUp, MapPin, ArrowRight, Calendar as CalendarIcon, Filter, X, Sparkles, User } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -92,65 +91,70 @@ export default function DashboardPage() {
                 setIsLoading(false)
                 toast({ title: "Connection Timeout", description: "Database is taking too long to respond. Some data may be missing.", type: "error" })
             }
-        }, 15000)
+        }, 10000)
 
         // Session-aware init with retry for Capacitor async storage
         const initDashboard = async (): Promise<void> => {
             try {
-                let session = await waitForSession()
+                // Try getSession() and getUser() in parallel for faster auth resolution.
+                // getSession() may hang due to navigator.locks, but getUser() bypasses
+                // locks entirely (direct API call). Whichever resolves first wins.
+                let currentUserId: string | null = null
+                let userMeta: Record<string, any> = {}
+                let session: any = null
 
-                // On web, getSession() may time out due to navigator.locks but the user
-                // IS authenticated (auth-check allows through via stored auth cookie).
-                // Fall back to getUser() to get the user ID and proceed.
-                let currentUserId: string | null = session?.user?.id ?? null
-                let userMeta = session?.user?.user_metadata ?? {}
-
-                if (!session && !currentUserId) {
-                    try {
-                        const result: any = await Promise.race([
+                try {
+                    const [sessionResult, userResult] = await Promise.allSettled([
+                        Promise.race([
+                            supabase.auth.getSession(),
+                            new Promise<{ data: { session: null } }>((resolve) =>
+                                setTimeout(() => resolve({ data: { session: null } }), 4000)
+                            ),
+                        ]),
+                        Promise.race([
                             supabase.auth.getUser(),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timeout')), 5000))
-                        ])
-                        const userData = result.data
-                        if (userData?.user) {
-                            console.log('✅ Dashboard: session null but getUser() succeeded')
-                            currentUserId = userData.user.id
-                            userMeta = userData.user.user_metadata ?? {}
+                            new Promise<{ data: { user: null } }>((resolve) =>
+                                setTimeout(() => resolve({ data: { user: null } }), 4000)
+                            ),
+                        ]),
+                    ])
+
+                    // Extract session if available
+                    if (sessionResult.status === 'fulfilled') {
+                        const s = (sessionResult.value as any)?.data?.session
+                        if (s?.user?.id) {
+                            session = s
+                            currentUserId = s.user.id
+                            userMeta = s.user.user_metadata ?? {}
                         }
-                    } catch { }
+                    }
+
+                    // Extract user if session didn't provide one
+                    if (!currentUserId && userResult.status === 'fulfilled') {
+                        const u = (userResult.value as any)?.data?.user
+                        if (u?.id) {
+                            console.log('✅ Dashboard: session null but getUser() succeeded')
+                            currentUserId = u.id
+                            userMeta = u.user_metadata ?? {}
+                        }
+                    }
+                } catch {
+                    // Both failed — continue to fallback below
                 }
 
                 if (!currentUserId) {
-                    // No session and no user — likely a temporary navigator.locks issue.
-                    // DON'T force sign out or redirect — this causes redirect loops.
-                    // Instead, just stop loading and let the global timeout toast show.
-                    console.warn('⚠️ Dashboard: No valid session/user found. Waiting for session recovery...')
-
-                    // One final attempt after a longer wait (locks may release)
-                    await new Promise(resolve => setTimeout(resolve, 2000))
-                    try {
-                        const { data: retryData } = await supabase.auth.getUser()
-                        if (retryData?.user) {
-                            console.log('✅ Dashboard: session recovered on final retry')
-                            currentUserId = retryData.user.id
-                            userMeta = retryData.user.user_metadata ?? {}
-                        }
-                    } catch { }
-
-                    if (!currentUserId) {
-                        // Still no user — check if there's a cached role (means user WAS logged in)
-                        const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null
-                        if (cachedRole) {
-                            // User was logged in before — this is a temporary lock issue, don't redirect
-                            console.warn('⚠️ Dashboard: Session locked but cached role exists. Showing timeout UI.')
-                            if (isMountedRef.current) setIsLoading(false)
-                            return
-                        }
-                        // No cached role either — user is genuinely not logged in
-                        console.error('⛔ Dashboard: No session, no cache. Redirecting to login.')
-                        router.replace('/login?error=no_session')
+                    // No session and no user — check cached role before giving up
+                    const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null
+                    if (cachedRole) {
+                        // User was logged in before — temporary lock issue, don't redirect
+                        console.warn('⚠️ Dashboard: Session locked but cached role exists. Showing timeout UI.')
+                        if (isMountedRef.current) setIsLoading(false)
                         return
                     }
+                    // No cached role — user is genuinely not logged in
+                    console.error('⛔ Dashboard: No session, no cache. Redirecting to login.')
+                    router.replace('/login?error=no_session')
+                    return
                 }
 
                 // Get user role and full_name from database
@@ -202,12 +206,12 @@ export default function DashboardPage() {
 
                 // Final Fallback - default to manager (NOT driver)
                 if (!role) role = 'manager'
-                if (!fullName) fullName = session?.user?.email?.split('@')[0] || 'User'
+                if (!fullName) fullName = session?.user?.email?.split('@')[0] ?? 'User'
 
                 if (isMountedRef.current) {
                     setUserId(currentUserId)
                     setUserRole(role)
-                    setUserName(fullName)
+                    setUserName(fullName || 'User')
                 }
 
                 // 🔥 FETCH DASHBOARD DATA (For all management roles)
