@@ -198,18 +198,29 @@ export default function AuthCallback() {
     handleUrlTokens()
 
     // === APPROACH 4: Polling fallback ===
+    // Use 3s interval (not 1s) and timeout-wrapped getSession() to avoid
+    // flooding navigator.locks and causing contention on the dashboard page.
     const pollInterval = setInterval(async () => {
       if (hasRedirected.current) {
         clearInterval(pollInterval)
         return
       }
 
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        clearInterval(pollInterval)
-        await syncRoleAndRedirect(data.session.user.id, data.session.user.email_confirmed_at)
+      try {
+        const { data } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null } }), 3000)
+          ),
+        ])
+        if (data.session) {
+          clearInterval(pollInterval)
+          await syncRoleAndRedirect(data.session.user.id, data.session.user.email_confirmed_at)
+        }
+      } catch {
+        // getSession timed out or threw — next poll will retry
       }
-    }, 1000)
+    }, 3000)
 
     // === TIMEOUT: Give up after 15 seconds ===
     const timeout = setTimeout(() => {
