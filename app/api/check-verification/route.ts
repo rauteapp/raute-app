@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/api-auth'
 
+export const dynamic = "force-static"
+
 /**
  * Check if an email has been verified in Supabase Auth.
  * Used by the verify-email page when there's no session

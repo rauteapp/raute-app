@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser, getSupabaseAdmin } from '@/lib/api-auth'
 
+export const dynamic = "force-static"
+
 export async function GET(request: NextRequest) {
     try {
         // 1. Verify the request is authenticated

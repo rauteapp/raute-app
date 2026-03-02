@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+export const dynamic = "force-static"
+
 /**
  * RevenueCat Webhook Handler
  * Processes subscription events and updates driver_limit
- * 
+ *
  * Webhook URL: https://your-domain.com/api/webhooks/revenuecat
  * Configure in RevenueCat Dashboard → Integrations → Webhooks
  */

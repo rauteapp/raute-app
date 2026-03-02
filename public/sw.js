@@ -3,8 +3,8 @@
 // ============================================
 // Handles: app shell caching, map tile caching, background sync
 
-const CACHE_NAME = 'raute-v1';
-const TILE_CACHE_NAME = 'raute-tiles-v1';
+const CACHE_NAME = 'raute-v2';
+const TILE_CACHE_NAME = 'raute-tiles-v2';
 
 // App shell files to precache
 const APP_SHELL = [
