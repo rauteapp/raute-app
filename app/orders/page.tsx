@@ -2078,7 +2078,7 @@ export default function OrdersPage() {
                                 </tr>
                             ) : (
                                 filteredOrders.map((order) => (
-                                    <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                    <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer" onDoubleClick={() => { window.location.href = `/my-editor?id=${order.id}` }}>
                                         <td className="px-6 py-4 w-12">
                                             <input
                                                 type="checkbox"
