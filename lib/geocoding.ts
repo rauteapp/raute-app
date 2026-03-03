@@ -40,13 +40,10 @@ export async function geocodeAddress(address: string): Promise<GeocodingResult |
         const timeSinceLastRequest = now - lastRequestTime;
         if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
             const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-            console.log(`⏳ [Geocoding] Rate limiting: waiting ${waitTime}ms...`);
             await new Promise(resolve => setTimeout(resolve, waitTime));
         }
 
         lastRequestTime = Date.now();
-
-        console.log(`🔍 [Geocoding] Searching for address: "${address}"`);
 
         // Build Nominatim API URL
         const params = new URLSearchParams({
@@ -79,7 +76,6 @@ export async function geocodeAddress(address: string): Promise<GeocodingResult |
         const data = await response.json();
 
         if (!data || data.length === 0) {
-            console.warn(`⚠️ [Geocoding] No results found for: "${address}"`);
             return null;
         }
 
@@ -106,9 +102,6 @@ export async function geocodeAddress(address: string): Promise<GeocodingResult |
 
         // Build display address from response
         const displayAddress = result.display_name || address;
-
-        console.log(`✅ [Geocoding] Found coordinates: (${lat}, ${lng}) - Confidence: ${confidence}`);
-        console.log(`📍 [Geocoding] Display address: ${displayAddress}`);
 
         return {
             lat,
@@ -161,8 +154,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
 
         lastRequestTime = Date.now();
 
-        console.log(`🔍 [Reverse Geocoding] Looking up coordinates: (${lat}, ${lng})`);
-
         const params = new URLSearchParams({
             lat: lat.toString(),
             lon: lng.toString(),
@@ -192,11 +183,8 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
         const data = await response.json();
 
         if (!data || !data.display_name) {
-            console.warn(`⚠️ [Reverse Geocoding] No address found for coordinates`);
             return null;
         }
-
-        console.log(`✅ [Reverse Geocoding] Found address: ${data.display_name}`);
 
         // Extract address components
         const addressData = data.address || {};

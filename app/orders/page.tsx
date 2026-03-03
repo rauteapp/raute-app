@@ -232,7 +232,6 @@ export default function OrdersPage() {
                 try {
                     const { data: userData } = await supabase.auth.getUser()
                     if (userData.user) {
-                        console.log('✅ Orders: session null but getUser() succeeded')
                         currentUserId = userData.user.id
                     }
                 } catch { }
@@ -247,8 +246,6 @@ export default function OrdersPage() {
                     try {
                         const parsed = JSON.parse(cachedOrders)
                         setOrders(parsed)
-                        // Don't verify integrity too strictly here, just show something
-                        console.log("Loaded cached orders:", parsed.length)
                     } catch (e) { console.error("Cache parse error", e) }
                 }
             }
@@ -603,7 +600,6 @@ export default function OrdersPage() {
                 }
 
                 if (!targetCompanyId) throw new Error("Company ID Not Found")
-                console.log('🏢 Using company_id:', targetCompanyId)
 
                 // Map all results to database objects
                 // First, build order objects without geocoding (instant)
@@ -634,18 +630,14 @@ export default function OrdersPage() {
 
                 // Save orders FIRST (instant), then geocode in background
                 setProcessingStage("Saving orders...")
-                console.log('📦 Orders to insert:', newOrders.length)
                 const { data: insertedData, error } = await supabase
                     .from('orders')
                     .insert(newOrders)
                     .select('id')
-                console.log('📥 Insert result:', { insertedCount: insertedData?.length, error })
                 if (error) throw error
                 if (!insertedData || insertedData.length === 0) {
                     throw new Error('Orders were not saved (0 rows inserted). This may be a permissions issue.')
                 }
-                console.log(`✅ Successfully inserted ${insertedData.length} orders`)
-
                 // Geocode in background — don't block the user
                 const orderIds = insertedData.map(d => d.id)
                 setTimeout(async () => {
@@ -667,7 +659,6 @@ export default function OrdersPage() {
                             // Skip geocoding errors silently
                         }
                     }
-                    console.log('✅ Background geocoding complete for', orderIds.length, 'orders')
                     // Refresh to show geocoded coordinates
                     fetchData()
                 }, 100)
@@ -1532,7 +1523,6 @@ export default function OrdersPage() {
                                             id="add-order-form"
                                             onSubmit={(e) => {
                                                 e.preventDefault()
-                                                console.log("Form submitted!")
                                                 const formData = new FormData(e.currentTarget)
                                                 handleAddOrder(formData)
                                             }}
@@ -1654,7 +1644,6 @@ export default function OrdersPage() {
                                                 onClick={(e) => {
                                                     e.preventDefault()
                                                     if (isSubmitting) return
-                                                    console.log("Button clicked, forcing submit...")
                                                     const form = document.getElementById('add-order-form') as HTMLFormElement
                                                     if (form) form.requestSubmit()
                                                 }}

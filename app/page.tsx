@@ -25,7 +25,6 @@ export default function LandingPage() {
           (window as any).Capacitor.getPlatform?.() !== 'web';
 
         if (isNative) {
-          console.log('📱 Native platform detected. Redirecting to login...')
           router.push('/login')
           return // Keep loading true while redirecting
         }

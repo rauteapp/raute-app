@@ -85,18 +85,15 @@ export default function DispatchersPage() {
 
             // FALLBACK: If direct query failed, use server-side API
             if (userError || !userData) {
-                console.warn('⚠️ Dispatchers: Direct DB query failed:', userError?.message, '— trying fallback API...')
                 try {
                     const res = await authenticatedFetch('/api/user-profile')
                     if (res.ok) {
                         const apiData = await res.json()
                         if (apiData.success && apiData.user) {
                             userData = apiData.user
-                            console.log('✅ Dispatchers: Fallback API succeeded')
                         }
                     }
                 } catch (apiErr) {
-                    console.warn('⚠️ Dispatchers: Fallback API also failed:', apiErr)
                 }
             }
 

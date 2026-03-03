@@ -87,7 +87,6 @@ export default function DashboardPage() {
         // Global safety timeout to prevent endless skeleton loader if Supabase hangs
         const maxWaitGlobal = setTimeout(() => {
             if (isMountedRef.current && !isInitDone) {
-                console.warn('⏱️ initDashboard: Global timeout reached! Forcing UI to load.')
                 setIsLoading(false)
                 toast({ title: "Connection Timeout", description: "Database is taking too long to respond. Some data may be missing.", type: "error" })
             }
@@ -129,8 +128,7 @@ export default function DashboardPage() {
                     if (!currentUserId && userResult.status === 'fulfilled') {
                         const u = (userResult.value as any)?.data?.user
                         if (u?.id) {
-                            console.log('✅ Dashboard: session null but getUser() succeeded')
-                            currentUserId = u.id
+                                currentUserId = u.id
                             userMeta = u.user_metadata ?? {}
                         }
                     }
@@ -141,7 +139,6 @@ export default function DashboardPage() {
                 if (!currentUserId) {
                     const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null
                     if (cachedRole) {
-                        console.warn('⚠️ Dashboard: Session locked but cached role exists. Showing timeout UI.')
                         if (isMountedRef.current) setIsLoading(false)
                         return
                     }
@@ -180,7 +177,6 @@ export default function DashboardPage() {
                     role = dbUser.role || role
                     fullName = dbUser.full_name || fullName
                 } else {
-                    console.warn('⚠️ Direct DB query failed:', dbError?.message, '— trying fallback API...')
                     // FALLBACK: Use server-side API to bypass RLS
                     try {
                         const res = await authenticatedFetch('/api/user-profile')
@@ -189,11 +185,9 @@ export default function DashboardPage() {
                             if (apiData.success && apiData.user) {
                                 role = apiData.user.role || role
                                 fullName = apiData.user.full_name || fullName
-                                console.log('✅ Fallback API succeeded:', apiData.user.role)
                             }
                         }
                     } catch (apiErr) {
-                        console.warn('⚠️ Fallback API also failed:', apiErr)
                     }
                 }
 

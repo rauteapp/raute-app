@@ -6,7 +6,6 @@ import { Capacitor } from '@capacitor/core';
 export const PushService = {
     async init() {
         if (!Capacitor.isNativePlatform()) {
-            console.log("Push notifications not supported on web");
             return;
         }
 
@@ -30,7 +29,6 @@ export const PushService = {
 
     addListeners() {
         PushNotifications.addListener('registration', async (token) => {
-            console.log('Push registration success, token: ' + token.value);
             // Save token to push_tokens table (works for all roles)
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -48,7 +46,6 @@ export const PushService = {
         });
 
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('Push received: ' + JSON.stringify(notification));
             toast({
                 title: notification.title || 'New Notification',
                 description: notification.body || 'You have a new update',
@@ -57,7 +54,6 @@ export const PushService = {
         });
 
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-            console.log('Push action performed: ' + JSON.stringify(notification));
             // Navigate based on notification data
             const data = notification.notification.data;
             if (data?.route) {

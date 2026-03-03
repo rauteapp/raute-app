@@ -333,7 +333,6 @@ export default function DriversPage() {
     }
 
     async function handleCreateDriver(formData: FormData) {
-        console.log('🚀 handleCreateDriver called')
         setIsCreatingDriver(true)
 
         try {
@@ -343,11 +342,8 @@ export default function DriversPage() {
             const phone = phoneValue
             const vehicleType = formData.get('vehicle_type') as string
 
-            console.log('📝 Form data:', { name, email, phone, vehicleType })
-
             // 🛑 ENFORCE DRIVER LIMIT
             if (drivers.length >= maxDrivers) {
-                console.log('⚠️ Driver limit reached:', drivers.length, '/', maxDrivers)
                 setIsAddDriverOpen(false)
                 setShowUpgradeModal(true)
                 return
@@ -389,7 +385,6 @@ export default function DriversPage() {
             // Auto-Geocode if missing
             if ((!finalDefaultStartLat || !finalDefaultStartLng) && defaultStartAddress) {
                 try {
-                    console.log('🌍 Auto-geocoding address:', defaultStartAddress)
                     const coords = await geocodeAddress(defaultStartAddress)
                     if (coords) {
                         finalDefaultStartLat = coords.lat
@@ -399,9 +394,6 @@ export default function DriversPage() {
                     console.error('Auto-geocode failed:', err)
                 }
             }
-
-            console.log('📍 Location data:', { defaultStartAddress, finalDefaultStartLat, finalDefaultStartLng })
-            console.log('🔄 Calling RPC create_driver_account...')
 
             // RPC Call (Now enhanced to create Auth User directly)
             const { data: result, error } = await supabase.rpc('create_driver_account', {
@@ -417,16 +409,13 @@ export default function DriversPage() {
                 default_start_lng: finalDefaultStartLng
             })
 
-            console.log('📦 RPC Response:', { result, error })
-
             if (error || (result && result.success === false)) {
                 console.error('❌ Driver creation failed:', error?.message || result?.error)
                 toast({ title: "Failed", description: error?.message || result?.error || 'Unknown error', type: "error" })
                 return
             }
 
-            console.log('✅ Driver created successfully!')
-            toast({ title: '✅ Driver created!', description: `Password: ${password}`, type: 'success' })
+            toast({ title: '✅ Driver created!', description: `Login credentials have been set. Share them securely with the driver.`, type: 'success' })
 
             // Reset form state
             setIsAddDriverOpen(false)
@@ -518,7 +507,6 @@ export default function DriversPage() {
         // Auto-Geocode Fallback for Edit
         if ((!finalLat || !finalLng) && finalStartAddress) {
             try {
-                console.log('🌍 (Edit) Auto-geocoding address:', finalStartAddress)
                 const coords = await geocodeAddress(finalStartAddress)
                 if (coords) {
                     finalLat = coords.lat

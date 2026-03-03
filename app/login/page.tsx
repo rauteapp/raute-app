@@ -75,7 +75,6 @@ export default function LoginPage() {
         if (!Capacitor.isNativePlatform()) return
 
         const listener = Browser.addListener('browserFinished', () => {
-            console.log('🔗 Browser finished/closed by user')
             setIsLoading(false)
         })
 
@@ -95,7 +94,6 @@ export default function LoginPage() {
     useEffect(() => {
         if (!isLoading) return
         const timeout = setTimeout(() => {
-            console.warn('⏱️ Login page loading timeout - resetting')
             setIsLoading(false)
         }, 20000)
         return () => clearTimeout(timeout)
@@ -145,13 +143,10 @@ export default function LoginPage() {
             }
 
             // Auth data exists — verify session and redirect
-            console.log('🔐 Login page: stored auth found, checking session...')
-
             const timeout = setTimeout(() => {
                 // If getSession() takes too long, show login form instead of
                 // blindly redirecting to dashboard (which causes infinite loading)
                 if (!cancelled) {
-                    console.log('🔐 Login page: session check timeout — showing login form')
                     setCheckingSession(false)
                 }
             }, 3000)
@@ -168,18 +163,15 @@ export default function LoginPage() {
                 clearTimeout(timeout)
 
                 if (data?.session) {
-                    console.log('🔐 Login page: valid session found, redirecting to dashboard')
                     router.push('/dashboard')
                 } else {
                     // No valid session despite cookies existing — show login form
                     // Cookies may be stale/expired fragments
-                    console.log('🔐 Login page: stored auth cookies found but no valid session — showing login form')
                     if (!cancelled) setCheckingSession(false)
                 }
             } catch {
                 if (cancelled) return
                 clearTimeout(timeout)
-                console.log('🔐 Login page: session check failed — showing login form')
                 if (!cancelled) setCheckingSession(false)
             }
         }
@@ -287,22 +279,14 @@ export default function LoginPage() {
             // IMPORTANT: Do NOT call signOut() here — it fires a SIGNED_OUT event that causes
             // AuthCheck to re-mount the login page, which can hang the login flow.
             if (Capacitor.isNativePlatform()) {
-                console.log('🧹 Clearing native auth data before login...')
                 await capacitorStorage.clearAllAuthData()
                 await new Promise(resolve => setTimeout(resolve, 300))
             }
 
             // 2. Attempt Standard Supabase Login
-            console.log('🔐 Attempting login...')
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
                 email,
                 password
-            })
-
-            console.log('🔐 Login Response:', {
-                error: authError?.message,
-                hasSession: !!authData.session,
-                userId: authData.session?.user?.id?.substring(0, 8)
             })
 
             if (authError) {
@@ -319,7 +303,6 @@ export default function LoginPage() {
                 } else if (authError.message.includes('string did not match') ||
                     authError.message.includes('pattern')) {
                     // Session validation error - clear all auth data and retry
-                    console.warn('⚠️ Session validation error detected, clearing storage...')
                     try {
                         const { capacitorStorage } = await import('@/lib/capacitor-storage')
                         await capacitorStorage.clearAllAuthData()
@@ -344,8 +327,6 @@ export default function LoginPage() {
                 throw new Error('Invalid session data')
             }
 
-            console.log('✅ Session created successfully')
-
             // 4. Wait a bit for session to be persisted (especially on iOS)
             await new Promise(resolve => setTimeout(resolve, 500))
 
@@ -356,20 +337,16 @@ export default function LoginPage() {
                 throw new Error('Failed to save session. Please try again.')
             }
 
-            console.log('✅ Session persisted successfully')
-
             // 6. Check Email Verification
             const isEmailVerified = authData.session.user.email_confirmed_at
 
             // 7. Handle Redirection
             if (!isEmailVerified) {
-                console.log('📧 Email NOT verified - redirecting to /verify-email')
                 router.push('/verify-email')
                 return
             }
 
             // Success - redirect to dashboard
-            console.log('✅ Email verified - redirecting to /dashboard')
             router.push('/dashboard')
 
         } catch (err: any) {
@@ -453,14 +430,14 @@ export default function LoginPage() {
                 ]) as any
 
                 if (rpcError) {
-                    console.warn("RPC Error (non-fatal):", rpcError.message)
+                    // RPC error (non-fatal)
                 }
 
                 if (rpcData && !rpcData.success) {
-                    console.warn("RPC returned error:", rpcData.error)
+                    // RPC returned error
                 }
             } catch (rpcErr: any) {
-                console.warn("RPC failed:", rpcErr.message)
+                // RPC failed (non-fatal)
             }
 
             sessionStorage.setItem('pending_verification_email', email)

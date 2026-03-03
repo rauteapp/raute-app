@@ -49,7 +49,6 @@ export async function cleanAddressesWithAI(
 ): Promise<CleanedAddress[]> {
   if (!addresses.length) return [];
   if (!apiKey) {
-    console.warn("⚠️ No XAI API key — skipping AI address cleaning");
     return addresses.map((a) => ({
       ...a,
       original_address: a.address,
@@ -89,7 +88,6 @@ export async function cleanAddressesWithAI(
 
     // Validate array length matches input
     if (results.length !== addresses.length) {
-      console.warn("⚠️ AI returned mismatched count, falling back to originals");
       return addresses.map((a) => ({
         ...a,
         original_address: a.address,

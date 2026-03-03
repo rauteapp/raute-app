@@ -156,7 +156,6 @@ async function callGrokWithRetry(
 
     if (isRetryable && attempt <= MAX_RETRIES) {
       const delay = attempt * 3000; // 3s, 6s backoff
-      console.warn(`Grok request failed (attempt ${attempt}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`, error.message);
       await new Promise(r => setTimeout(r, delay));
       return callGrokWithRetry(contentParts, attempt + 1);
     }
@@ -200,8 +199,6 @@ export async function parseOrderAI(input: string | File | File[]): Promise<Parse
     }
 
     const textResponse = await callGrokWithRetry(contentParts);
-
-    console.log("Grok Raw Response:", textResponse);
 
     // Clean markdown code fences if present
     const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();

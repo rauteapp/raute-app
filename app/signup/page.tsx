@@ -113,17 +113,14 @@ export default function SignupPage() {
                 ]) as any
 
                 if (rpcError) {
-                    console.warn("RPC Error (non-fatal):", rpcError.message)
-                    // Don't throw - user is already created in auth, profile might create via trigger
+                    // RPC error (non-fatal) - user is already created in auth, profile might create via trigger
                 }
 
                 if (rpcData && !rpcData.success) {
-                    console.warn("RPC returned error:", rpcData.error)
-                    // Don't throw - let trigger handle it
+                    // RPC returned error - let trigger handle it
                 }
             } catch (rpcErr: any) {
-                console.warn("RPC failed:", rpcErr.message)
-                // Continue anyway - user is created, trigger should handle profile
+                // RPC failed (non-fatal) - user is created, trigger should handle profile
             }
 
             // Save email so verify-email page can resend without a session
