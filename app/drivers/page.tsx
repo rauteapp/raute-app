@@ -20,7 +20,8 @@ import {
     ShieldCheck,
     ShieldAlert,
     Loader2,
-    MoreHorizontal
+    MoreHorizontal,
+    Mail
 } from "lucide-react"
 import {
     Sheet,
@@ -338,7 +339,7 @@ export default function DriversPage() {
         try {
             const name = formData.get('name') as string
             const email = formData.get('email') as string
-            const password = formData.get('password') as string
+            const password = crypto.randomUUID() + 'Aa1!' // Random password (driver will set their own via email)
             const phone = phoneValue
             const vehicleType = formData.get('vehicle_type') as string
 
@@ -415,7 +416,17 @@ export default function DriversPage() {
                 return
             }
 
-            toast({ title: '✅ Driver created!', description: `Login credentials have been set. Share them securely with the driver.`, type: 'success' })
+            // Send password setup email to the driver
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/update-password`,
+            })
+
+            if (resetError) {
+                console.error('Failed to send setup email:', resetError)
+                toast({ title: '✅ Driver created!', description: `Account created but setup email failed to send. Ask the driver to use "Forgot Password" on the login page.`, type: 'success' })
+            } else {
+                toast({ title: '✅ Driver created!', description: `A setup email has been sent to ${email} to set their password.`, type: 'success' })
+            }
 
             // Reset form state
             setIsAddDriverOpen(false)
@@ -761,18 +772,11 @@ export default function DriversPage() {
                                     />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="password">Password <span className="text-red-500">*</span></Label>
-                                    <PasswordInput
-                                        id="password"
-                                        name="password"
-                                        value={driverForm.password}
-                                        onChange={(e) => setDriverForm(prev => ({ ...prev, password: e.target.value }))}
-                                        placeholder="Create a password"
-                                        required
-                                        minLength={6}
-                                        className="h-11 bg-muted/30 border-input/50 focus-within:bg-background transition-all"
-                                    />
+                                <div className="space-y-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                                    <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                                        <Mail size={14} />
+                                        An email will be sent to the driver to set their own password.
+                                    </p>
                                 </div>
 
                                 <div className="space-y-2">
