@@ -1060,22 +1060,24 @@ export default function PlannerPage() {
                             </label>
                         </div>
 
-                        {/* Route Start Time */}
-                        <div className="mx-5 mb-5 flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-[16px] shadow-sm">
-                            <Clock size={16} className="text-slate-500 shrink-0" />
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">Start Time</span>
-                            <select
-                                value={routeStartHour}
-                                onChange={(e) => setRouteStartHour(parseInt(e.target.value))}
-                                className="ml-auto text-sm font-bold bg-slate-100 dark:bg-slate-800 border-0 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                            >
-                                {Array.from({ length: 18 }, (_, i) => i + 4).map(h => (
-                                    <option key={h} value={h}>
-                                        {h > 12 ? `${h - 12}:00 PM` : h === 12 ? '12:00 PM' : `${h}:00 AM`}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        {/* Route Start Time — only shown in morning mode */}
+                        {optimizationMode === 'morning' && (
+                            <div className="mx-5 mb-5 flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-[16px] shadow-sm">
+                                <Clock size={16} className="text-slate-500 shrink-0" />
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">Start Time</span>
+                                <select
+                                    value={routeStartHour}
+                                    onChange={(e) => setRouteStartHour(parseInt(e.target.value))}
+                                    className="ml-auto text-sm font-bold bg-slate-100 dark:bg-slate-800 border-0 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {Array.from({ length: 18 }, (_, i) => i + 4).map(h => (
+                                        <option key={h} value={h}>
+                                            {h > 12 ? `${h - 12}:00 PM` : h === 12 ? '12:00 PM' : `${h}:00 AM`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         {/* Workload Dashboard */}
                         <div className="px-5 mb-5">
@@ -1379,22 +1381,24 @@ export default function PlannerPage() {
                         </label>
                     </div>
 
-                    {/* Route Start Time (Mobile) */}
-                    <div className="mx-5 mb-4 flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-2xl shadow-sm">
-                        <Clock size={16} className="text-slate-500 shrink-0" />
-                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Start Time</span>
-                        <select
-                            value={routeStartHour}
-                            onChange={(e) => setRouteStartHour(parseInt(e.target.value))}
-                            className="ml-auto text-sm font-bold bg-slate-100 dark:bg-slate-800 border-0 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                        >
-                            {Array.from({ length: 18 }, (_, i) => i + 4).map(h => (
-                                <option key={h} value={h}>
-                                    {h > 12 ? `${h - 12}:00 PM` : h === 12 ? '12:00 PM' : `${h}:00 AM`}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    {/* Route Start Time (Mobile) — only shown in morning mode */}
+                    {optimizationMode === 'morning' && (
+                        <div className="mx-5 mb-4 flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-2xl shadow-sm">
+                            <Clock size={16} className="text-slate-500 shrink-0" />
+                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Start Time</span>
+                            <select
+                                value={routeStartHour}
+                                onChange={(e) => setRouteStartHour(parseInt(e.target.value))}
+                                className="ml-auto text-sm font-bold bg-slate-100 dark:bg-slate-800 border-0 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            >
+                                {Array.from({ length: 18 }, (_, i) => i + 4).map(h => (
+                                    <option key={h} value={h}>
+                                        {h > 12 ? `${h - 12}:00 PM` : h === 12 ? '12:00 PM' : `${h}:00 AM`}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     {/* No Drivers Warning */}
                     {selectedDrivers.length === 0 && (

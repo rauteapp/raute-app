@@ -362,6 +362,13 @@ export async function optimizeRoute(
     routeStartHour: number = DEFAULT_ROUTE_START_HOUR
 ): Promise<OptimizationResult> {
 
+    // In reoptimize mode, always use the CURRENT time (ignore the start hour setting)
+    // This makes sense because drivers are already on the road
+    if (mode === 'reoptimize') {
+        const now = new Date()
+        routeStartHour = now.getHours() + now.getMinutes() / 60
+    }
+
     let updatedOrders = [...orders]
 
     // Warnings collector
@@ -562,8 +569,8 @@ export async function optimizeRoute(
             startLng = driverOrders[0].longitude
         }
 
-        // Route start time
-        const routeStartMin = routeStartHour * 60
+        // Route start time (routeStartHour can be fractional in reoptimize mode, e.g. 14.5 = 2:30 PM)
+        const routeStartMin = Math.round(routeStartHour * 60)
 
         let sortedDriverOrders: Order[]
 
