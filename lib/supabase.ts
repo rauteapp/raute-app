@@ -27,7 +27,6 @@ function createSupabaseClient() {
     }
 
     if (isNativePlatform) {
-        console.log('🔧 Creating Supabase client for NATIVE platform')
         // Native platform (iOS/Android) — use standard client with Capacitor storage
         // This avoids the cookie-based auth flow that createBrowserClient uses
         const client = createClient(supabaseUrl, supabaseAnonKey, {
@@ -75,7 +74,6 @@ function createSupabaseClient() {
         return client
     }
 
-    console.log('🔧 Creating Supabase client for WEB platform')
     // Web browser — use SSR-compatible browser client (cookie-based)
     // IMPORTANT: Do NOT use capacitorStorage here — createBrowserClient
     // uses cookies for session storage, which the middleware reads via createServerClient.
@@ -124,8 +122,7 @@ function createSupabaseClient() {
                     if (err?.message === 'lock-timeout') {
                         lockTimeoutCount++
                         if (lockTimeoutCount <= 2) {
-                            console.warn('navigator.locks timeout — proceeding without lock')
-                        }
+                            }
                         return await fn()
                     }
                     throw err

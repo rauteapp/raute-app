@@ -77,14 +77,11 @@ export function DriverDashboardView({ userId }: { userId: string }) {
     }, [])
 
     useEffect(() => {
-        console.log("✅ DriverDashboardView MOUNTED with userId:", userId)
         if (!userId || userId === '') {
-            console.warn("⚠️ DriverDashboardView: Invalid userId, skipping fetch")
             setIsLoading(false)
             return
         }
         fetchDriverStats()
-        return () => console.log("❌ DriverDashboardView UNMOUNTED")
     }, [userId, dateRange])
 
     async function fetchDriverStats() {

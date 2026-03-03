@@ -134,17 +134,6 @@ interface InteractiveMapProps {
 }
 
 export default function InteractiveMap({ orders, drivers, selectedDriverIds, driverFilter, userLocation, forceTheme, onOrderDeleted }: InteractiveMapProps) {
-    // Debug logging
-    useEffect(() => {
-        console.log('🗺️ InteractiveMap render:', {
-            ordersCount: orders.length,
-            driversCount: drivers.length,
-            selectedDriverIds: selectedDriverIds.size,
-            driverFilter,
-            userLocation,
-            ordersWithGPS: orders.filter(o => o.latitude && o.longitude).length
-        })
-    }, [orders, drivers, selectedDriverIds, driverFilter, userLocation])
 
     const { theme } = useTheme()
     // Use forced theme if provided, otherwise fallback to system theme

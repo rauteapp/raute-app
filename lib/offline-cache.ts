@@ -134,14 +134,13 @@ export async function cachedQuery<T extends { id: string }>(
             if (data && data.length > 0) {
                 // Write to IDB in background (don't await to avoid blocking)
                 cacheData(storeName, data).catch(err =>
-                    console.warn(`Failed to cache ${storeName}:`, err)
+                    { /* cache write failed */ }
                 )
                 // Update sync timestamp
                 setMeta(`lastSync_${storeName}`, Date.now()).catch(() => { })
             }
             return { data: data || [], fromCache: false }
         } catch (err) {
-            console.warn(`Network fetch failed for ${storeName}, falling back to cache:`, err)
             // Fall through to cache
         }
     }
@@ -199,7 +198,6 @@ export async function getCachedData<T>(
 
         return results
     } catch (err) {
-        console.warn(`Failed to read from IDB store ${storeName}:`, err)
         return []
     }
 }
@@ -269,7 +267,7 @@ export async function cacheTile(url: string, blob: Blob): Promise<void> {
         await db.put('tiles', { url, blob, cachedAt: Date.now() })
     } catch (err) {
         // Silently fail — tile cache is best-effort
-        console.warn('Failed to cache tile:', err)
+        // Tile cache is best-effort
     }
 }
 

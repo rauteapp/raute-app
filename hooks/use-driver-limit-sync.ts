@@ -43,7 +43,6 @@ export function useDriverLimitSync() {
                         },
                         (payload: any) => {
                             const newLimit = payload.new.driver_limit || 1
-                            console.log(`🔄 Driver limit updated: ${driverLimit} → ${newLimit}`)
                             setDriverLimit(newLimit)
 
                             // Optional: Show toast notification

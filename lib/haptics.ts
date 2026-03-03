@@ -23,7 +23,7 @@ export class HapticFeedback {
         try {
             await Haptics.impact({ style: ImpactStyle.Light })
         } catch (e) {
-            console.warn('Haptics not available:', e)
+            // Haptics not available
         }
     }
 
@@ -35,7 +35,7 @@ export class HapticFeedback {
         try {
             await Haptics.impact({ style: ImpactStyle.Medium })
         } catch (e) {
-            console.warn('Haptics not available:', e)
+            // Haptics not available
         }
     }
 
@@ -47,7 +47,7 @@ export class HapticFeedback {
         try {
             await Haptics.impact({ style: ImpactStyle.Heavy })
         } catch (e) {
-            console.warn('Haptics not available:', e)
+            // Haptics not available
         }
     }
 
@@ -59,7 +59,7 @@ export class HapticFeedback {
         try {
             await Haptics.notification({ type: NotificationType.Success })
         } catch (e) {
-            console.warn('Haptics not available:', e)
+            // Haptics not available
         }
     }
 
@@ -71,7 +71,7 @@ export class HapticFeedback {
         try {
             await Haptics.notification({ type: NotificationType.Warning })
         } catch (e) {
-            console.warn('Haptics not available:', e)
+            // Haptics not available
         }
     }
 
@@ -83,7 +83,7 @@ export class HapticFeedback {
         try {
             await Haptics.notification({ type: NotificationType.Error })
         } catch (e) {
-            console.warn('Haptics not available:', e)
+            // Haptics not available
         }
     }
 
@@ -95,7 +95,7 @@ export class HapticFeedback {
         try {
             await Haptics.selectionChanged()
         } catch (e) {
-            console.warn('Haptics not available:', e)
+            // Haptics not available
         }
     }
 
@@ -107,7 +107,7 @@ export class HapticFeedback {
         try {
             await Haptics.vibrate({ duration })
         } catch (e) {
-            console.warn('Haptics not available:', e)
+            // Haptics not available
         }
     }
 }

@@ -16,13 +16,11 @@ export const capacitorStorage = {
           try {
             const result = await Preferences.get({ key })
             if (attempt > 0 && result.value) {
-              console.log(`✅ Storage read succeeded on attempt ${attempt + 1} for: ${key.substring(0, 20)}`)
             }
             return result.value
           } catch (err) {
             if (attempt < 4) {
               const delay = 150 * (attempt + 1) // 150, 300, 450, 600ms
-              console.warn(`⏳ Storage retry ${attempt + 1}/5 for ${key.substring(0, 20)}, waiting ${delay}ms`)
               await new Promise(resolve => setTimeout(resolve, delay))
             } else {
               console.error('❌ Storage getItem failed after 5 retries:', key, err)
@@ -81,7 +79,6 @@ export const capacitorStorage = {
    * Only call this explicitly for recovery from corrupted state
    */
   async clearAllAuthData(): Promise<void> {
-    console.log('🧹 Clearing all auth data from storage...')
     try {
       if (Capacitor.isNativePlatform()) {
         const { keys } = await Preferences.keys()
@@ -96,7 +93,6 @@ export const capacitorStorage = {
 
         for (const key of authKeys) {
           await Preferences.remove({ key })
-          console.log('🗑️ Cleared:', key)
         }
       } else if (typeof window !== 'undefined') {
         const keysToRemove: string[] = []
@@ -108,7 +104,6 @@ export const capacitorStorage = {
         }
         keysToRemove.forEach(key => window.localStorage.removeItem(key))
       }
-      console.log('✅ Auth data cleared successfully')
     } catch (error) {
       console.error('❌ Failed to clear auth data:', error)
     }

@@ -35,9 +35,6 @@ export async function backupCodeVerifier(): Promise<void> {
                 key: BACKUP_KEY,
                 value: JSON.stringify({ verifier: value, saved_at: Date.now() })
             })
-            console.log('💾 PKCE code verifier backed up successfully')
-        } else {
-            console.warn('⚠️ No code verifier found to backup')
         }
     } catch (err) {
         console.error('❌ Failed to backup code verifier:', err)
@@ -57,14 +54,12 @@ export async function restoreCodeVerifier(): Promise<boolean> {
         // First check if verifier already exists
         const { value: existing } = await Preferences.get({ key: CODE_VERIFIER_KEY })
         if (existing) {
-            console.log('✅ Code verifier already exists, no restore needed')
             return true
         }
 
         // Read from backup
         const { value: backup } = await Preferences.get({ key: BACKUP_KEY })
         if (!backup) {
-            console.warn('⚠️ No PKCE backup found')
             return false
         }
 
@@ -72,14 +67,12 @@ export async function restoreCodeVerifier(): Promise<boolean> {
 
         // Check if backup is too old (10 minutes)
         if (Date.now() - parsed.saved_at > 10 * 60 * 1000) {
-            console.warn('⚠️ PKCE backup too old, clearing')
             await Preferences.remove({ key: BACKUP_KEY })
             return false
         }
 
         // Restore the code verifier
         await Preferences.set({ key: CODE_VERIFIER_KEY, value: parsed.verifier })
-        console.log('✅ PKCE code verifier restored from backup!')
         return true
     } catch (err) {
         console.error('❌ Failed to restore code verifier:', err)
