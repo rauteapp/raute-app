@@ -18,6 +18,7 @@ import Link from 'next/link'
 import { useToast } from "@/components/toast-provider"
 import { useTheme } from 'next-themes'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import { NotificationService } from '@/lib/notification-service'
 import { PullToRefresh } from '@/components/pull-to-refresh'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import {
@@ -596,6 +597,19 @@ export default function PlannerPage() {
                 throw error
             }
 
+            // Notify affected drivers about route update
+            const affectedDriverIds = [...new Set(result.orders.filter(o => o.driver_id).map(o => o.driver_id!))]
+            affectedDriverIds.forEach(dId => {
+                const driverOrderCount = result.orders.filter(o => o.driver_id === dId).length
+                NotificationService.notifyDriver(
+                    dId,
+                    'route_updated',
+                    'Route Updated',
+                    `Your route has been optimized — ${driverOrderCount} order${driverOrderCount === 1 ? '' : 's'} assigned`,
+                    { route: '/my-editor' }
+                )
+            })
+
             // Generate Optimization Report
             const assignedOrders = result.orders.filter(o => o.driver_id)
             const unassignedOrders = result.orders.filter(o => !o.driver_id)
@@ -758,6 +772,18 @@ export default function PlannerPage() {
         if (error) {
             toast({ title: 'Failed to update order', description: error.message, type: 'error' })
             fetchData() // Revert
+        } else {
+            // Notify driver about assignment/unassignment
+            const order = orders.find(o => o.id === orderId)
+            if (newDriverId && order) {
+                NotificationService.notifyDriver(
+                    newDriverId,
+                    'order_assigned',
+                    'New Order Assigned',
+                    `Order #${order.order_number} has been assigned to you`,
+                    { order_id: orderId, route: `/my-editor?id=${orderId}` }
+                )
+            }
         }
     }
 

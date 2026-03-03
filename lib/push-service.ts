@@ -31,18 +31,15 @@ export const PushService = {
     addListeners() {
         PushNotifications.addListener('registration', async (token) => {
             console.log('Push registration success, token: ' + token.value);
-            // Save token to Supabase for the current user
+            // Save token to push_tokens table (works for all roles)
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                // Find driver profile linked to this user
-                const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user.id).single();
-
-                if (driver) {
-                    await supabase.from('drivers').update({
-                        push_token: token.value,
-                        platform: Capacitor.getPlatform()
-                    }).eq('id', driver.id);
-                }
+                await supabase.from('push_tokens').upsert({
+                    user_id: user.id,
+                    token: token.value,
+                    platform: Capacitor.getPlatform(),
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id,token' });
             }
         });
 
@@ -61,8 +58,11 @@ export const PushService = {
 
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
             console.log('Push action performed: ' + JSON.stringify(notification));
-            // Navigate to specific screen if needed
-            // e.g. window.location.href = '/orders/' + notification.notification.data.orderId;
+            // Navigate based on notification data
+            const data = notification.notification.data;
+            if (data?.route) {
+                window.location.href = data.route;
+            }
         });
     }
 };

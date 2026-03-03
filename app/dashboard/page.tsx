@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/components/toast-provider"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
 import { PullToRefresh } from "@/components/pull-to-refresh"
+import { NotificationBell } from "@/components/notification-bell"
 
 export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true)
@@ -485,9 +486,12 @@ export default function DashboardPage() {
                 {/* 1. HEADER & CONTROLS */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <div className="space-y-2">
-                        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                            {isToday ? getGreeting() : "Report View"}, {userName.split(' ')[0]} <Sparkles className="h-6 w-6 text-amber-500 animate-pulse drop-shadow-sm" />
-                        </h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                {isToday ? getGreeting() : "Report View"}, {userName.split(' ')[0]} <Sparkles className="h-6 w-6 text-amber-500 animate-pulse drop-shadow-sm" />
+                            </h1>
+                            <NotificationBell userId={userId} />
+                        </div>
                         <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
                             {isToday ? "Live Operations Overview" :
                                 isRange ? `Period Report: ${format(dateRange?.from!, 'MMM d')} - ${format(dateRange?.to!, 'MMM d, yyyy')}` :

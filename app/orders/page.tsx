@@ -18,6 +18,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { DriverTracker } from "@/components/driver-tracker"
 import { useToast } from "@/components/toast-provider"
 import { XCircle } from "lucide-react"
+import { NotificationService } from '@/lib/notification-service'
 import dynamic from 'next/dynamic'
 import { Skeleton } from "@/components/ui/skeleton"
 import { DriverSetupGuide } from "@/components/driver-setup-guide"
@@ -489,6 +490,17 @@ export default function OrdersPage() {
                 status: newStatus ? 'online' : 'offline',
                 timestamp: new Date().toISOString()
             })
+
+            // 4. Notify managers when driver goes offline
+            if (!newStatus && companyId) {
+                NotificationService.notifyManagers(
+                    companyId,
+                    'driver_offline',
+                    'Driver Went Offline',
+                    `A driver has gone offline`,
+                    { driver_id: driverId, route: '/drivers' }
+                )
+            }
 
             toast({ title: newStatus ? "You are ONLINE 🟢" : "You are OFFLINE ⚫", type: "success" })
 
@@ -1204,7 +1216,7 @@ export default function OrdersPage() {
                                                         )}
                                                         {order.was_out_of_range && (
                                                             <span className="flex items-center gap-1 text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">
-                                                                <AlertCircle size={10} /> Out of Range
+                                                                <AlertCircle size={10} /> Out of Range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters)}m)` : ''}
                                                             </span>
                                                         )}
                                                     </div>
@@ -2022,7 +2034,7 @@ export default function OrdersPage() {
                                                 </p>
                                                 {order.was_out_of_range && (
                                                     <span className="inline-flex items-center gap-1.5 text-[10px] bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-1 rounded-md font-bold w-fit mt-1 border border-red-100 dark:border-red-900/50">
-                                                        <AlertCircle size={10} strokeWidth={3} /> Out of Range
+                                                        <AlertCircle size={10} strokeWidth={3} /> Out of Range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters)}m)` : ''}
                                                     </span>
                                                 )}
                                             </div>
@@ -2114,7 +2126,7 @@ export default function OrdersPage() {
                                             {order.was_out_of_range && (
                                                 <div className="mt-1">
                                                     <span className="flex items-center gap-1 text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 px-1.5 py-0.5 rounded font-bold w-fit">
-                                                        <AlertCircle size={9} /> Out of Range
+                                                        <AlertCircle size={9} /> Out of Range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters)}m)` : ''}
                                                     </span>
                                                 </div>
                                             )}

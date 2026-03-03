@@ -29,6 +29,7 @@ import { DriverTracker } from "@/components/driver-tracker"
 import { ImageViewerModal } from "@/components/image-viewer-modal"
 import { Capacitor } from '@capacitor/core'
 import { PullToRefresh } from '@/components/pull-to-refresh'
+import { NotificationService } from '@/lib/notification-service'
 
 // Dynamically import map to avoid SSR issues
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
@@ -100,6 +101,13 @@ export default function ClientOrderDetails() {
     // Image Viewer State
     const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null)
     const [viewerImageTitle, setViewerImageTitle] = useState<string>('')
+
+    // Out-of-Range Confirmation State
+    const [outOfRangeConfirm, setOutOfRangeConfirm] = useState<{
+        show: boolean
+        distance: number
+        proofUrl?: string | null
+    }>({ show: false, distance: 0 })
 
 
 
@@ -222,7 +230,7 @@ export default function ClientOrderDetails() {
         return R * c;
     }
 
-    async function updateOrderStatus(newStatus: string, proofUrl?: string | null) {
+    async function updateOrderStatus(newStatus: string, proofUrl?: string | null, forceDelivery?: boolean) {
         if (!order || !orderId) return
         try {
             let locationPayload = null
@@ -247,7 +255,11 @@ export default function ClientOrderDetails() {
                     // Flag if > 500 meters (approx 0.3 miles)
                     if (dist > 500) {
                         isOutOfRange = true
-                        toast({ title: "⚠️ Out of Range", description: `You are ${Math.round(dist)}m away from the delivery location. This delivery has been flagged.`, type: "error" })
+                        // Show confirmation dialog unless user already confirmed
+                        if (!forceDelivery) {
+                            setOutOfRangeConfirm({ show: true, distance: Math.round(dist), proofUrl })
+                            return // STOP: Wait for user confirmation
+                        }
                     }
                 }
             }
@@ -266,14 +278,16 @@ export default function ClientOrderDetails() {
                 await supabase.from('orders').update({
                     status: newStatus,
                     proof_url: proofUrl,
-                    delivered_at: new Date().toISOString()
+                    delivered_at: new Date().toISOString(),
+                    was_out_of_range: isOutOfRange,
+                    delivery_distance_meters: dist || undefined
                 }).eq('id', orderId)
             } else {
-                // Fallback if offline manager handles it, but we do it explicitly here for safety
-                // (Note: offlineManager implementation details might conflict, but explicit update is safer for MVP)
                 await supabase.from('orders').update({
                     status: newStatus,
-                    delivered_at: newStatus === 'delivered' ? new Date().toISOString() : null
+                    delivered_at: newStatus === 'delivered' ? new Date().toISOString() : null,
+                    was_out_of_range: isOutOfRange,
+                    delivery_distance_meters: dist || undefined
                 }).eq('id', orderId)
             }
 
@@ -282,8 +296,27 @@ export default function ClientOrderDetails() {
                 ...prev,
                 status: newStatus as any,
                 delivered_at: newStatus === 'delivered' ? new Date().toISOString() : prev.delivered_at,
-                // proof_url: proofUrl // Add to type if needed
+                was_out_of_range: isOutOfRange,
+                delivery_distance_meters: dist || prev.delivery_distance_meters,
             } : null)
+
+            // Notify managers about delivery
+            if (newStatus === 'delivered' && currentCompanyId) {
+                const notifType = isOutOfRange ? 'out_of_range' : 'delivery_completed'
+                const notifTitle = isOutOfRange
+                    ? `Out-of-Range Delivery`
+                    : `Order Delivered`
+                const notifBody = isOutOfRange
+                    ? `Order #${order.order_number} was delivered ${Math.round(dist)}m away from destination`
+                    : `Order #${order.order_number} has been delivered to ${order.customer_name}`
+                NotificationService.notifyManagers(
+                    currentCompanyId,
+                    notifType,
+                    notifTitle,
+                    notifBody,
+                    { order_id: orderId, route: `/my-editor?id=${orderId}` }
+                )
+            }
 
         } catch (error) {
             toast({ title: 'Failed to update status', type: 'error' })
@@ -552,6 +585,16 @@ export default function ClientOrderDetails() {
                             {order.status.replace('_', ' ')}
                         </div>
                     </div>
+
+                    {/* Persistent out-of-range banner — visible to ALL roles */}
+                    {order.was_out_of_range && order.status === 'delivered' && (
+                        <div className="mx-5 mt-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                            <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                            <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                                Delivered out of range{order.delivery_distance_meters ? ` — ${Math.round(order.delivery_distance_meters)}m from destination` : ''}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Map Section */}
@@ -727,6 +770,15 @@ export default function ClientOrderDetails() {
                                     <h3 className="font-black text-emerald-800 dark:text-emerald-300 text-xl tracking-tight">Order Delivered!</h3>
                                     <p className="text-sm font-semibold text-emerald-600/80 dark:text-emerald-400/80">Time: {new Date(order.delivered_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                 </div>
+
+                                {order.was_out_of_range && (
+                                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                                        <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                        <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                                            Delivered out of range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters)}m away)` : ''}
+                                        </p>
+                                    </div>
+                                )}
 
                                 {order.proof_url && (
                                     <div className="flex justify-center pt-2">
@@ -1109,6 +1161,33 @@ export default function ClientOrderDetails() {
                             {isUpdating ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
                             Confirm Cancellation
                         </button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Out-of-Range Confirmation Dialog */}
+            <AlertDialog open={outOfRangeConfirm.show} onOpenChange={(open) => !open && setOutOfRangeConfirm({ show: false, distance: 0 })}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                            <AlertCircle size={20} /> Outside Delivery Zone
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm leading-relaxed">
+                            You are <span className="font-bold text-amber-600 dark:text-amber-400">{outOfRangeConfirm.distance}m</span> away from the delivery address.
+                            This delivery will be flagged as out of range. Are you sure you want to proceed?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setOutOfRangeConfirm({ show: false, distance: 0 })}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={async () => {
+                                setOutOfRangeConfirm({ show: false, distance: 0 })
+                                await updateOrderStatus('delivered', outOfRangeConfirm.proofUrl, true)
+                            }}
+                            className="bg-amber-600 hover:bg-amber-700 text-white"
+                        >
+                            Deliver Anyway
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
