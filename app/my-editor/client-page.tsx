@@ -237,6 +237,24 @@ export default function ClientOrderDetails() {
             let isOutOfRange = false
             let dist = 0
 
+            // 🔒 Block delivery if driver is offline
+            if ((newStatus === 'delivered' || newStatus === 'in_progress') && userRole === 'driver' && currentDriverId) {
+                const { data: driverStatus } = await supabase
+                    .from('drivers')
+                    .select('is_online, last_location_update')
+                    .eq('id', currentDriverId)
+                    .single()
+
+                if (driverStatus && !isDriverOnline(driverStatus)) {
+                    toast({
+                        title: "You Must Be Online",
+                        description: "Go online first before updating order status. Toggle your status from the dashboard.",
+                        type: "error"
+                    })
+                    return
+                }
+            }
+
             // 📍 Anti-Fraud: Strict Location Check
             if (newStatus === 'delivered') {
                 const loc = await geoService.getCurrentLocation()

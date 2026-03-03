@@ -18,6 +18,16 @@ import Link from 'next/link'
 import { useToast } from "@/components/toast-provider"
 import { useTheme } from 'next-themes'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { NotificationService } from '@/lib/notification-service'
 import { PullToRefresh } from '@/components/pull-to-refresh'
 import { useMediaQuery } from '@/hooks/use-media-query'
@@ -255,6 +265,11 @@ export default function PlannerPage() {
     const [drivers, setDrivers] = useState<Driver[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null) // For Quick View Sheet
+
+    // Offline driver assignment confirmation
+    const [offlineAssignConfirm, setOfflineAssignConfirm] = useState<{
+        show: boolean; orderId: string; driverId: string; driverName: string
+    }>({ show: false, orderId: '', driverId: '', driverName: '' })
 
     // Subscription State
     const [driverLimit, setDriverLimit] = useState(1)
@@ -745,6 +760,20 @@ export default function PlannerPage() {
             return // Dropped somewhere invalid
         }
 
+        // ⚠️ Warn if assigning to an offline driver
+        if (newDriverId) {
+            const targetDriver = drivers.find(d => d.id === newDriverId)
+            if (targetDriver && !isDriverOnline(targetDriver)) {
+                setOfflineAssignConfirm({
+                    show: true,
+                    orderId,
+                    driverId: newDriverId,
+                    driverName: targetDriver.name || 'This driver'
+                })
+                return // STOP: Wait for confirmation
+            }
+        }
+
         // Optimistic Update
         setOrders(prev => prev.map(o => {
             if (o.id === orderId) {
@@ -800,6 +829,53 @@ export default function PlannerPage() {
         }
     }
 
+    // Confirm assignment to offline driver
+    async function confirmOfflineAssignment() {
+        const { orderId, driverId } = offlineAssignConfirm
+        setOfflineAssignConfirm({ show: false, orderId: '', driverId: '', driverName: '' })
+
+        // Optimistic Update
+        setOrders(prev => prev.map(o => {
+            if (o.id === orderId) {
+                return { ...o, driver_id: driverId, status: 'assigned', is_pinned: true }
+            }
+            return o
+        }))
+
+        const { error } = await supabase
+            .from('orders')
+            .update({ driver_id: driverId, status: 'assigned', is_pinned: true })
+            .eq('id', orderId)
+
+        if (error) {
+            toast({ title: 'Failed to update order', description: error.message, type: 'error' })
+            fetchData()
+        } else {
+            const order = orders.find(o => o.id === orderId)
+            const previousDriverId = order?.driver_id
+
+            if (order) {
+                NotificationService.notifyDriver(
+                    driverId,
+                    'order_assigned',
+                    'New Order Assigned',
+                    `Order #${order.order_number} has been assigned to you`,
+                    { order_id: orderId, route: `/my-editor?id=${orderId}` }
+                )
+            }
+
+            if (previousDriverId && previousDriverId !== driverId && order) {
+                NotificationService.notifyDriver(
+                    previousDriverId,
+                    'order_unassigned',
+                    'Order Removed',
+                    `Order #${order.order_number} has been removed from your route`,
+                    { order_id: orderId, route: '/my-editor' }
+                )
+            }
+        }
+    }
+
     // Map Theme
     const [mapTheme, setMapTheme] = useState<'light' | 'dark'>(() => theme === 'dark' ? 'dark' : 'light')
 
@@ -812,6 +888,7 @@ export default function PlannerPage() {
     const activeDragOrder = orders.find(o => o.id === activeDragId)
 
     return (
+        <>
         <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -1731,5 +1808,26 @@ export default function PlannerPage() {
 
             </div>
         </DndContext>
+
+        {/* Offline Driver Assignment Warning */}
+        <AlertDialog open={offlineAssignConfirm.show} onOpenChange={(open) => !open && setOfflineAssignConfirm({ show: false, orderId: '', driverId: '', driverName: '' })}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="text-amber-600 flex items-center gap-2">
+                        <AlertTriangle size={20} /> Driver is Offline
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        <strong>{offlineAssignConfirm.driverName}</strong> is currently offline. They won&apos;t receive this order until they come back online. Are you sure you want to assign?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmOfflineAssignment} className="bg-amber-600 hover:bg-amber-700">
+                        Assign Anyway
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        </>
     )
 }
