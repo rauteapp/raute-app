@@ -111,6 +111,12 @@ export function AuthListener() {
     useEffect(() => {
         // Listen to ALL auth state changes to backup/clear session
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            // Handle password recovery — redirect to update-password page
+            if (event === 'PASSWORD_RECOVERY' && session) {
+                router.push('/update-password')
+                return
+            }
+
             if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
                 // Backup session on every auth event
                 await backupSession(session.access_token, session.refresh_token)
