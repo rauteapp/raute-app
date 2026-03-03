@@ -6,7 +6,10 @@ export type NotificationType =
     | 'route_updated'
     | 'delivery_completed'
     | 'driver_offline'
-    | 'out_of_range';
+    | 'out_of_range'
+    | 'time_window_warning'
+    | 'time_window_expired'
+    | 'unassigned_urgent';
 
 export const NotificationService = {
     /**

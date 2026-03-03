@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, Package, Truck, MapPin, AlertCircle, CheckCircle2, UserX, Check } from "lucide-react"
+import { Bell, Package, Truck, MapPin, AlertCircle, CheckCircle2, UserX, Check, Clock, AlertTriangle, PackageX } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications"
@@ -15,6 +15,9 @@ function getNotificationIcon(type: string) {
         case 'delivery_completed': return <CheckCircle2 size={16} className="text-emerald-500" />
         case 'driver_offline': return <UserX size={16} className="text-amber-500" />
         case 'out_of_range': return <AlertCircle size={16} className="text-red-500" />
+        case 'time_window_warning': return <Clock size={16} className="text-orange-500" />
+        case 'time_window_expired': return <AlertTriangle size={16} className="text-red-600" />
+        case 'unassigned_urgent': return <PackageX size={16} className="text-red-500" />
         default: return <Bell size={16} className="text-slate-400" />
     }
 }
