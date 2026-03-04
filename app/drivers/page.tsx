@@ -84,7 +84,11 @@ export default function DriversPage() {
         name: '',
         email: '',
         password: '',
-        vehicleType: ''
+        vehicleType: '',
+        maxOrders: '',
+        vehicleCapacityKg: '',
+        shiftStart: '',
+        shiftEnd: ''
     })
     const [isCreatingDriver, setIsCreatingDriver] = useState(false)
     const [isGeocoding, setIsGeocoding] = useState(false)
@@ -151,7 +155,7 @@ export default function DriversPage() {
     // Reset form when dialog closes
     useEffect(() => {
         if (!isAddDriverOpen) {
-            setDriverForm({ name: '', email: '', password: '', vehicleType: '' })
+            setDriverForm({ name: '', email: '', password: '', vehicleType: '', maxOrders: '', vehicleCapacityKg: '', shiftStart: '', shiftEnd: '' })
             setPhoneValue(undefined)
             setDefaultStartLoc(null)
             setSelectedHubId('')
@@ -342,6 +346,10 @@ export default function DriversPage() {
             const password = crypto.randomUUID() + 'Aa1!' // Random password (driver will set their own via email)
             const phone = phoneValue
             const vehicleType = formData.get('vehicle_type') as string
+            const maxOrdersRaw = formData.get('max_orders') as string
+            const vehicleCapacityKgRaw = formData.get('vehicle_capacity_kg') as string
+            const shiftStartRaw = formData.get('shift_start') as string
+            const shiftEndRaw = formData.get('shift_end') as string
 
             // 🛑 ENFORCE DRIVER LIMIT
             if (drivers.length >= maxDrivers) {
@@ -416,6 +424,20 @@ export default function DriversPage() {
                 return
             }
 
+            // Update capacity and shift fields on the newly created driver
+            const driverId = result?.driver_id
+            if (driverId && (maxOrdersRaw || vehicleCapacityKgRaw || shiftStartRaw || shiftEndRaw)) {
+                await supabase
+                    .from('drivers')
+                    .update({
+                        max_orders: maxOrdersRaw ? parseInt(maxOrdersRaw, 10) : null,
+                        vehicle_capacity_kg: vehicleCapacityKgRaw ? parseFloat(vehicleCapacityKgRaw) : null,
+                        shift_start: shiftStartRaw ? shiftStartRaw + ':00' : null,
+                        shift_end: shiftEndRaw ? shiftEndRaw + ':00' : null
+                    })
+                    .eq('id', driverId)
+            }
+
             // Send password setup email to the driver
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/update-password`,
@@ -430,7 +452,7 @@ export default function DriversPage() {
 
             // Reset form state
             setIsAddDriverOpen(false)
-            setDriverForm({ name: '', email: '', password: '', vehicleType: '' })
+            setDriverForm({ name: '', email: '', password: '', vehicleType: '', maxOrders: '', vehicleCapacityKg: '', shiftStart: '', shiftEnd: '' })
             setPhoneValue(undefined)
             setDefaultStartLoc(null)
             setSelectedHubId("")
@@ -484,6 +506,14 @@ export default function DriversPage() {
         const phone = editPhoneValue
         const vehicleType = formData.get('vehicle_type') as string
         const status = formData.get('status') as string
+        const maxOrdersRaw = formData.get('max_orders') as string
+        const vehicleCapacityKgRaw = formData.get('vehicle_capacity_kg') as string
+        const shiftStartRaw = formData.get('shift_start') as string
+        const shiftEndRaw = formData.get('shift_end') as string
+        const maxOrders = maxOrdersRaw ? parseInt(maxOrdersRaw, 10) : null
+        const vehicleCapacityKg = vehicleCapacityKgRaw ? parseFloat(vehicleCapacityKgRaw) : null
+        const shiftStart = shiftStartRaw ? shiftStartRaw + ':00' : null
+        const shiftEnd = shiftEndRaw ? shiftEndRaw + ':00' : null
         const newPassword = formData.get('new_password') as string
         const defaultStartAddress = formData.get('default_start_address') as string
         const startHubId = formData.get('start_hub_id') as string
@@ -572,7 +602,11 @@ export default function DriversPage() {
                 use_manual_start: useManualStart,
                 starting_point_lat: manualLat ? parseFloat(manualLat.toString()) : null,
                 starting_point_lng: manualLng ? parseFloat(manualLng.toString()) : null,
-                starting_point_address: manualAddress
+                starting_point_address: manualAddress,
+                max_orders: maxOrders,
+                vehicle_capacity_kg: vehicleCapacityKg,
+                shift_start: shiftStart,
+                shift_end: shiftEnd
             })
             .eq('id', editingDriver.id)
 
@@ -793,6 +827,74 @@ export default function DriversPage() {
                                             className="pl-9 h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
                                         />
                                     </div>
+                                </div>
+
+                                {/* Vehicle Capacity */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        <Truck size={14} />
+                                        Vehicle Capacity
+                                    </h4>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="max_orders">Max Orders</Label>
+                                        <Input
+                                            id="max_orders"
+                                            name="max_orders"
+                                            type="number"
+                                            min="1"
+                                            value={driverForm.maxOrders}
+                                            onChange={(e) => setDriverForm(prev => ({ ...prev, maxOrders: e.target.value }))}
+                                            placeholder="e.g., 25 (leave blank for unlimited)"
+                                            className="h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="vehicle_capacity_kg">Vehicle Capacity (kg)</Label>
+                                        <Input
+                                            id="vehicle_capacity_kg"
+                                            name="vehicle_capacity_kg"
+                                            type="number"
+                                            min="0"
+                                            step="any"
+                                            value={driverForm.vehicleCapacityKg}
+                                            onChange={(e) => setDriverForm(prev => ({ ...prev, vehicleCapacityKg: e.target.value }))}
+                                            placeholder="e.g., 500 (leave blank for no limit)"
+                                            className="h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Shift Hours */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        <Clock size={14} />
+                                        Shift Hours
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="shift_start">Shift Start</Label>
+                                            <Input
+                                                id="shift_start"
+                                                name="shift_start"
+                                                type="time"
+                                                value={driverForm.shiftStart}
+                                                onChange={(e) => setDriverForm(prev => ({ ...prev, shiftStart: e.target.value }))}
+                                                className="h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="shift_end">Shift End</Label>
+                                            <Input
+                                                id="shift_end"
+                                                name="shift_end"
+                                                type="time"
+                                                value={driverForm.shiftEnd}
+                                                onChange={(e) => setDriverForm(prev => ({ ...prev, shiftEnd: e.target.value }))}
+                                                className="h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">Leave blank for no shift restrictions</p>
                                 </div>
 
                                 {/* Location Selection */}
@@ -1118,6 +1220,62 @@ export default function DriversPage() {
                                 <div className="space-y-2">
                                     <Label>Vehicle Type</Label>
                                     <Input name="vehicle_type" defaultValue={editingDriver.vehicle_type || ''} />
+                                </div>
+
+                                {/* Vehicle Capacity */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        <Truck size={14} />
+                                        Vehicle Capacity
+                                    </h4>
+                                    <div className="space-y-2">
+                                        <Label>Max Orders</Label>
+                                        <Input
+                                            name="max_orders"
+                                            type="number"
+                                            min="1"
+                                            defaultValue={editingDriver.max_orders ?? ''}
+                                            placeholder="e.g., 25 (leave blank for unlimited)"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Vehicle Capacity (kg)</Label>
+                                        <Input
+                                            name="vehicle_capacity_kg"
+                                            type="number"
+                                            min="0"
+                                            step="any"
+                                            defaultValue={editingDriver.vehicle_capacity_kg ?? ''}
+                                            placeholder="e.g., 500 (leave blank for no limit)"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Shift Hours */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        <Clock size={14} />
+                                        Shift Hours
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-2">
+                                            <Label>Shift Start</Label>
+                                            <Input
+                                                name="shift_start"
+                                                type="time"
+                                                defaultValue={editingDriver.shift_start ? editingDriver.shift_start.substring(0, 5) : ''}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Shift End</Label>
+                                            <Input
+                                                name="shift_end"
+                                                type="time"
+                                                defaultValue={editingDriver.shift_end ? editingDriver.shift_end.substring(0, 5) : ''}
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">Leave blank for no shift restrictions</p>
                                 </div>
 
                                 <div className="space-y-2">

@@ -614,6 +614,7 @@ export default function OrdersPage() {
                         state: result.state || '',
                         zip_code: result.zip_code || '',
                         phone: result.phone || '',
+                        customer_email: result.customer_email || null,
                         delivery_date: result.delivery_date || new Date().toISOString().split('T')[0],
                         notes: result.notes || '',
                         status: 'pending',
@@ -621,6 +622,7 @@ export default function OrdersPage() {
                         priority_level: result.priority_level || 'normal',
                         time_window_start: result.time_window_start || null,
                         time_window_end: result.time_window_end || null,
+                        weight_kg: result.weight_kg ?? null,
                         latitude: null as number | null,
                         longitude: null as number | null,
                         geocoding_confidence: null as string | null,
@@ -708,11 +710,13 @@ export default function OrdersPage() {
         if (data.state) setVal('state', data.state)
         if (data.zip_code) setVal('zip_code', data.zip_code)
         if (data.phone) setVal('phone', data.phone)
+        if (data.customer_email) setVal('customer_email', data.customer_email)
         if (data.delivery_date) setVal('delivery_date', data.delivery_date)
         if (data.delivery_date) setVal('delivery_date', data.delivery_date)
         if (data.time_window_start) setVal('time_window_start', data.time_window_start)
         if (data.time_window_end) setVal('time_window_end', data.time_window_end)
         if (data.notes) setVal('notes', data.notes)
+        if (data.weight_kg != null) setVal('weight_kg', String(data.weight_kg))
     }
 
     function toggleOrderSelection(orderId: string) {
@@ -831,6 +835,10 @@ export default function OrdersPage() {
                 usedAddress = verificationResult.foundAddress
             }
 
+            const customerEmail = formData.get('customer_email') as string
+            const weightKgRaw = formData.get('weight_kg') as string
+            const weightKg = weightKgRaw ? parseFloat(weightKgRaw) : null
+
             const newOrder: any = {
                 company_id: userProfile.company_id,
                 order_number: formData.get('order_number') as string,
@@ -840,6 +848,7 @@ export default function OrdersPage() {
                 state,
                 zip_code: zipCode,
                 phone: phone,
+                customer_email: customerEmail || null,
                 delivery_date: formData.get('delivery_date') as string,
                 notes: formData.get('notes') as string,
                 status: 'pending' as const,
@@ -849,7 +858,8 @@ export default function OrdersPage() {
                 longitude: lng,
                 geocoding_confidence: confidence,
                 geocoded_address: verificationResult?.foundAddress,
-                geocoding_attempted_at: new Date().toISOString()
+                geocoding_attempted_at: new Date().toISOString(),
+                weight_kg: weightKg
             }
 
             const { error } = await supabase.from('orders').insert(newOrder)
@@ -1576,6 +1586,10 @@ export default function OrdersPage() {
                                                             />
                                                         </div>
                                                     </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-bold text-slate-800 dark:text-slate-200">Customer Email</label>
+                                                        <Input name="customer_email" type="email" placeholder="customer@example.com" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" />
+                                                    </div>
                                                 </div>
 
                                                 {/* Delivery Details */}
@@ -1634,6 +1648,10 @@ export default function OrdersPage() {
                                                         <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">End Time</label><Input name="time_window_end" type="time" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div>
                                                     </div>
                                                     <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">Notes</label><textarea name="notes" className="w-full min-h-[100px] rounded-xl border border-input shadow-sm bg-white dark:bg-slate-950 px-3 py-3 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y" placeholder="Any special delivery instructions..." /></div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-bold text-slate-800 dark:text-slate-200">Weight (kg)</label>
+                                                        <Input name="weight_kg" type="number" step="0.1" min="0" placeholder="e.g., 5.5" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" />
+                                                    </div>
                                                 </div>
                                             </div>
 

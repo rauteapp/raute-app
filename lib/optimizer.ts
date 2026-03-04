@@ -71,11 +71,28 @@ interface DepotReloadSuggestion {
     ordersAfter: number
 }
 
+interface CapacityWarning {
+    driverName: string
+    orderCount: number
+    maxOrders: number | null
+    totalWeightKg: number
+    vehicleCapacityKg: number | null
+}
+
+interface ShiftViolation {
+    driverName: string
+    shiftEnd: string
+    estimatedFinish: string
+    orderCount: number
+}
+
 interface OptimizationWarnings {
     timeWindowViolations: TimeWindowViolation[]
     staleGpsDrivers: StaleGpsDriver[]
     overloadedDrivers: OverloadedDriver[]
     depotReloadSuggestions: DepotReloadSuggestion[]
+    capacityWarnings: CapacityWarning[]
+    shiftViolations: ShiftViolation[]
 }
 
 interface OptimizationResult {
@@ -376,7 +393,9 @@ export async function optimizeRoute(
         timeWindowViolations: [],
         staleGpsDrivers: [],
         overloadedDrivers: [],
-        depotReloadSuggestions: []
+        depotReloadSuggestions: [],
+        capacityWarnings: [],
+        shiftViolations: []
     }
 
     // FILTER: Ignore 'delivered' or 'cancelled' orders from re-assignment
@@ -489,6 +508,11 @@ export async function optimizeRoute(
             }
         }
 
+        // Calculate initial weight from pinned orders
+        const pinnedWeight = pinnedOrders
+            .filter(o => o.driver_id === d.id && o.weight_kg)
+            .reduce((sum, o) => sum + (o.weight_kg || 0), 0)
+
         return {
             id: d.id,
             name: d.name,
@@ -499,7 +523,14 @@ export async function optimizeRoute(
             valid: !!(lat && lng),
             source,
             depotLat: d.default_start_lat,
-            depotLng: d.default_start_lng
+            depotLng: d.default_start_lng,
+            // Capacity fields
+            maxOrders: d.max_orders ?? null,
+            vehicleCapacityKg: d.vehicle_capacity_kg ?? null,
+            currentWeightKg: pinnedWeight,
+            // Shift fields
+            shiftStartMin: d.shift_start ? timeToMinutes(d.shift_start) : null,
+            shiftEndMin: d.shift_end ? timeToMinutes(d.shift_end) : null,
         }
     })
 
@@ -523,6 +554,17 @@ export async function optimizeRoute(
 
             if (distance > MAX_ASSIGNMENT_DISTANCE) continue
 
+            // Capacity gate: skip if driver is at max orders
+            if (driver.maxOrders !== null && driver.load >= driver.maxOrders) continue
+
+            // Weight gate: skip if adding this order exceeds vehicle weight capacity
+            if (driver.vehicleCapacityKg !== null && order.weight_kg) {
+                if (driver.currentWeightKg + order.weight_kg > driver.vehicleCapacityKg) continue
+            }
+
+            // Shift gate: skip if driver's shift has ended
+            if (driver.shiftEndMin !== null && routeStartHour * 60 > driver.shiftEndMin) continue
+
             const loadPenalty = driver.load * loadBalanceWeight
             const totalScore = distance + loadPenalty
 
@@ -543,7 +585,10 @@ export async function optimizeRoute(
                 }
 
                 const driverPos = driverPositions.find(d => d.id === bestDriverId)
-                if (driverPos) driverPos.load++
+                if (driverPos) {
+                    driverPos.load++
+                    if (order.weight_kg) driverPos.currentWeightKg += order.weight_kg
+                }
             }
         }
     }
@@ -738,8 +783,45 @@ export async function optimizeRoute(
             }
         }
 
-        // --- OVERLOAD WARNING ---
-        if (sortedDriverOrders.length > OVERLOAD_THRESHOLD) {
+        // --- CAPACITY WARNING ---
+        const driverMaxOrders = driverPos?.maxOrders ?? null
+        const driverCapacityKg = driverPos?.vehicleCapacityKg ?? null
+        const totalWeightKg = sortedDriverOrders.reduce((sum, o) => sum + (o.weight_kg || 0), 0)
+
+        if (driverMaxOrders !== null && sortedDriverOrders.length > driverMaxOrders) {
+            warnings.capacityWarnings.push({
+                driverName: driver.name,
+                orderCount: sortedDriverOrders.length,
+                maxOrders: driverMaxOrders,
+                totalWeightKg,
+                vehicleCapacityKg: driverCapacityKg
+            })
+        }
+        if (driverCapacityKg !== null && totalWeightKg > driverCapacityKg) {
+            warnings.capacityWarnings.push({
+                driverName: driver.name,
+                orderCount: sortedDriverOrders.length,
+                maxOrders: driverMaxOrders,
+                totalWeightKg,
+                vehicleCapacityKg: driverCapacityKg
+            })
+        }
+
+        // --- SHIFT VIOLATION WARNING ---
+        if (driverPos?.shiftEndMin !== null && driverPos?.shiftEndMin !== undefined) {
+            if (currentTimeMin > driverPos.shiftEndMin) {
+                warnings.shiftViolations.push({
+                    driverName: driver.name,
+                    shiftEnd: minutesToTimeStr(driverPos.shiftEndMin),
+                    estimatedFinish: minutesToTimeStr(currentTimeMin),
+                    orderCount: sortedDriverOrders.length
+                })
+            }
+        }
+
+        // --- OVERLOAD WARNING (fallback for drivers without max_orders) ---
+        const effectiveThreshold = driverMaxOrders ?? OVERLOAD_THRESHOLD
+        if (sortedDriverOrders.length > effectiveThreshold) {
             warnings.overloadedDrivers.push({
                 driverName: driver.name,
                 orderCount: sortedDriverOrders.length,

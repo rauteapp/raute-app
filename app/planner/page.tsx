@@ -204,8 +204,8 @@ function DroppableDriverContainer({ driver, orders, children, isLocked = false }
                     <span className={`font-bold text-[14px] ${isLocked ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>{driver.name}</span>
                     {isLocked && <span className="text-[10px] bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-rose-200 dark:border-rose-800">LOCKED</span>}
                 </div>
-                <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2.5 py-1 rounded-full">
-                    {orders.length} orders
+                <span className={`text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${driver.max_orders && orders.length >= driver.max_orders ? 'text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400' : 'text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400'}`}>
+                    {orders.length}{driver.max_orders ? `/${driver.max_orders}` : ''} orders
                 </span>
             </div>
 
@@ -283,6 +283,8 @@ export default function PlannerPage() {
         driverBreakdown: { driverId: string, driverName: string, orderCount: number }[]
         issues: { reason: string, count: number, orders: string[] }[]
         driverDiagnostics?: { name: string, valid: boolean, lat: number, lng: number, address?: string }[]
+        capacityWarnings?: { driverName: string, orderCount: number, maxOrders: number | null, totalWeightKg: number, vehicleCapacityKg: number | null }[]
+        shiftViolations?: { driverName: string, shiftEnd: string, estimatedFinish: string, orderCount: number }[]
     } | null>(null)
 
     // Map State
@@ -607,6 +609,7 @@ export default function PlannerPage() {
                 driver_id: o.driver_id,
                 status: o.driver_id ? 'assigned' : 'pending',
                 route_index: o.route_index || null,
+                tracking_token: o.driver_id && !o.tracking_token ? crypto.randomUUID() : (o.tracking_token || null),
             }))
 
             const { error } = await supabase.from('orders').upsert(updates)
@@ -614,6 +617,22 @@ export default function PlannerPage() {
             if (error) {
                 throw error
             }
+
+            // Fire-and-forget: send tracking emails for newly assigned orders
+            const previousOrderMap = new Map(ordersToOptimize.map(o => [o.id, o]))
+            updates.forEach(order => {
+                const prev = previousOrderMap.get(order.id)
+                const isNewlyAssigned = order.driver_id && (!prev?.driver_id || prev.driver_id !== order.driver_id)
+                if (isNewlyAssigned && order.customer_email && order.tracking_token) {
+                    supabase.functions.invoke('send-tracking-email', {
+                        body: {
+                            order_id: order.id,
+                            event_type: 'assigned',
+                            tracking_url: `${window.location.origin}/track/${order.tracking_token}`
+                        }
+                    }).catch(() => {}) // fire-and-forget
+                }
+            })
 
             // Notify affected drivers about route update
             const affectedDriverIds = [...new Set(result.orders.filter(o => o.driver_id).map(o => o.driver_id!))]
@@ -684,7 +703,9 @@ export default function PlannerPage() {
                 problematic: noGpsOrders.length + lockedOrders.length,
                 driverBreakdown,
                 issues,
-                driverDiagnostics: (result as any).debug?.drivers
+                driverDiagnostics: (result as any).debug?.drivers,
+                capacityWarnings: result.warnings?.capacityWarnings || [],
+                shiftViolations: result.warnings?.shiftViolations || [],
             })
 
             toast({
@@ -763,6 +784,22 @@ export default function PlannerPage() {
             return // Dropped somewhere invalid
         }
 
+        // 🚫 CAPACITY CHECK: Block if driver is at max capacity
+        if (newDriverId) {
+            const targetDriver = drivers.find(d => d.id === newDriverId)
+            if (targetDriver?.max_orders) {
+                const currentOrderCount = orders.filter(o => o.driver_id === newDriverId && o.id !== orderId).length
+                if (currentOrderCount >= targetDriver.max_orders) {
+                    toast({
+                        title: "Driver at Capacity",
+                        description: `${targetDriver.name} already has ${currentOrderCount} orders (max ${targetDriver.max_orders}). Remove some orders first.`,
+                        type: "error"
+                    })
+                    return // Block the assignment
+                }
+            }
+        }
+
         // ⚠️ Warn if assigning to an offline driver
         if (newDriverId) {
             const targetDriver = drivers.find(d => d.id === newDriverId)
@@ -777,6 +814,10 @@ export default function PlannerPage() {
             }
         }
 
+        // Generate tracking_token if assigning to a driver and order doesn't have one
+        const draggedOrder = orders.find(o => o.id === orderId)
+        const newTrackingToken = newDriverId && !draggedOrder?.tracking_token ? crypto.randomUUID() : (draggedOrder?.tracking_token || null)
+
         // Optimistic Update
         setOrders(prev => prev.map(o => {
             if (o.id === orderId) {
@@ -785,7 +826,8 @@ export default function PlannerPage() {
                     driver_id: newDriverId,
                     status: newDriverId ? 'assigned' : 'pending',
                     // Lock if assigned to a driver manually
-                    is_pinned: !!newDriverId
+                    is_pinned: !!newDriverId,
+                    tracking_token: newTrackingToken
                 }
             }
             return o
@@ -797,7 +839,8 @@ export default function PlannerPage() {
             .update({
                 driver_id: newDriverId,
                 status: newDriverId ? 'assigned' : 'pending',
-                is_pinned: !!newDriverId
+                is_pinned: !!newDriverId,
+                tracking_token: newTrackingToken
             })
             .eq('id', orderId)
 
@@ -1633,6 +1676,64 @@ export default function PlannerPage() {
                                                         </details>
                                                     </CardContent>
                                                 </Card>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Capacity Warnings */}
+                                {optimizationReport.capacityWarnings && optimizationReport.capacityWarnings.length > 0 && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                            <AlertTriangle size={18} className="text-amber-500" />
+                                            Capacity Warnings
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {optimizationReport.capacityWarnings.map((warning, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="flex items-start gap-3 p-4 bg-amber-50/60 dark:bg-amber-950/20 backdrop-blur-md border border-amber-200/60 dark:border-amber-800/30 rounded-2xl shadow-sm"
+                                                >
+                                                    <span className="text-amber-500 mt-0.5 shrink-0">&#9888;&#65039;</span>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-amber-800 dark:text-amber-300 leading-tight">
+                                                            {warning.driverName} has {warning.orderCount} orders but max capacity is {warning.maxOrders}
+                                                        </p>
+                                                        {warning.totalWeightKg > 0 && warning.vehicleCapacityKg && (
+                                                            <p className="text-[11px] font-medium text-amber-600/80 dark:text-amber-400/80 mt-1">
+                                                                Weight: {warning.totalWeightKg.toFixed(1)} kg / {warning.vehicleCapacityKg} kg capacity
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Shift Violations */}
+                                {optimizationReport.shiftViolations && optimizationReport.shiftViolations.length > 0 && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                            <Clock size={18} className="text-amber-500" />
+                                            Shift Violations
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {optimizationReport.shiftViolations.map((violation, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="flex items-start gap-3 p-4 bg-amber-50/60 dark:bg-amber-950/20 backdrop-blur-md border border-amber-200/60 dark:border-amber-800/30 rounded-2xl shadow-sm"
+                                                >
+                                                    <span className="text-amber-500 mt-0.5 shrink-0">&#9888;&#65039;</span>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-amber-800 dark:text-amber-300 leading-tight">
+                                                            {violation.driverName}&apos;s route finishes at {violation.estimatedFinish} but shift ends at {violation.shiftEnd}
+                                                        </p>
+                                                        <p className="text-[11px] font-medium text-amber-600/80 dark:text-amber-400/80 mt-1 uppercase tracking-wider">
+                                                            {violation.orderCount} orders assigned
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>

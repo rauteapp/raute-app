@@ -16,12 +16,14 @@ export interface ParsedOrder {
   state: string;
   zip_code: string;
   phone: string;
+  customer_email: string;
   order_number: string;
   delivery_date: string;
   notes: string;
   priority_level?: 'normal' | 'high' | 'critical';
   time_window_start?: string;
   time_window_end?: string;
+  weight_kg?: number | null;
 }
 
 /**
@@ -95,9 +97,11 @@ Fields to extract for each order:
 - state (string)
 - zip_code (string)
 - phone (string)
+- customer_email (string): Customer's email address. Look for columns named "customer_email", "email", "customer email". If missing, use "".
 - order_number (string)
 - delivery_date (string): YYYY-MM-DD.
 - notes (string)
+- weight_kg (number|null): Package weight in kilograms. Look for columns named "weight_kg", "weight", "weight (kg)". If missing, use null.
 - priority_level (string): 'normal', 'high', or 'critical'. Infer from keywords:
     - 'Critical', 'Emergency', 'Life Threatening' -> 'critical'
     - 'High', 'Urgent', 'ASAP', 'Rush' -> 'high'

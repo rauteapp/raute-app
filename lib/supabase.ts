@@ -194,6 +194,10 @@ export type Driver = {
     current_lat?: number | null
     current_lng?: number | null
     last_location_update?: string | null
+    max_orders?: number | null
+    vehicle_capacity_kg?: number | null
+    shift_start?: string | null  // HH:MM:SS
+    shift_end?: string | null    // HH:MM:SS
     created_at: string
     updated_at: string
     email?: string // Added for UI display
@@ -259,6 +263,19 @@ export type Order = {
     cancellation_note?: string | null
     cancelled_by?: string | null
     cancelled_at?: string | null
+    weight_kg?: number | null
+    customer_email?: string | null
+    tracking_token?: string | null
+}
+
+export type CompanySettings = {
+    id: string
+    company_id: string
+    weight_tracking_enabled: boolean
+    customer_tracking_enabled: boolean
+    customer_email_notifications: boolean
+    created_at: string
+    updated_at: string
 }
 
 export type ProofImage = {

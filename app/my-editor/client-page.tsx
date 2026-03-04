@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, MapPin, Calendar, User as UserIcon, Phone, Package, Edit, Trash2, Clock, Undo2, CheckCircle2, Loader2, Camera as CameraIcon, X, Navigation, AlertCircle } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, User as UserIcon, Phone, Package, Edit, Trash2, Clock, Undo2, CheckCircle2, Loader2, Camera as CameraIcon, X, Navigation, AlertCircle, Link2, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { supabase, type Order, type ProofImage } from "@/lib/supabase"
@@ -73,6 +73,7 @@ export default function ClientOrderDetails() {
     const [isUndoDialogOpen, setIsUndoDialogOpen] = useState(false)
     const [isEditSheetOpen, setIsEditSheetOpen] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [trackingLinkCopied, setTrackingLinkCopied] = useState(false)
     const [isUpdating, setIsUpdating] = useState(false)
     const [userRole, setUserRole] = useState<string | null>(null)
     const [drivers, setDrivers] = useState<any[]>([])
@@ -144,12 +145,14 @@ export default function ClientOrderDetails() {
                 state: order.state,
                 zip_code: order.zip_code,
                 phone: order.phone,
+                customer_email: order.customer_email,
                 delivery_date: order.delivery_date,
                 notes: order.notes,
                 latitude: order.latitude,
                 longitude: order.longitude,
                 priority_level: order.priority_level || 'normal',
-                geocoding_confidence: order.geocoding_confidence
+                geocoding_confidence: order.geocoding_confidence,
+                weight_kg: order.weight_kg
             })
         }
     }, [order, isEditSheetOpen])
@@ -307,6 +310,17 @@ export default function ClientOrderDetails() {
                     was_out_of_range: isOutOfRange,
                     delivery_distance_meters: dist || undefined
                 }).eq('id', orderId)
+            }
+
+            // Send tracking email notification (fire-and-forget)
+            if ((newStatus === 'in_progress' || newStatus === 'delivered') && order.customer_email && order.tracking_token) {
+                supabase.functions.invoke('send-tracking-email', {
+                    body: {
+                        order_id: orderId,
+                        event_type: newStatus,
+                        tracking_url: `${window.location.origin}/track/${order.tracking_token}`
+                    }
+                }).catch(() => {})
             }
 
             // Optimistic Update
@@ -493,12 +507,14 @@ export default function ClientOrderDetails() {
                 state: formData.state,
                 zip_code: formData.zip_code,
                 phone: formData.phone,
+                customer_email: formData.customer_email || null,
                 delivery_date: formData.delivery_date,
                 notes: formData.notes,
                 latitude: finalLat,
                 longitude: finalLng,
                 priority_level: formData.priority_level,
-                geocoding_confidence: formData.geocoding_confidence
+                geocoding_confidence: formData.geocoding_confidence,
+                weight_kg: formData.weight_kg ?? null
             }
 
             const { error } = await supabase.from('orders').update(updatedPayload).eq('id', effectiveOrderId)
@@ -646,6 +662,37 @@ export default function ClientOrderDetails() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Tracking Link Card */}
+                    {order.tracking_token && (
+                        <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-sm border border-slate-200/60 dark:border-slate-800 overflow-hidden relative group">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-400 to-purple-500 opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                            <div className="p-5 flex gap-4">
+                                <div className="w-12 h-12 bg-violet-50 dark:bg-violet-900/30 rounded-[16px] flex items-center justify-center text-violet-600 dark:text-violet-400 shrink-0 shadow-inner">
+                                    <Link2 size={24} strokeWidth={2.5} />
+                                </div>
+                                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Tracking Link</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate flex-1 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-xl">
+                                            {typeof window !== 'undefined' ? `${window.location.origin}/track/${order.tracking_token}` : `/track/${order.tracking_token}`}
+                                        </p>
+                                        <button
+                                            onClick={async () => {
+                                                const url = `${window.location.origin}/track/${order.tracking_token}`
+                                                await navigator.clipboard.writeText(url)
+                                                setTrackingLinkCopied(true)
+                                                setTimeout(() => setTrackingLinkCopied(false), 2000)
+                                            }}
+                                            className="inline-flex items-center gap-1.5 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shrink-0"
+                                        >
+                                            {trackingLinkCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Delivery Location Card */}
                     <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-sm border border-slate-200/60 dark:border-slate-800 overflow-hidden relative group">
@@ -1241,8 +1288,10 @@ export default function ClientOrderDetails() {
                             <Input value={formData.zip_code || ''} onChange={e => setFormData(prev => ({ ...prev, zip_code: e.target.value }))} placeholder="ZIP" />
                             <Input value={formData.phone || ''} onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))} placeholder="Phone" />
                         </div>
+                        <Input value={formData.customer_email || ''} onChange={e => setFormData(prev => ({ ...prev, customer_email: e.target.value }))} type="email" placeholder="Customer Email" />
                         <Input value={formData.delivery_date ? new Date(formData.delivery_date).toISOString().split('T')[0] : ''} onChange={e => setFormData(prev => ({ ...prev, delivery_date: e.target.value }))} type="date" />
                         <textarea value={formData.notes || ''} onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))} className="w-full p-2 border rounded-md" placeholder="Notes" />
+                        <Input value={formData.weight_kg != null ? String(formData.weight_kg) : ''} onChange={e => setFormData(prev => ({ ...prev, weight_kg: e.target.value ? parseFloat(e.target.value) : null }))} type="number" step="0.1" min="0" placeholder="Weight (kg)" />
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Priority Level</label>

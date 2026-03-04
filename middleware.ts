@@ -23,7 +23,10 @@ export async function middleware(request: NextRequest) {
         return request.nextUrl.pathname === route || request.nextUrl.pathname === `${route}/`
     })
 
-    if (isPublicRoute) {
+    // Allow public tracking pages: /track/{token}
+    const isTrackingRoute = request.nextUrl.pathname.startsWith('/track/')
+
+    if (isPublicRoute || isTrackingRoute) {
         return NextResponse.next({ request: { headers: request.headers } })
     }
 
