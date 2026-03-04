@@ -414,7 +414,7 @@ export default function PlannerPage() {
 
             // Get Active Data
             const [ordersRes, driversRes] = await Promise.all([
-                supabase.from('orders').select('*').eq('company_id', user.company_id).neq('status', 'delivered'),
+                supabase.from('orders').select('*').eq('company_id', user.company_id).not('status', 'in', '("delivered","cancelled")'),
                 supabase.from('drivers').select('*').eq('company_id', user.company_id).eq('status', 'active')
             ])
 

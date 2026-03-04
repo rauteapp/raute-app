@@ -457,14 +457,16 @@ export default function DriversPage() {
                 return
             }
 
-            const { error } = await supabase.auth.updateUser({ password: newPassword })
-            // Note: This updates the *current* user. Admin updating another user requires Admin API or Edge Function.
-            // Since we are using client-side auth, we can't update another user's password directly unless we are that user.
-            // For now, let's assume this is a placeholder or requires backend implementation.
-            // A common workaround is deleting the user and recreating, or using a server-side route.
+            // Send password reset email instead — updateUser() would change the MANAGER's password, not the driver's
+            const { error } = await supabase.auth.resetPasswordForEmail(passDriver.email || '', {
+                redirectTo: window.location.origin + '/update-password'
+            })
 
-            // For this fix, we will just alert that this requires Admin API context or Edge Function.
-            toast({ title: "Feature Restricted", description: "Password update for other users requires Admin Privileges.", type: "error" })
+            if (!error) {
+                toast({ title: "Password reset email sent", description: `An email has been sent to ${passDriver.email} to set a new password.`, type: "success" })
+            } else {
+                toast({ title: "Failed to send reset email", description: error.message, type: "error" })
+            }
 
         } catch (error) {
             toast({ title: "Failed to update password.", type: "error" })
@@ -535,17 +537,16 @@ export default function DriversPage() {
             if (value !== null) customValues[field.id] = value
         })
 
-        // Update password if provided
-        if (newPassword && newPassword.length >= 6 && editingDriver.user_id) {
-            const { error: passwordError } = await supabase.auth.updateUser({
-                password: newPassword
+        // Send password reset email if requested — updateUser() would change the MANAGER's password, not the driver's
+        if (newPassword && newPassword.length >= 6 && editingDriver.user_id && editingDriver.email) {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(editingDriver.email, {
+                redirectTo: window.location.origin + '/update-password'
             })
 
-            if (passwordError) {
-                toast({ title: 'Failed to update password', description: passwordError.message, type: 'error' })
-                // Continue with other updates even if password fails
+            if (resetError) {
+                toast({ title: 'Failed to send password reset email', description: resetError.message, type: 'error' })
             } else {
-                toast({ title: '🔒 Password updated successfully', type: 'success' })
+                toast({ title: '📧 Password reset email sent', description: `${editingDriver.name} will receive an email to set a new password.`, type: 'success' })
             }
         }
 
