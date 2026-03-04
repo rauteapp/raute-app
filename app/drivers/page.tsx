@@ -624,16 +624,15 @@ export default function DriversPage() {
         setIsDeleting(true)
 
         try {
-            // Delete from drivers table (Cascade should handle user, but we might want to delete user explicitly if needed)
-            const { error } = await supabase
-                .from('drivers')
-                .delete()
-                .eq('id', deletingDriver.id)
+            // Use RPC to properly delete from drivers + public.users + auth.users
+            const { error, data } = await supabase.rpc('delete_user_by_admin', {
+                target_user_id: deletingDriver.user_id
+            })
 
             if (error) throw error
+            if (data && !data.success) throw new Error(data.error || 'Failed to delete driver')
 
-            // Optionally delete from public.users / auth.users via RPC if strict cleanup is needed
-
+            toast({ title: 'Driver deleted successfully', type: 'success' })
             setDeleteingDriver(null)
             fetchDrivers()
         } catch (error: any) {
