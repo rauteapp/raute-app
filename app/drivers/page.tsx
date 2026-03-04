@@ -21,7 +21,8 @@ import {
     ShieldAlert,
     Loader2,
     MoreHorizontal,
-    Mail
+    Mail,
+    Send
 } from "lucide-react"
 import {
     Sheet,
@@ -438,16 +439,16 @@ export default function DriversPage() {
                     .eq('id', driverId)
             }
 
-            // Send password setup email to the driver
+            // Send account setup email to the driver
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/update-password`,
             })
 
             if (resetError) {
                 console.error('Failed to send setup email:', resetError)
-                toast({ title: '✅ Driver created!', description: `Account created but setup email failed to send. Ask the driver to use "Forgot Password" on the login page.`, type: 'success' })
+                toast({ title: '✅ Driver created!', description: `Account created but setup email failed. You can resend it from the driver's card using the mail icon.`, type: 'success' })
             } else {
-                toast({ title: '✅ Driver created!', description: `A setup email has been sent to ${email} to set their password.`, type: 'success' })
+                toast({ title: '✅ Driver created!', description: `A setup email has been sent to ${email}. The driver needs to click the link to set their password.`, type: 'success' })
             }
 
             // Reset form state
@@ -467,31 +468,29 @@ export default function DriversPage() {
         }
     }
 
-    async function handleUpdatePassword(formData: FormData) {
-        if (!passDriver) return
+    async function handleResendSetupEmail(driver?: any) {
+        const target = driver || passDriver
+        if (!target) return
         setIsUpdatePassLoading(true)
 
         try {
-            const newPassword = formData.get('new_password') as string
-
-            if (!passDriver.user_id) {
-                toast({ title: "Configuration Error", description: "This driver is not linked to a user account properly.", type: "error" })
+            if (!target.user_id) {
+                toast({ title: "Configuration Error", description: "This account is not linked to a user properly.", type: "error" })
                 return
             }
 
-            // Send password reset email instead — updateUser() would change the MANAGER's password, not the driver's
-            const { error } = await supabase.auth.resetPasswordForEmail(passDriver.email || '', {
+            const { error } = await supabase.auth.resetPasswordForEmail(target.email || '', {
                 redirectTo: window.location.origin + '/update-password'
             })
 
             if (!error) {
-                toast({ title: "Password reset email sent", description: `An email has been sent to ${passDriver.email} to set a new password.`, type: "success" })
+                toast({ title: "Setup email sent!", description: `${target.name} will receive an email at ${target.email} to set their password.`, type: "success" })
             } else {
-                toast({ title: "Failed to send reset email", description: error.message, type: "error" })
+                toast({ title: "Failed to send setup email", description: error.message, type: "error" })
             }
 
         } catch (error) {
-            toast({ title: "Failed to update password.", type: "error" })
+            toast({ title: "Failed to send setup email.", type: "error" })
         } finally {
             setIsUpdatePassLoading(false)
             setIsPasswordOpen(false)
@@ -567,16 +566,16 @@ export default function DriversPage() {
             if (value !== null) customValues[field.id] = value
         })
 
-        // Send password reset email if requested — updateUser() would change the MANAGER's password, not the driver's
-        if (newPassword && newPassword.length >= 6 && editingDriver.user_id && editingDriver.email) {
+        // Send setup email if requested — lets the driver set/reset their own password
+        if (newPassword && newPassword.length >= 1 && editingDriver.user_id && editingDriver.email) {
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(editingDriver.email, {
                 redirectTo: window.location.origin + '/update-password'
             })
 
             if (resetError) {
-                toast({ title: 'Failed to send password reset email', description: resetError.message, type: 'error' })
+                toast({ title: 'Failed to send setup email', description: resetError.message, type: 'error' })
             } else {
-                toast({ title: '📧 Password reset email sent', description: `${editingDriver.name} will receive an email to set a new password.`, type: 'success' })
+                toast({ title: 'Setup email sent!', description: `${editingDriver.name} will receive an email to set their password.`, type: 'success' })
             }
         }
 
@@ -625,16 +624,15 @@ export default function DriversPage() {
         setIsDeleting(true)
 
         try {
-            // Delete from drivers table (Cascade should handle user, but we might want to delete user explicitly if needed)
-            const { error } = await supabase
-                .from('drivers')
-                .delete()
-                .eq('id', deletingDriver.id)
+            // Use RPC to properly delete from drivers + public.users + auth.users
+            const { error, data } = await supabase.rpc('delete_user_by_admin', {
+                target_user_id: deletingDriver.user_id
+            })
 
             if (error) throw error
+            if (data && !data.success) throw new Error(data.error || 'Failed to delete driver')
 
-            // Optionally delete from public.users / auth.users via RPC if strict cleanup is needed
-
+            toast({ title: 'Driver deleted successfully', type: 'success' })
             setDeleteingDriver(null)
             fetchDrivers()
         } catch (error: any) {
@@ -1168,6 +1166,14 @@ export default function DriversPage() {
                                         </button>
 
                                         <button
+                                            onClick={() => handleResendSetupEmail(driver)}
+                                            className="h-11 w-11 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200/50 dark:border-blue-900/50"
+                                            title="Resend Setup Email"
+                                        >
+                                            <Send size={18} strokeWidth={2} />
+                                        </button>
+
+                                        <button
                                             onClick={() => setEditingDriver(driver)}
                                             className="h-11 w-11 flex items-center justify-center rounded-full bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200/50 dark:border-slate-700/50"
                                             title="Edit Driver"
@@ -1310,18 +1316,24 @@ export default function DriversPage() {
                                     </div>
                                 )}
 
-                                {/* Password Update Section */}
+                                {/* Password Setup Section */}
                                 <div className="space-y-4 pt-4 border-t border-border">
-                                    <h4 className="font-semibold text-sm">Security</h4>
+                                    <h4 className="font-semibold text-sm">Account Setup</h4>
                                     <div className="space-y-2">
-                                        <Label>New Password (optional)</Label>
-                                        <Input
-                                            name="new_password"
-                                            type="password"
-                                            placeholder="Leave empty to keep current password"
-                                            minLength={6}
-                                        />
-                                        <p className="text-[11px] text-muted-foreground">Minimum 6 characters. Leave blank to keep existing password.</p>
+                                        <p className="text-[12px] text-muted-foreground">
+                                            Send a setup email so this driver can set or reset their own password.
+                                        </p>
+                                        <input type="hidden" name="new_password" value="" />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleResendSetupEmail(editingDriver)}
+                                            disabled={isUpdatePassLoading}
+                                        >
+                                            <Send size={14} className="mr-2" />
+                                            {isUpdatePassLoading ? 'Sending...' : 'Send Setup Email'}
+                                        </Button>
                                     </div>
                                 </div>
 
@@ -1489,19 +1501,21 @@ export default function DriversPage() {
                 <Dialog open={isPasswordOpen} onOpenChange={setIsPasswordOpen}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Update Password</DialogTitle>
+                            <DialogTitle>Resend Setup Email</DialogTitle>
                         </DialogHeader>
-                        <form action={handleUpdatePassword} className="space-y-4 py-4">
-                            <div className="space-y-2">
-                                <Label>New Password</Label>
-                                <PasswordInput name="new_password" required minLength={6} placeholder="Enter new password" />
-                            </div>
+                        <div className="py-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                Send a new account setup email to <strong>{passDriver?.email}</strong>.
+                                They will receive a link to set their password.
+                            </p>
                             <DialogFooter>
-                                <Button type="submit" disabled={isUpdatePassLoading}>
-                                    {isUpdatePassLoading ? 'Updating...' : 'Update Password'}
+                                <Button variant="outline" onClick={() => setIsPasswordOpen(false)}>Cancel</Button>
+                                <Button onClick={() => handleResendSetupEmail()} disabled={isUpdatePassLoading}>
+                                    <Send size={16} className="mr-2" />
+                                    {isUpdatePassLoading ? 'Sending...' : 'Send Setup Email'}
                                 </Button>
                             </DialogFooter>
-                        </form>
+                        </div>
                     </DialogContent>
                 </Dialog>
 

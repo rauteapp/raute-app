@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Mail, Send, ArrowLeft, Clock } from 'lucide-react'
 import { useToast } from '@/components/toast-provider'
 import { markIntentionalLogout } from '@/components/auth-check'
 
@@ -20,6 +20,10 @@ export default function UpdatePasswordPage() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState('')
+    const [linkExpired, setLinkExpired] = useState(false)
+    const [expiredEmail, setExpiredEmail] = useState('')
+    const [isResending, setIsResending] = useState(false)
+    const [resendSuccess, setResendSuccess] = useState(false)
 
     // Check if we have a valid recovery session
     useEffect(() => {
@@ -30,7 +34,6 @@ export default function UpdatePasswordPage() {
         let hasSession = false
 
         try {
-            // getSession() can hang on web due to navigator.locks — add timeout
             const { data: { session } } = await Promise.race([
                 supabase.auth.getSession(),
                 new Promise<never>((_, reject) =>
@@ -39,7 +42,6 @@ export default function UpdatePasswordPage() {
             ])
             hasSession = !!session
         } catch {
-            // getSession timed out — try getUser() as fallback
             try {
                 const { data: userData } = await supabase.auth.getUser()
                 hasSession = !!userData.user
@@ -48,14 +50,36 @@ export default function UpdatePasswordPage() {
             }
         }
 
-        // If no session or not a recovery session, redirect to login
+        // No valid session = link expired or invalid
         if (!hasSession) {
-            toast({
-                title: 'Invalid Reset Link',
-                description: 'Please request a new password reset link.',
-                type: 'error'
+            // Try to get email from URL params (some Supabase flows include it)
+            const params = new URLSearchParams(window.location.search)
+            const emailFromUrl = params.get('email') || ''
+            setExpiredEmail(emailFromUrl)
+            setLinkExpired(true)
+        }
+    }
+
+    async function handleResendLink() {
+        if (!expiredEmail) return
+        setIsResending(true)
+        setError('')
+        setResendSuccess(false)
+
+        try {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(expiredEmail, {
+                redirectTo: `${window.location.origin}/update-password`,
             })
-            router.push('/login')
+
+            if (resetError) {
+                setError(resetError.message)
+            } else {
+                setResendSuccess(true)
+            }
+        } catch {
+            setError('Failed to send email. Please try again.')
+        } finally {
+            setIsResending(false)
         }
     }
 
@@ -63,7 +87,6 @@ export default function UpdatePasswordPage() {
         e.preventDefault()
         setError('')
 
-        // Validation
         if (password.length < 8) {
             setError('Password must be at least 8 characters')
             return
@@ -77,7 +100,6 @@ export default function UpdatePasswordPage() {
         setIsLoading(true)
 
         try {
-            // Update password using Supabase
             const { error: updateError } = await supabase.auth.updateUser({
                 password: password
             })
@@ -85,18 +107,17 @@ export default function UpdatePasswordPage() {
             if (updateError) throw updateError
 
             toast({
-                title: 'Password Updated Successfully!',
+                title: 'Password Set Successfully!',
                 description: 'You can now log in with your new password.',
                 type: 'success'
             })
 
-            // Sign out and redirect to login
             markIntentionalLogout()
             await supabase.auth.signOut()
             router.push('/login')
 
         } catch (err: any) {
-            setError(err.message || 'Failed to update password')
+            setError(err.message || 'Failed to set password')
             toast({
                 title: 'Update Failed',
                 description: err.message,
@@ -107,6 +128,96 @@ export default function UpdatePasswordPage() {
         }
     }
 
+    // === EXPIRED LINK VIEW ===
+    if (linkExpired) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center p-4 safe-area-p">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="text-center space-y-2">
+                        <div className="mx-auto w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mb-2">
+                            <Clock className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <CardTitle className="text-2xl">Link Expired</CardTitle>
+                        <CardDescription>
+                            This setup link is no longer valid. Enter your email below to get a new one.
+                        </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4">
+                        {error && (
+                            <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                {error}
+                            </div>
+                        )}
+
+                        {resendSuccess ? (
+                            <div className="space-y-4">
+                                <div className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm p-4 rounded-lg border border-green-200 dark:border-green-800">
+                                    <p className="font-medium mb-1">New link sent!</p>
+                                    <p className="text-xs text-green-600 dark:text-green-500">
+                                        Check your inbox (and spam folder) for the new setup link.
+                                    </p>
+                                </div>
+
+                                <Button
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={() => {
+                                        setResendSuccess(false)
+                                    }}
+                                >
+                                    <Send size={16} className="mr-2" />
+                                    Send again
+                                </Button>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium" htmlFor="expired-email">
+                                        Your Email Address
+                                    </label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="expired-email"
+                                            type="email"
+                                            placeholder="you@example.com"
+                                            value={expiredEmail}
+                                            onChange={(e) => setExpiredEmail(e.target.value)}
+                                            className="pl-9"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <Button
+                                    className="w-full"
+                                    onClick={handleResendLink}
+                                    disabled={isResending || !expiredEmail}
+                                >
+                                    <Send size={16} className="mr-2" />
+                                    {isResending ? 'Sending...' : 'Send New Setup Link'}
+                                </Button>
+                            </>
+                        )}
+
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            className="w-full"
+                            onClick={() => router.push('/login')}
+                        >
+                            <ArrowLeft size={16} className="mr-2" />
+                            Back to Login
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
+    // === NORMAL SET PASSWORD VIEW ===
     return (
         <div className="min-h-screen bg-background flex items-center justify-center p-4 safe-area-p">
             <Card className="w-full max-w-md">
@@ -114,9 +225,9 @@ export default function UpdatePasswordPage() {
                     <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
                         <Lock className="h-6 w-6 text-primary" />
                     </div>
-                    <CardTitle className="text-2xl">Reset Your Password</CardTitle>
+                    <CardTitle className="text-2xl">Set Your Password</CardTitle>
                     <CardDescription>
-                        Enter your new password below
+                        Create a password to access your account
                     </CardDescription>
                 </CardHeader>
 
@@ -129,10 +240,9 @@ export default function UpdatePasswordPage() {
                             </div>
                         )}
 
-                        {/* New Password */}
                         <div className="space-y-2">
                             <label className="text-sm font-medium" htmlFor="password">
-                                New Password
+                                Password
                             </label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -159,7 +269,6 @@ export default function UpdatePasswordPage() {
                             </p>
                         </div>
 
-                        {/* Confirm Password */}
                         <div className="space-y-2">
                             <label className="text-sm font-medium" htmlFor="confirm-password">
                                 Confirm Password
@@ -185,7 +294,6 @@ export default function UpdatePasswordPage() {
                             </div>
                         </div>
 
-                        {/* Password Strength Indicator */}
                         {password.length > 0 && (
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2 text-xs">
@@ -216,7 +324,7 @@ export default function UpdatePasswordPage() {
                             className="w-full"
                             disabled={isLoading || password.length < 8 || password !== confirmPassword}
                         >
-                            {isLoading ? 'Updating...' : 'Update Password'}
+                            {isLoading ? 'Setting Password...' : 'Set Password & Continue'}
                         </Button>
 
                         <Button
