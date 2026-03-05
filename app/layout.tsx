@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ToastProvider } from "@/components/toast-provider";
 import { NetworkStatusBanner } from "@/components/network-status-banner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import { AuthListener } from "@/components/auth-listener";
 import { StatusBarManager } from "@/components/status-bar-manager";
 
@@ -64,6 +65,7 @@ export default function RootLayout({
           </ToastProvider>
         </ThemeProvider>
         <SpeedInsights />
+        <Analytics />
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator && !window.Capacitor) {
             window.addEventListener('load', function() {
