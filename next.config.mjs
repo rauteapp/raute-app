@@ -13,7 +13,7 @@ const nextConfig = {
   async headers() {
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' blob: data: *.supabase.co maps.googleapis.com maps.gstatic.com *.tile.openstreetmap.org",
       "font-src 'self' data:",
