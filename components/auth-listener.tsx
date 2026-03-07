@@ -29,7 +29,6 @@ async function backupSession(accessToken: string, refreshToken: string) {
                 saved_at: Date.now()
             })
         })
-        console.log('💾 Session backed up to Preferences')
     } catch (err) {
         console.error('❌ Failed to backup session:', err)
     }
@@ -44,24 +43,19 @@ export async function restoreSessionFromBackup(): Promise<boolean> {
         const { Preferences } = await import('@capacitor/preferences')
         const { value } = await Preferences.get({ key: SESSION_BACKUP_KEY })
         if (!value) {
-            console.log('📦 No session backup found')
             return false
         }
 
         const backup = JSON.parse(value)
         if (!backup.access_token || !backup.refresh_token) {
-            console.log('📦 Invalid session backup data')
             return false
         }
 
         // Check if backup is too old (30 days)
         if (Date.now() - backup.saved_at > 30 * 24 * 60 * 60 * 1000) {
-            console.log('📦 Session backup too old, clearing')
             await Preferences.remove({ key: SESSION_BACKUP_KEY })
             return false
         }
-
-        console.log('📦 Restoring session from backup...')
 
         // Use refreshSession instead of setSession — more reliable when access_token is expired
         const { data, error } = await supabase.auth.refreshSession({
@@ -80,13 +74,11 @@ export async function restoreSessionFromBackup(): Promise<boolean> {
                 await Preferences.remove({ key: SESSION_BACKUP_KEY })
                 return false
             }
-            console.log('✅ Session restored via fallback setSession!')
             await backupSession(fallbackData.session.access_token, fallbackData.session.refresh_token)
             return true
         }
 
         if (data.session) {
-            console.log('✅ Session restored from backup via refreshSession!')
             // Re-backup with fresh tokens
             await backupSession(data.session.access_token, data.session.refresh_token)
             return true
@@ -107,7 +99,6 @@ async function clearSessionBackup() {
     try {
         const { Preferences } = await import('@capacitor/preferences')
         await Preferences.remove({ key: SESSION_BACKUP_KEY })
-        console.log('🗑️ Session backup cleared')
     } catch (err) {
         console.error('❌ Failed to clear session backup:', err)
     }
@@ -120,7 +111,11 @@ export function AuthListener() {
     useEffect(() => {
         // Listen to ALL auth state changes to backup/clear session
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('🔔 AuthListener event:', event, 'hasSession:', !!session)
+            // Handle password recovery — redirect to update-password page
+            if (event === 'PASSWORD_RECOVERY' && session) {
+                router.push('/update-password')
+                return
+            }
 
             if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
                 // Backup session on every auth event
@@ -132,13 +127,11 @@ export function AuthListener() {
                 if (event === 'SIGNED_IN' && Capacitor.isNativePlatform()) {
                     const currentPath = window.location.pathname
                     const currentHref = window.location.href
-                    console.log('🔍 SIGNED_IN path check:', { currentPath, currentHref })
                     // Static export may use /login.html, /login/, or /login
                     const isOnLogin = currentPath === '/login' || currentPath === '/' ||
                         currentPath === '/login.html' || currentPath === '/login/' ||
                         currentPath.startsWith('/login')
                     if (isOnLogin) {
-                        console.log('🔄 SIGNED_IN on login page — redirecting to dashboard')
                         setTimeout(() => {
                             router.push('/dashboard')
                         }, 500)
@@ -148,15 +141,13 @@ export function AuthListener() {
                 // Cold start after force-stop: Supabase's _initialize() may have failed
                 // to read from Capacitor Preferences (bridge not ready yet).
                 // Try to restore from our redundant backup after a short delay.
-                console.log('📱 INITIAL_SESSION null on native — attempting backup restore...')
                 setTimeout(async () => {
                     try {
                         const restored = await restoreSessionFromBackup()
                         if (restored) {
-                            console.log('✅ AuthListener: session restored from backup after cold start')
                         }
                     } catch (err) {
-                        console.warn('⚠️ AuthListener backup restore failed:', err)
+                        // Backup restore failed (non-critical)
                     }
                 }, 500)
             } else if (event === 'SIGNED_OUT') {
@@ -172,7 +163,6 @@ export function AuthListener() {
                 await new Promise(resolve => setTimeout(resolve, 400))
                 const { data } = await supabase.auth.getSession()
                 if (data.session) {
-                    console.log(`✅ Session verified on check ${i + 1}, navigating to dashboard`)
                     toast({
                         title: 'Welcome Back!',
                         description: 'Successfully logged in.',
@@ -188,8 +178,6 @@ export function AuthListener() {
 
         // Listen for deep links (e.g. io.raute.app://auth/callback?code=...)
         const listener = App.addListener('appUrlOpen', async ({ url }) => {
-            console.log('🔗 Deep link received:', url)
-
             if (url.includes('auth/callback')) {
                 try {
                     await Browser.close()
@@ -207,11 +195,8 @@ export function AuthListener() {
                 const accessToken = hashParams.get('access_token') || parsedUrl.searchParams.get('access_token')
                 const refreshToken = hashParams.get('refresh_token') || parsedUrl.searchParams.get('refresh_token')
 
-                console.log('🔗 Parsed callback:', { hasCode: !!code, hasAccessToken: !!accessToken, hasError: !!error })
-
                 if (error) {
                     // Clear stale auth data on OAuth error to prevent poisoning
-                    console.log('🧹 OAuth error received, clearing auth data...')
                     await supabase.auth.signOut({ scope: 'local' })
                     await capacitorStorage.clearAllAuthData()
 
@@ -225,23 +210,14 @@ export function AuthListener() {
 
                 // PKCE code exchange
                 if (code) {
-                    console.log('🔐 [PKCE] Step 1: Got authorization code, starting exchange...')
-                    console.log('🔐 [PKCE] Code prefix:', code.substring(0, 12) + '...')
                     let lastError = ''
 
                     // Attempt 1: Direct code exchange (verifier should be in Supabase storage)
-                    console.log('🔐 [PKCE] Step 2: Attempting direct exchangeCodeForSession...')
                     try {
                         const startTime = Date.now()
                         const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
                         const elapsed = Date.now() - startTime
-                        console.log(`🔐 [PKCE] Step 2 result (${elapsed}ms):`, {
-                            success: !sessionError && !!data.session,
-                            error: sessionError?.message || null,
-                            hasSession: !!data?.session,
-                        })
                         if (!sessionError && data.session) {
-                            console.log('✅ [PKCE] Exchange succeeded on attempt 1!')
                             await backupSession(data.session.access_token, data.session.refresh_token)
                             await clearCodeVerifierBackup()
                             router.push('/dashboard')
@@ -254,22 +230,14 @@ export function AuthListener() {
                     }
 
                     // Attempt 2: Restore code verifier from backup, then retry
-                    console.log('🔐 [PKCE] Step 3: Restoring code verifier from backup...')
                     const restored = await restoreCodeVerifier()
-                    console.log('🔐 [PKCE] Step 3: Restore result:', restored)
                     if (restored) {
                         await new Promise(resolve => setTimeout(resolve, 300))
-                        console.log('🔐 [PKCE] Step 4: Retrying exchange with restored verifier...')
                         try {
                             const startTime = Date.now()
                             const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
                             const elapsed = Date.now() - startTime
-                            console.log(`🔐 [PKCE] Step 4 result (${elapsed}ms):`, {
-                                success: !sessionError && !!data.session,
-                                error: sessionError?.message || null,
-                            })
                             if (!sessionError && data.session) {
-                                console.log('✅ [PKCE] Exchange succeeded on attempt 2 (restored verifier)!')
                                 await backupSession(data.session.access_token, data.session.refresh_token)
                                 await clearCodeVerifierBackup()
                                 router.push('/dashboard')
@@ -283,15 +251,9 @@ export function AuthListener() {
                     }
 
                     // Attempt 3: Check if session was set by onAuthStateChange
-                    console.log('🔐 [PKCE] Step 5: Waiting 1.5s for onAuthStateChange...')
                     await new Promise(resolve => setTimeout(resolve, 1500))
                     const { data: sessionData } = await supabase.auth.getSession()
-                    console.log('🔐 [PKCE] Step 5: Session check result:', {
-                        hasSession: !!sessionData.session,
-                        userId: sessionData.session?.user?.id?.substring(0, 8) || null,
-                    })
                     if (sessionData.session) {
-                        console.log('✅ [PKCE] Session found via onAuthStateChange!')
                         await backupSession(sessionData.session.access_token, sessionData.session.refresh_token)
                         await clearCodeVerifierBackup()
                         router.push('/dashboard')
@@ -314,7 +276,6 @@ export function AuthListener() {
 
                 // Implicit flow tokens (from hash fragment)
                 if (accessToken && refreshToken) {
-                    console.log('🔐 Setting session from hash tokens...')
                     const { data: tokenData, error: setError } = await supabase.auth.setSession({
                         access_token: accessToken,
                         refresh_token: refreshToken
@@ -340,7 +301,6 @@ export function AuthListener() {
                 }
 
                 // No code or tokens — check session anyway
-                console.log('🔄 No code or tokens in URL, checking for session...')
                 await new Promise(resolve => setTimeout(resolve, 1000))
                 const { data: fallbackSession } = await supabase.auth.getSession()
                 if (fallbackSession.session) {
@@ -352,7 +312,6 @@ export function AuthListener() {
         // Listen for app state changes (resume/pause)
         const appStateListener = App.addListener('appStateChange', async ({ isActive }) => {
             if (isActive) {
-                console.log('📱 App resumed')
                 try {
                     const { data } = await supabase.auth.getSession()
                     if (data.session) {
@@ -361,14 +320,11 @@ export function AuthListener() {
                         const now = Math.floor(Date.now() / 1000)
                         if (expiresAt && (expiresAt - now) < 300) {
                             await supabase.auth.refreshSession()
-                            console.log('✅ Session refreshed on resume (was near expiry)')
-                        } else {
-                            console.log('✅ Session still valid on resume, no refresh needed')
                         }
                     }
                 } catch (err) {
                     // AbortError is common on resume — ignore it, session is still valid
-                    console.warn('⚠️ Session refresh on resume failed (non-critical):', err)
+                    // Session refresh on resume failed (non-critical)
                 }
             }
         })

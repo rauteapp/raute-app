@@ -6,7 +6,6 @@ import { Capacitor } from '@capacitor/core';
 export const PushService = {
     async init() {
         if (!Capacitor.isNativePlatform()) {
-            console.log("Push notifications not supported on web");
             return;
         }
 
@@ -36,19 +35,15 @@ export const PushService = {
 
         const regListener = await PushNotifications.addListener('registration', async (token) => {
             console.log('Push registration success, token: ' + token.value);
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                    const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user.id).single();
-                    if (driver) {
-                        await supabase.from('drivers').update({
-                            push_token: token.value,
-                            platform: Capacitor.getPlatform()
-                        }).eq('id', driver.id);
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to save push token:', err);
+            // Save token to push_tokens table (works for all roles)
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                await supabase.from('push_tokens').upsert({
+                    user_id: user.id,
+                    token: token.value,
+                    platform: Capacitor.getPlatform(),
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id,token' });
             }
         });
 
@@ -67,6 +62,11 @@ export const PushService = {
 
         const actionListener = await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
             console.log('Push action performed: ' + JSON.stringify(notification));
+            // Navigate based on notification data
+            const data = notification.notification.data;
+            if (data?.route) {
+                window.location.href = data.route;
+            }
         });
 
         this._listeners = [regListener, errListener, recvListener, actionListener];

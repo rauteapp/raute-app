@@ -80,7 +80,6 @@ class GeoService {
     async startTracking() {
         if (this.debugState.isTracking) return;
 
-        console.log('🚀 Starting location tracking...', this.isNative ? '(Native)' : '(Web)');
         this.debugState.isTracking = true;
 
         // Immediate first sync
@@ -102,7 +101,6 @@ class GeoService {
             const permStatus = await Geolocation.checkPermissions();
             if (permStatus.location !== 'granted' && permStatus.coarseLocation !== 'granted') {
                 const requested = await Geolocation.requestPermissions({ permissions: ['location'] });
-                console.log('📍 Location permission result:', requested.location);
             }
 
             // Start native watchPosition — continues in background on iOS
@@ -110,7 +108,6 @@ class GeoService {
                 { enableHighAccuracy: true },
                 (position, err) => {
                     if (err) {
-                        console.warn('⚠️ watchPosition error:', err);
                         return;
                     }
                     if (position) {
@@ -119,7 +116,6 @@ class GeoService {
                 }
             );
 
-            console.log('✅ Native watchPosition started, id:', this.nativeWatchId);
             this.debugState.trackingMode = 'hybrid';
 
             // Safety interval: if watchPosition stalls (e.g. device completely still),
@@ -127,13 +123,11 @@ class GeoService {
             this.intervalId = setInterval(() => {
                 const timeSinceSync = Date.now() - this.lastSyncTime;
                 if (timeSinceSync > 25_000) {
-                    console.log('⏰ Safety interval: forcing location sync');
                     this.logLocation();
                 }
             }, 30_000);
 
         } catch (err) {
-            console.warn('⚠️ Native watchPosition failed, falling back to interval:', err);
             this.startWebTracking();
         }
     }
@@ -170,7 +164,6 @@ class GeoService {
         if (this.nativeWatchId) {
             Geolocation.clearWatch({ id: this.nativeWatchId });
             this.nativeWatchId = null;
-            console.log('🛑 Native watchPosition stopped');
         }
 
         // Clear interval
@@ -185,7 +178,6 @@ class GeoService {
             this.appStateListenerRemove = null;
         }
 
-        console.log('🛑 Location tracking stopped');
     }
 
     /**
@@ -197,7 +189,6 @@ class GeoService {
 
         App.addListener('appStateChange', async ({ isActive }) => {
             if (isActive && this.debugState.isTracking) {
-                console.log('📱 App resumed — immediate location sync');
                 // Small delay for GPS to warm up after background
                 setTimeout(() => this.logLocation(), 1000);
             }
@@ -287,7 +278,6 @@ class GeoService {
                 clearInterval(this.intervalId);
                 this.intervalId = setInterval(() => this.logLocation(), this.currentInterval);
             }
-            console.log(`⏱️ Tracking interval: ${this.currentInterval / 1000}s (${isIdle ? 'idle' : 'moving'})`);
         }
 
         // Insert location history (for playback/audit trail)

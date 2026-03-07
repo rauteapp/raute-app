@@ -15,7 +15,7 @@ export async function setStatusBarStyle(isDark: boolean): Promise<void> {
         await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light })
     } catch (e) {
         // StatusBar plugin not available (web)
-        console.warn('StatusBar not available:', e)
+        // StatusBar not available
     }
 }
 
@@ -26,6 +26,6 @@ export async function setStatusBarOverlay(overlay: boolean): Promise<void> {
         const { StatusBar } = await import('@capacitor/status-bar')
         await StatusBar.setOverlaysWebView({ overlay })
     } catch (e) {
-        console.warn('StatusBar not available:', e)
+        // StatusBar not available
     }
 }

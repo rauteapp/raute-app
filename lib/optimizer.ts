@@ -1,21 +1,28 @@
 import { Driver, Order } from './supabase'
 
 /**
- * OPTIMIZER CONFIGURATION
+ * OPTIMIZER CONFIGURATION (US — miles & mph)
  */
 
-// Maximum allowed distance for auto-assignment (in km)
-// Prevents cross-continent assignments (e.g. US driver -> Egypt Order)
-const MAX_ASSIGNMENT_DISTANCE_KM = 2500
+// Maximum allowed distance for auto-assignment (in miles)
+// Prevents cross-continent assignments
+const MAX_ASSIGNMENT_DISTANCE = 1500
 
-// Average delivery speed in city (km/h) — used for ETA estimation
-const AVERAGE_SPEED_KMH = 30
+// Speed profiles for different distance ranges (mph)
+// Short hops (<2mi) are slower due to parking, traffic lights, etc.
+// Medium range uses city average, highway segments are faster
+const SPEED_PROFILE = {
+    shortHop: 10,       // < 2 mi (parking, walking, urban crawl)
+    urban: 20,          // 2-10 mi (city driving)
+    suburban: 35,       // 10-25 mi (suburban/arterial roads)
+    highway: 55,        // > 25 mi (highway/interstate)
+}
 
 // Average time spent at each delivery stop (minutes)
 const AVERAGE_SERVICE_TIME_MIN = 5
 
-// Default route start hour (8:00 AM) — used for time window violation detection
-const ROUTE_START_HOUR = 8
+// Default route start hour (8:00 AM) — used when no custom start time is provided
+const DEFAULT_ROUTE_START_HOUR = 8
 
 // Stale GPS threshold (minutes) — warn if driver location is older than this
 const STALE_GPS_THRESHOLD_MIN = 30
@@ -23,13 +30,17 @@ const STALE_GPS_THRESHOLD_MIN = 30
 // Driver overload threshold — warn if driver has more orders than this
 const OVERLOAD_THRESHOLD = 30
 
+// Road distance multiplier — straight-line distances are ~30% shorter than roads
+// This multiplier approximates real road distance from Haversine distance
+const ROAD_DISTANCE_FACTOR = 1.35
+
 export type OptimizationStrategy = 'fastest' | 'balanced' | 'efficient'
 
 interface DriverStats {
     driverId: string
     driverName: string
     orderCount: number
-    totalDistanceKm: number
+    totalDistanceMi: number
     estimatedDurationMin: number
 }
 
@@ -60,11 +71,28 @@ interface DepotReloadSuggestion {
     ordersAfter: number
 }
 
+interface CapacityWarning {
+    driverName: string
+    orderCount: number
+    maxOrders: number | null
+    totalWeightLbs: number
+    vehicleCapacityLbs: number | null
+}
+
+interface ShiftViolation {
+    driverName: string
+    shiftEnd: string
+    estimatedFinish: string
+    orderCount: number
+}
+
 interface OptimizationWarnings {
     timeWindowViolations: TimeWindowViolation[]
     staleGpsDrivers: StaleGpsDriver[]
     overloadedDrivers: OverloadedDriver[]
     depotReloadSuggestions: DepotReloadSuggestion[]
+    capacityWarnings: CapacityWarning[]
+    shiftViolations: ShiftViolation[]
 }
 
 interface OptimizationResult {
@@ -79,10 +107,10 @@ interface OptimizationResult {
 }
 
 /**
- * Calculates straight-line distance between two points (Haversine approximation)
+ * Calculates straight-line distance between two points (Haversine) in miles
  */
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371 // Radius of the earth in km
+    const R = 3959 // Radius of the earth in miles
     const dLat = deg2rad(lat2 - lat1)
     const dLon = deg2rad(lon2 - lon1)
     const a =
@@ -90,7 +118,33 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): nu
         Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c // Distance in km
+    return R * c // Distance in miles
+}
+
+/**
+ * Estimates real road distance from straight-line distance (in miles)
+ * Uses ROAD_DISTANCE_FACTOR to approximate turns, detours, and road geometry
+ */
+function getRoadDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    return getDistance(lat1, lon1, lat2, lon2) * ROAD_DISTANCE_FACTOR
+}
+
+/**
+ * Estimates travel time in minutes based on distance-dependent speed profile (mph)
+ */
+function estimateTravelTimeMin(distanceMi: number): number {
+    if (distanceMi <= 0) return 0
+
+    // Use road distance for time estimation
+    const roadMi = distanceMi * ROAD_DISTANCE_FACTOR
+
+    let speed: number
+    if (roadMi < 2) speed = SPEED_PROFILE.shortHop
+    else if (roadMi < 10) speed = SPEED_PROFILE.urban
+    else if (roadMi < 25) speed = SPEED_PROFILE.suburban
+    else speed = SPEED_PROFILE.highway
+
+    return (roadMi / speed) * 60
 }
 
 function deg2rad(deg: number): number {
@@ -117,22 +171,220 @@ function minutesToTimeStr(minutes: number): string {
 }
 
 /**
+ * Time-window-aware insertion sort
+ *
+ * After the greedy nearest-neighbor + 2-opt builds a distance-optimized route,
+ * this function ensures time-windowed orders are placed where they can be met.
+ *
+ * Algorithm:
+ * 1. Separate orders into: time-windowed (sorted by window_end ASC) and flexible
+ * 2. Build route by inserting time-windowed orders first at positions that meet their windows
+ * 3. Fill remaining positions with flexible orders using nearest-neighbor
+ */
+function buildTimeWindowAwareRoute(
+    orders: Order[],
+    startLat: number,
+    startLng: number,
+    routeStartMin: number
+): Order[] {
+    if (orders.length === 0) return []
+
+    // Separate pinned, time-windowed, and flexible orders
+    const pinned = orders.filter(o => o.is_pinned)
+    const withWindow = orders.filter(o => !o.is_pinned && o.time_window_end)
+        .sort((a, b) => timeToMinutes(a.time_window_end!) - timeToMinutes(b.time_window_end!))
+    const flexible = orders.filter(o => !o.is_pinned && !o.time_window_end)
+
+    // Start with pinned orders at the beginning
+    const route: Order[] = [...pinned]
+
+    // Insert time-windowed orders at the best feasible position
+    for (const order of withWindow) {
+        if (!order.latitude || !order.longitude) {
+            route.push(order)
+            continue
+        }
+
+        const windowEnd = timeToMinutes(order.time_window_end!)
+        const windowStart = order.time_window_start ? timeToMinutes(order.time_window_start) : 0
+
+        let bestPos = -1
+        let bestCost = Infinity
+
+        // Try each position in the current route
+        for (let pos = 0; pos <= route.length; pos++) {
+            // Calculate ETA if inserted at this position
+            const eta = calculateETAAtPosition(route, pos, order, startLat, startLng, routeStartMin)
+
+            // Check if this position meets the time window
+            if (eta <= windowEnd) {
+                // Cost = extra distance added by inserting here
+                const cost = insertionCost(route, pos, order, startLat, startLng)
+
+                // Prefer positions that are closer to window start (not too early)
+                const earlyPenalty = Math.max(0, windowStart - eta) * 0.1
+
+                if (cost + earlyPenalty < bestCost) {
+                    bestCost = cost + earlyPenalty
+                    bestPos = pos
+                }
+            }
+        }
+
+        if (bestPos >= 0) {
+            route.splice(bestPos, 0, order)
+        } else {
+            // Can't meet window — insert at position that gets closest to window
+            let bestLatePos = route.length
+            let minLateness = Infinity
+
+            for (let pos = 0; pos <= route.length; pos++) {
+                const eta = calculateETAAtPosition(route, pos, order, startLat, startLng, routeStartMin)
+                const lateness = eta - windowEnd
+                if (lateness < minLateness) {
+                    minLateness = lateness
+                    bestLatePos = pos
+                }
+            }
+            route.splice(bestLatePos, 0, order)
+        }
+    }
+
+    // Insert flexible orders using nearest-neighbor into remaining gaps
+    let remaining = [...flexible]
+    while (remaining.length > 0) {
+        // Find best position to insert each remaining order
+        let bestOrder = -1
+        let bestPos = -1
+        let bestCost = Infinity
+
+        for (let oi = 0; oi < remaining.length; oi++) {
+            const order = remaining[oi]
+            if (!order.latitude || !order.longitude) {
+                // No coordinates — append at end
+                route.push(order)
+                remaining.splice(oi, 1)
+                oi--
+                continue
+            }
+
+            // Try inserting at each position — cheapest insertion
+            for (let pos = 0; pos <= route.length; pos++) {
+                const cost = insertionCost(route, pos, order, startLat, startLng)
+                if (cost < bestCost) {
+                    bestCost = cost
+                    bestOrder = oi
+                    bestPos = pos
+                }
+            }
+        }
+
+        if (bestOrder >= 0 && bestPos >= 0) {
+            route.splice(bestPos, 0, remaining[bestOrder])
+            remaining.splice(bestOrder, 1)
+        } else {
+            // Fallback: append remaining
+            route.push(...remaining)
+            break
+        }
+    }
+
+    return route
+}
+
+/**
+ * Calculate ETA (in minutes since midnight) if an order is inserted at a given position
+ */
+function calculateETAAtPosition(
+    route: Order[],
+    insertPos: number,
+    order: Order,
+    startLat: number,
+    startLng: number,
+    routeStartMin: number
+): number {
+    let currentTime = routeStartMin
+    let prevLat = startLat
+    let prevLng = startLng
+
+    for (let i = 0; i <= insertPos; i++) {
+        const stop = i === insertPos ? order : route[i]
+        if (stop.latitude && stop.longitude) {
+            const dist = getDistance(prevLat, prevLng, stop.latitude, stop.longitude)
+            currentTime += estimateTravelTimeMin(dist)
+
+            if (i === insertPos) return currentTime
+
+            currentTime += AVERAGE_SERVICE_TIME_MIN
+            prevLat = stop.latitude
+            prevLng = stop.longitude
+        }
+    }
+
+    return currentTime
+}
+
+/**
+ * Calculate the extra distance cost of inserting an order at a given position
+ */
+function insertionCost(
+    route: Order[],
+    insertPos: number,
+    order: Order,
+    startLat: number,
+    startLng: number
+): number {
+    if (!order.latitude || !order.longitude) return Infinity
+
+    const prevLat = insertPos === 0
+        ? startLat
+        : (route[insertPos - 1]?.latitude || startLat)
+    const prevLng = insertPos === 0
+        ? startLng
+        : (route[insertPos - 1]?.longitude || startLng)
+
+    const nextLat = route[insertPos]?.latitude
+    const nextLng = route[insertPos]?.longitude
+
+    // Cost = (prev→order) + (order→next) - (prev→next)
+    const distPrevToOrder = getDistance(prevLat, prevLng, order.latitude, order.longitude)
+
+    if (nextLat && nextLng) {
+        const distOrderToNext = getDistance(order.latitude, order.longitude, nextLat, nextLng)
+        const distPrevToNext = getDistance(prevLat, prevLng, nextLat, nextLng)
+        return distPrevToOrder + distOrderToNext - distPrevToNext
+    }
+
+    return distPrevToOrder
+}
+
+/**
  * MAIN OPTIMIZATION FUNCTION
  *
  * Improved Logic:
- * 1. Filtering: Max Distance Constraint (No assignments > 2500km).
+ * 1. Filtering: Max Distance Constraint (No assignments > 1500 miles).
  * 2. Scoring: Distance + Load Penalty.
- * 3. Sorting: Respect Time Windows inside driver routes.
- * 4. Duration Estimation: Per-driver route distance and estimated time.
- * 5. Time Window Validation: Detect orders that may miss their delivery window.
- * 6. Smart Warnings: Stale GPS, driver overload, depot reload suggestions.
+ * 3. Time-Window-Aware Sequencing: Orders reordered to meet delivery windows.
+ * 4. 2-Opt + Cheapest Insertion: Better than pure greedy nearest-neighbor.
+ * 5. Road Distance Approximation: 1.35x multiplier over straight-line.
+ * 6. Dynamic Speed Profile: Speed varies by distance (urban/suburban/highway).
+ * 7. Configurable Start Time: No longer hardcoded to 8 AM.
+ * 8. Smart Warnings: Stale GPS, driver overload, depot reload suggestions.
  */
 export async function optimizeRoute(
     orders: Order[],
     drivers: Driver[],
     strategy: OptimizationStrategy = 'fastest',
-    mode: 'morning' | 'reoptimize' = 'morning'
+    mode: 'morning' | 'reoptimize' = 'morning',
+    routeStartHour: number = DEFAULT_ROUTE_START_HOUR
 ): Promise<OptimizationResult> {
+
+    // In reoptimize mode, always use the CURRENT time (ignore the start hour setting)
+    // This makes sense because drivers are already on the road
+    if (mode === 'reoptimize') {
+        const now = new Date()
+        routeStartHour = now.getHours() + now.getMinutes() / 60
+    }
 
     let updatedOrders = [...orders]
 
@@ -141,7 +393,9 @@ export async function optimizeRoute(
         timeWindowViolations: [],
         staleGpsDrivers: [],
         overloadedDrivers: [],
-        depotReloadSuggestions: []
+        depotReloadSuggestions: [],
+        capacityWarnings: [],
+        shiftViolations: []
     }
 
     // FILTER: Ignore 'delivered' or 'cancelled' orders from re-assignment
@@ -254,6 +508,11 @@ export async function optimizeRoute(
             }
         }
 
+        // Calculate initial weight from pinned orders
+        const pinnedWeight = pinnedOrders
+            .filter(o => o.driver_id === d.id && o.weight_lbs)
+            .reduce((sum, o) => sum + (o.weight_lbs || 0), 0)
+
         return {
             id: d.id,
             name: d.name,
@@ -264,7 +523,14 @@ export async function optimizeRoute(
             valid: !!(lat && lng),
             source,
             depotLat: d.default_start_lat,
-            depotLng: d.default_start_lng
+            depotLng: d.default_start_lng,
+            // Capacity fields
+            maxOrders: d.max_orders ?? null,
+            vehicleCapacityLbs: d.vehicle_capacity_lbs ?? null,
+            currentWeightLbs: pinnedWeight,
+            // Shift fields
+            shiftStartMin: d.shift_start ? timeToMinutes(d.shift_start) : null,
+            shiftEndMin: d.shift_end ? timeToMinutes(d.shift_end) : null,
         }
     })
 
@@ -274,7 +540,7 @@ export async function optimizeRoute(
     else if (strategy === 'balanced') loadBalanceWeight = 50
     else loadBalanceWeight = 10
 
-    // 2. Assign Available Orders to Nearest Valid Driver
+    // 2. Assign Available Orders to Nearest Valid Driver (using road distance)
     for (const order of availableOrders) {
         if (!order.latitude || !order.longitude) continue;
 
@@ -284,9 +550,20 @@ export async function optimizeRoute(
         for (const driver of driverPositions) {
             if (!driver.valid || !driver.lat || !driver.lng) continue
 
-            const distance = getDistance(driver.lat, driver.lng, order.latitude, order.longitude)
+            const distance = getRoadDistance(driver.lat, driver.lng, order.latitude, order.longitude)
 
-            if (distance > MAX_ASSIGNMENT_DISTANCE_KM) continue
+            if (distance > MAX_ASSIGNMENT_DISTANCE) continue
+
+            // Capacity gate: skip if driver is at max orders
+            if (driver.maxOrders !== null && driver.load >= driver.maxOrders) continue
+
+            // Weight gate: skip if adding this order exceeds vehicle weight capacity
+            if (driver.vehicleCapacityLbs !== null && order.weight_lbs) {
+                if (driver.currentWeightLbs + order.weight_lbs > driver.vehicleCapacityLbs) continue
+            }
+
+            // Shift gate: skip if driver's shift has ended
+            if (driver.shiftEndMin !== null && routeStartHour * 60 > driver.shiftEndMin) continue
 
             const loadPenalty = driver.load * loadBalanceWeight
             const totalScore = distance + loadPenalty
@@ -308,12 +585,15 @@ export async function optimizeRoute(
                 }
 
                 const driverPos = driverPositions.find(d => d.id === bestDriverId)
-                if (driverPos) driverPos.load++
+                if (driverPos) {
+                    driverPos.load++
+                    if (order.weight_lbs) driverPos.currentWeightLbs += order.weight_lbs
+                }
             }
         }
     }
 
-    // 3. Sequence Orders (TSP-ish) + Calculate Stats
+    // 3. Sequence Orders per Driver — Time-Window-Aware
     const finalOrders: Order[] = []
     const driverStats: DriverStats[] = []
     let grandTotalDistance = 0
@@ -325,87 +605,46 @@ export async function optimizeRoute(
         const driverPos = driverPositions.find(d => d.id === driver.id)
 
         // Start point — use optimizer's resolved position
-        let currentLat = driverPos?.lat || driver.current_lat || driver.default_start_lat
-        let currentLng = driverPos?.lng || driver.current_lng || driver.default_start_lng
+        let startLat = driverPos?.lat || driver.current_lat || driver.default_start_lat
+        let startLng = driverPos?.lng || driver.current_lng || driver.default_start_lng
 
         // If no start point, use first order's location
-        if ((!currentLat || !currentLng) && driverOrders[0].latitude) {
-            currentLat = driverOrders[0].latitude
-            currentLng = driverOrders[0].longitude
+        if ((!startLat || !startLng) && driverOrders[0].latitude) {
+            startLat = driverOrders[0].latitude
+            startLng = driverOrders[0].longitude
         }
 
-        const sortedDriverOrders: Order[] = []
-        let unrouted = [...driverOrders]
+        // Route start time (routeStartHour can be fractional in reoptimize mode, e.g. 14.5 = 2:30 PM)
+        const routeStartMin = Math.round(routeStartHour * 60)
 
-        // Priority value map
-        const getPriorityValue = (o: Order) => {
-            if (o.priority_level === 'critical') return 3
-            if (o.priority_level === 'high') return 2
-            return 1
-        }
+        let sortedDriverOrders: Order[]
 
-        // Sort: Pinned > Time Window > Priority
-        unrouted.sort((a, b) => {
-            if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
-
-            if (a.time_window_start && b.time_window_start) {
-                return a.time_window_start.localeCompare(b.time_window_start)
-            }
-            if (a.time_window_start && !b.time_window_start) return -1
-            if (!a.time_window_start && b.time_window_start) return 1
-
-            const pA = getPriorityValue(a)
-            const pB = getPriorityValue(b)
-            return pB - pA
-        })
-
-        while (unrouted.length > 0) {
-            const candidatePoolSize = 12
-            const candidates = unrouted.slice(0, candidatePoolSize)
-
-            let bestNextIndex = -1
-            let minDist = Infinity
-
-            if (currentLat && currentLng) {
-                for (let i = 0; i < candidates.length; i++) {
-                    const o = candidates[i]
-                    if (o.latitude && o.longitude) {
-                        const dist = getDistance(currentLat, currentLng, o.latitude, o.longitude)
-                        if (dist < minDist) {
-                            minDist = dist
-                            bestNextIndex = i
-                        }
-                    }
+        if (startLat && startLng) {
+            // Use time-window-aware routing with cheapest insertion
+            sortedDriverOrders = buildTimeWindowAwareRoute(
+                driverOrders,
+                startLat,
+                startLng,
+                routeStartMin
+            )
+        } else {
+            // No start position — sort by priority
+            sortedDriverOrders = [...driverOrders].sort((a, b) => {
+                if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
+                if (a.time_window_end && b.time_window_end) {
+                    return timeToMinutes(a.time_window_end) - timeToMinutes(b.time_window_end)
                 }
-            } else {
-                bestNextIndex = 0
-            }
-
-            if (bestNextIndex !== -1) {
-                const nextOrder = candidates[bestNextIndex]
-                const realIndex = unrouted.findIndex(u => u.id === nextOrder.id)
-
-                sortedDriverOrders.push({
-                    ...nextOrder,
-                    route_index: sortedDriverOrders.length + 1
-                })
-
-                if (nextOrder.latitude && nextOrder.longitude) {
-                    currentLat = nextOrder.latitude
-                    currentLng = nextOrder.longitude
-                }
-
-                unrouted.splice(realIndex, 1)
-            } else {
-                const fallback = unrouted.shift()
-                if (fallback) sortedDriverOrders.push({ ...fallback, route_index: sortedDriverOrders.length + 1 })
-            }
+                if (a.time_window_end) return -1
+                if (b.time_window_end) return 1
+                return 0
+            })
         }
 
         // --- POST-PROCESSING: 2-OPT OPTIMIZATION ---
+        // Only swap segments that don't violate time windows
         let improvement = true
         let iterations = 0
-        const maxIterations = 500 // Safety limit for large routes
+        const maxIterations = 500
 
         while (improvement && iterations < maxIterations) {
             improvement = false
@@ -427,9 +666,15 @@ export async function optimizeRoute(
                             getDistance(B.latitude, B.longitude, D.latitude, D.longitude)
 
                         if (newDist < currentDist) {
-                            const segment = sortedDriverOrders.slice(i + 1, j + 1).reverse()
-                            sortedDriverOrders.splice(i + 1, segment.length, ...segment)
-                            improvement = true
+                            // Check if the swap would violate any time windows
+                            const candidateRoute = [...sortedDriverOrders]
+                            const segment = candidateRoute.slice(i + 1, j + 1).reverse()
+                            candidateRoute.splice(i + 1, segment.length, ...segment)
+
+                            if (!wouldViolateTimeWindows(candidateRoute, startLat!, startLng!, routeStartMin)) {
+                                sortedDriverOrders.splice(i + 1, segment.length, ...segment)
+                                improvement = true
+                            }
                         }
                     }
                 }
@@ -441,14 +686,12 @@ export async function optimizeRoute(
             o.route_index = index + 1
         })
 
-        // --- CALCULATE ROUTE DISTANCE & DURATION ---
-        let routeDistanceKm = 0
-        const startLat = driverPos?.lat || driver.default_start_lat
-        const startLng = driverPos?.lng || driver.default_start_lng
+        // --- CALCULATE ROUTE DISTANCE & DURATION (with road distance & dynamic speed) ---
+        let routeDistanceMi = 0
 
         // Distance from start to first order
         if (startLat && startLng && sortedDriverOrders[0]?.latitude && sortedDriverOrders[0]?.longitude) {
-            routeDistanceKm += getDistance(startLat, startLng, sortedDriverOrders[0].latitude, sortedDriverOrders[0].longitude)
+            routeDistanceMi += getRoadDistance(startLat, startLng, sortedDriverOrders[0].latitude, sortedDriverOrders[0].longitude)
         }
 
         // Distance between consecutive orders
@@ -456,35 +699,62 @@ export async function optimizeRoute(
             const curr = sortedDriverOrders[i]
             const next = sortedDriverOrders[i + 1]
             if (curr.latitude && curr.longitude && next.latitude && next.longitude) {
-                routeDistanceKm += getDistance(curr.latitude, curr.longitude, next.latitude, next.longitude)
+                routeDistanceMi += getRoadDistance(curr.latitude, curr.longitude, next.latitude, next.longitude)
             }
         }
 
-        const travelTimeMin = (routeDistanceKm / AVERAGE_SPEED_KMH) * 60
-        const serviceTimeMin = sortedDriverOrders.length * AVERAGE_SERVICE_TIME_MIN
-        const estimatedDurationMin = travelTimeMin + serviceTimeMin
+        // Duration uses dynamic speed profile
+        let estimatedDurationMin = 0
 
-        grandTotalDistance += routeDistanceKm
+        // Travel from start to first stop
+        if (startLat && startLng && sortedDriverOrders[0]?.latitude && sortedDriverOrders[0]?.longitude) {
+            const dist = getDistance(startLat, startLng, sortedDriverOrders[0].latitude, sortedDriverOrders[0].longitude)
+            estimatedDurationMin += estimateTravelTimeMin(dist)
+        }
+
+        // Travel between stops + service time
+        for (let i = 0; i < sortedDriverOrders.length; i++) {
+            estimatedDurationMin += AVERAGE_SERVICE_TIME_MIN
+
+            if (i < sortedDriverOrders.length - 1) {
+                const curr = sortedDriverOrders[i]
+                const next = sortedDriverOrders[i + 1]
+                if (curr.latitude && curr.longitude && next.latitude && next.longitude) {
+                    const dist = getDistance(curr.latitude, curr.longitude, next.latitude, next.longitude)
+                    estimatedDurationMin += estimateTravelTimeMin(dist)
+                }
+            }
+        }
+
+        grandTotalDistance += routeDistanceMi
 
         driverStats.push({
             driverId: driver.id,
             driverName: driver.name,
             orderCount: sortedDriverOrders.length,
-            totalDistanceKm: Math.round(routeDistanceKm * 10) / 10,
+            totalDistanceMi: Math.round(routeDistanceMi * 10) / 10,
             estimatedDurationMin: Math.round(estimatedDurationMin)
         })
 
         // --- TIME WINDOW VIOLATION DETECTION ---
-        let currentTimeMin = ROUTE_START_HOUR * 60 // Start at 8:00 AM
+        let currentTimeMin = routeStartMin
 
         // Travel time from start to first stop
         if (startLat && startLng && sortedDriverOrders[0]?.latitude && sortedDriverOrders[0]?.longitude) {
-            const distToFirst = getDistance(startLat, startLng, sortedDriverOrders[0].latitude, sortedDriverOrders[0].longitude)
-            currentTimeMin += (distToFirst / AVERAGE_SPEED_KMH) * 60
+            const dist = getDistance(startLat, startLng, sortedDriverOrders[0].latitude, sortedDriverOrders[0].longitude)
+            currentTimeMin += estimateTravelTimeMin(dist)
         }
 
         for (let i = 0; i < sortedDriverOrders.length; i++) {
             const order = sortedDriverOrders[i]
+
+            // If arriving before window start, wait until window opens
+            if (order.time_window_start) {
+                const windowStartMin = timeToMinutes(order.time_window_start)
+                if (currentTimeMin < windowStartMin) {
+                    currentTimeMin = windowStartMin // Wait for window to open
+                }
+            }
 
             // Check if arrival time violates the time window
             if (order.time_window_end) {
@@ -508,13 +778,49 @@ export async function optimizeRoute(
                 const next = sortedDriverOrders[i + 1]
                 if (order.latitude && order.longitude && next.latitude && next.longitude) {
                     const dist = getDistance(order.latitude, order.longitude, next.latitude, next.longitude)
-                    currentTimeMin += (dist / AVERAGE_SPEED_KMH) * 60
+                    currentTimeMin += estimateTravelTimeMin(dist)
                 }
             }
         }
 
-        // --- OVERLOAD WARNING ---
-        if (sortedDriverOrders.length > OVERLOAD_THRESHOLD) {
+        // --- CAPACITY WARNING ---
+        const driverMaxOrders = driverPos?.maxOrders ?? null
+        const driverCapacityKg = driverPos?.vehicleCapacityLbs ?? null
+        const totalWeightLbs = sortedDriverOrders.reduce((sum, o) => sum + (o.weight_lbs || 0), 0)
+
+        if (driverMaxOrders !== null && sortedDriverOrders.length > driverMaxOrders) {
+            warnings.capacityWarnings.push({
+                driverName: driver.name,
+                orderCount: sortedDriverOrders.length,
+                maxOrders: driverMaxOrders,
+                totalWeightLbs,
+                vehicleCapacityLbs: driverCapacityKg
+            })
+        }
+        if (driverCapacityKg !== null && totalWeightLbs > driverCapacityKg) {
+            warnings.capacityWarnings.push({
+                driverName: driver.name,
+                orderCount: sortedDriverOrders.length,
+                maxOrders: driverMaxOrders,
+                totalWeightLbs,
+                vehicleCapacityLbs: driverCapacityKg
+            })
+        }
+
+        // --- SHIFT VIOLATION WARNING ---
+        if (driverPos?.shiftEndMin !== null && driverPos?.shiftEndMin !== undefined) {
+            if (currentTimeMin > driverPos.shiftEndMin) {
+                warnings.shiftViolations.push({
+                    driverName: driver.name,
+                    shiftEnd: minutesToTimeStr(driverPos.shiftEndMin),
+                    estimatedFinish: minutesToTimeStr(currentTimeMin),
+                    orderCount: sortedDriverOrders.length
+                })
+            }
+        }
+
+        // --- OVERLOAD WARNING (only if max_orders is explicitly set) ---
+        if (driverMaxOrders !== null && sortedDriverOrders.length > driverMaxOrders) {
             warnings.overloadedDrivers.push({
                 driverName: driver.name,
                 orderCount: sortedDriverOrders.length,
@@ -571,4 +877,43 @@ export async function optimizeRoute(
             drivers: driverPositions.map(d => ({ name: d.name, valid: d.valid, lat: d.lat, lng: d.lng, address: d.address, source: d.source })),
         }
     }
+}
+
+/**
+ * Check if a route would violate any time windows
+ */
+function wouldViolateTimeWindows(
+    route: Order[],
+    startLat: number,
+    startLng: number,
+    routeStartMin: number
+): boolean {
+    let currentTime = routeStartMin
+    let prevLat = startLat
+    let prevLng = startLng
+
+    for (const order of route) {
+        if (order.latitude && order.longitude) {
+            const dist = getDistance(prevLat, prevLng, order.latitude, order.longitude)
+            currentTime += estimateTravelTimeMin(dist)
+
+            // Wait for window to open
+            if (order.time_window_start) {
+                const windowStart = timeToMinutes(order.time_window_start)
+                if (currentTime < windowStart) currentTime = windowStart
+            }
+
+            // Check violation
+            if (order.time_window_end) {
+                const windowEnd = timeToMinutes(order.time_window_end)
+                if (currentTime > windowEnd) return true
+            }
+
+            currentTime += AVERAGE_SERVICE_TIME_MIN
+            prevLat = order.latitude
+            prevLng = order.longitude
+        }
+    }
+
+    return false
 }

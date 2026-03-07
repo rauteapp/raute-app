@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit } from '@/lib/api-rate-limit'
 
+export const dynamic = "force-dynamic"
+
 /**
  * RevenueCat Webhook Handler
  * Processes subscription events and updates driver_limit
@@ -51,8 +53,6 @@ export async function POST(request: Request) {
             }
         } = payload
 
-        console.log(`📥 RevenueCat Webhook: ${eventType}`, { userId, productId, eventId })
-
         // ✅ IDEMPOTENCY CHECK
         const { data: existingEvent } = await supabaseAdmin
             .from('revenuecat_webhook_log')
@@ -61,7 +61,6 @@ export async function POST(request: Request) {
             .single()
 
         if (existingEvent) {
-            console.log(`⚠️ Duplicate event ${eventId}, ignoring`)
             return NextResponse.json({
                 status: 'duplicate',
                 message: 'Event already processed'
@@ -114,8 +113,6 @@ export async function POST(request: Request) {
                     revenue_cat_subscription_id: payload.event?.subscriber_attributes?.['$revenuecat_id']
                 })
 
-            console.log(`✅ Subscription activated: User ${userId} → ${newDriverLimit} drivers`)
-
             return NextResponse.json({
                 status: 'success',
                 message: 'Subscription activated',
@@ -155,8 +152,6 @@ export async function POST(request: Request) {
                 })
                 .eq('user_id', userId)
                 .eq('is_active', true)
-
-            console.log(`❌ Subscription cancelled: User ${userId} → Free tier (1 driver)`)
 
             return NextResponse.json({
                 status: 'success',

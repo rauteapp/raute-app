@@ -82,7 +82,7 @@ export default function ForgotPasswordPage() {
                             <div className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm p-4 rounded-lg border border-green-200 dark:border-green-800">
                                 <p className="font-medium mb-1">Reset link sent!</p>
                                 <p className="text-xs text-green-600 dark:text-green-500">
-                                    Check your inbox (and spam folder) for the password reset link. The link will expire in 1 hour.
+                                    Check your inbox (and spam folder) for the password reset link.
                                 </p>
                             </div>
 

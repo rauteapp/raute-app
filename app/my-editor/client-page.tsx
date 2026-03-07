@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, MapPin, Calendar, User as UserIcon, Phone, Package, Edit, Trash2, Clock, Undo2, CheckCircle2, Loader2, Camera as CameraIcon, X, Navigation, AlertCircle } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, User as UserIcon, Phone, Package, Edit, Trash2, Clock, Undo2, CheckCircle2, Loader2, Camera as CameraIcon, X, Navigation, AlertCircle, Link2, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { supabase, type Order, type ProofImage } from "@/lib/supabase"
@@ -29,6 +29,7 @@ import { DriverTracker } from "@/components/driver-tracker"
 import { ImageViewerModal } from "@/components/image-viewer-modal"
 import { Capacitor } from '@capacitor/core'
 import { PullToRefresh } from '@/components/pull-to-refresh'
+import { NotificationService } from '@/lib/notification-service'
 
 // Dynamically import map to avoid SSR issues
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
@@ -72,6 +73,7 @@ export default function ClientOrderDetails() {
     const [isUndoDialogOpen, setIsUndoDialogOpen] = useState(false)
     const [isEditSheetOpen, setIsEditSheetOpen] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [trackingLinkCopied, setTrackingLinkCopied] = useState(false)
     const [isUpdating, setIsUpdating] = useState(false)
     const [userRole, setUserRole] = useState<string | null>(null)
     const [drivers, setDrivers] = useState<any[]>([])
@@ -100,6 +102,13 @@ export default function ClientOrderDetails() {
     // Image Viewer State
     const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null)
     const [viewerImageTitle, setViewerImageTitle] = useState<string>('')
+
+    // Out-of-Range Confirmation State
+    const [outOfRangeConfirm, setOutOfRangeConfirm] = useState<{
+        show: boolean
+        distance: number
+        proofUrl?: string | null
+    }>({ show: false, distance: 0 })
 
 
 
@@ -136,12 +145,14 @@ export default function ClientOrderDetails() {
                 state: order.state,
                 zip_code: order.zip_code,
                 phone: order.phone,
+                customer_email: order.customer_email,
                 delivery_date: order.delivery_date,
                 notes: order.notes,
                 latitude: order.latitude,
                 longitude: order.longitude,
                 priority_level: order.priority_level || 'normal',
-                geocoding_confidence: order.geocoding_confidence
+                geocoding_confidence: order.geocoding_confidence,
+                weight_lbs: order.weight_lbs
             })
         }
     }, [order, isEditSheetOpen])
@@ -222,12 +233,30 @@ export default function ClientOrderDetails() {
         return R * c;
     }
 
-    async function updateOrderStatus(newStatus: string, proofUrl?: string | null) {
+    async function updateOrderStatus(newStatus: string, proofUrl?: string | null, forceDelivery?: boolean) {
         if (!order || !orderId) return
         try {
             let locationPayload = null
             let isOutOfRange = false
             let dist = 0
+
+            // 🔒 Block delivery if driver is offline
+            if ((newStatus === 'delivered' || newStatus === 'in_progress') && userRole === 'driver' && currentDriverId) {
+                const { data: driverStatus } = await supabase
+                    .from('drivers')
+                    .select('is_online, last_location_update')
+                    .eq('id', currentDriverId)
+                    .single()
+
+                if (driverStatus && !isDriverOnline(driverStatus)) {
+                    toast({
+                        title: "You Must Be Online",
+                        description: "Go online first before updating order status. Toggle your status from the dashboard.",
+                        type: "error"
+                    })
+                    return
+                }
+            }
 
             // 📍 Anti-Fraud: Strict Location Check
             if (newStatus === 'delivered') {
@@ -244,10 +273,14 @@ export default function ClientOrderDetails() {
                 if (order.latitude && order.longitude) {
                     dist = getDistanceMeters(loc.lat, loc.lng, order.latitude, order.longitude)
 
-                    // Flag if > 500 meters (approx 0.3 miles)
+                    // Flag if > 500 meters (~1640 ft / 0.3 miles)
                     if (dist > 500) {
                         isOutOfRange = true
-                        toast({ title: "⚠️ Out of Range", description: `You are ${Math.round(dist)}m away from the delivery location. This delivery has been flagged.`, type: "error" })
+                        // Show confirmation dialog unless user already confirmed
+                        if (!forceDelivery) {
+                            setOutOfRangeConfirm({ show: true, distance: Math.round(dist), proofUrl })
+                            return // STOP: Wait for user confirmation
+                        }
                     }
                 }
             }
@@ -266,15 +299,28 @@ export default function ClientOrderDetails() {
                 await supabase.from('orders').update({
                     status: newStatus,
                     proof_url: proofUrl,
-                    delivered_at: new Date().toISOString()
+                    delivered_at: new Date().toISOString(),
+                    was_out_of_range: isOutOfRange,
+                    delivery_distance_meters: dist || undefined
                 }).eq('id', orderId)
             } else {
-                // Fallback if offline manager handles it, but we do it explicitly here for safety
-                // (Note: offlineManager implementation details might conflict, but explicit update is safer for MVP)
                 await supabase.from('orders').update({
                     status: newStatus,
-                    delivered_at: newStatus === 'delivered' ? new Date().toISOString() : null
+                    delivered_at: newStatus === 'delivered' ? new Date().toISOString() : null,
+                    was_out_of_range: isOutOfRange,
+                    delivery_distance_meters: dist || undefined
                 }).eq('id', orderId)
+            }
+
+            // Send tracking email notification (fire-and-forget)
+            if ((newStatus === 'in_progress' || newStatus === 'delivered') && order.customer_email && order.tracking_token) {
+                supabase.functions.invoke('send-tracking-email', {
+                    body: {
+                        order_id: orderId,
+                        event_type: newStatus,
+                        tracking_url: `${window.location.origin}/track/${order.tracking_token}`
+                    }
+                }).catch(() => {})
             }
 
             // Optimistic Update
@@ -282,8 +328,27 @@ export default function ClientOrderDetails() {
                 ...prev,
                 status: newStatus as any,
                 delivered_at: newStatus === 'delivered' ? new Date().toISOString() : prev.delivered_at,
-                // proof_url: proofUrl // Add to type if needed
+                was_out_of_range: isOutOfRange,
+                delivery_distance_meters: dist || prev.delivery_distance_meters,
             } : null)
+
+            // Notify managers about delivery
+            if (newStatus === 'delivered' && currentCompanyId) {
+                const notifType = isOutOfRange ? 'out_of_range' : 'delivery_completed'
+                const notifTitle = isOutOfRange
+                    ? `Out-of-Range Delivery`
+                    : `Order Delivered`
+                const notifBody = isOutOfRange
+                    ? `Order #${order.order_number} was delivered ${Math.round(dist)}m away from destination`
+                    : `Order #${order.order_number} has been delivered to ${order.customer_name}`
+                NotificationService.notifyManagers(
+                    currentCompanyId,
+                    notifType,
+                    notifTitle,
+                    notifBody,
+                    { order_id: orderId, route: `/my-editor?id=${orderId}` }
+                )
+            }
 
         } catch (error) {
             toast({ title: 'Failed to update status', type: 'error' })
@@ -442,12 +507,14 @@ export default function ClientOrderDetails() {
                 state: formData.state,
                 zip_code: formData.zip_code,
                 phone: formData.phone,
+                customer_email: formData.customer_email || null,
                 delivery_date: formData.delivery_date,
                 notes: formData.notes,
                 latitude: finalLat,
                 longitude: finalLng,
                 priority_level: formData.priority_level,
-                geocoding_confidence: formData.geocoding_confidence
+                geocoding_confidence: formData.geocoding_confidence,
+                weight_lbs: formData.weight_lbs ?? null
             }
 
             const { error } = await supabase.from('orders').update(updatedPayload).eq('id', effectiveOrderId)
@@ -552,6 +619,16 @@ export default function ClientOrderDetails() {
                             {order.status.replace('_', ' ')}
                         </div>
                     </div>
+
+                    {/* Persistent out-of-range banner — visible to ALL roles */}
+                    {order.was_out_of_range && order.status === 'delivered' && (
+                        <div className="mx-5 mt-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                            <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                            <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                                Delivered out of range{order.delivery_distance_meters ? ` — ${Math.round(order.delivery_distance_meters * 3.281)} ft from destination` : ''}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Map Section */}
@@ -585,6 +662,37 @@ export default function ClientOrderDetails() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Tracking Link Card */}
+                    {order.tracking_token && (
+                        <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-sm border border-slate-200/60 dark:border-slate-800 overflow-hidden relative group">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-400 to-purple-500 opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                            <div className="p-5 flex gap-4">
+                                <div className="w-12 h-12 bg-violet-50 dark:bg-violet-900/30 rounded-[16px] flex items-center justify-center text-violet-600 dark:text-violet-400 shrink-0 shadow-inner">
+                                    <Link2 size={24} strokeWidth={2.5} />
+                                </div>
+                                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Tracking Link</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate flex-1 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-xl">
+                                            {typeof window !== 'undefined' ? `${window.location.origin}/track/${order.tracking_token}` : `/track/${order.tracking_token}`}
+                                        </p>
+                                        <button
+                                            onClick={async () => {
+                                                const url = `${window.location.origin}/track/${order.tracking_token}`
+                                                await navigator.clipboard.writeText(url)
+                                                setTrackingLinkCopied(true)
+                                                setTimeout(() => setTrackingLinkCopied(false), 2000)
+                                            }}
+                                            className="inline-flex items-center gap-1.5 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shrink-0"
+                                        >
+                                            {trackingLinkCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Delivery Location Card */}
                     <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-sm border border-slate-200/60 dark:border-slate-800 overflow-hidden relative group">
@@ -727,6 +835,15 @@ export default function ClientOrderDetails() {
                                     <h3 className="font-black text-emerald-800 dark:text-emerald-300 text-xl tracking-tight">Order Delivered!</h3>
                                     <p className="text-sm font-semibold text-emerald-600/80 dark:text-emerald-400/80">Time: {new Date(order.delivered_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                 </div>
+
+                                {order.was_out_of_range && (
+                                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                                        <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                        <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                                            Delivered out of range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters * 3.281)} ft away)` : ''}
+                                        </p>
+                                    </div>
+                                )}
 
                                 {order.proof_url && (
                                     <div className="flex justify-center pt-2">
@@ -1130,6 +1247,33 @@ export default function ClientOrderDetails() {
                 </AlertDialogContent>
             </AlertDialog>
 
+            {/* Out-of-Range Confirmation Dialog */}
+            <AlertDialog open={outOfRangeConfirm.show} onOpenChange={(open) => !open && setOutOfRangeConfirm({ show: false, distance: 0 })}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                            <AlertCircle size={20} /> Outside Delivery Zone
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm leading-relaxed">
+                            You are <span className="font-bold text-amber-600 dark:text-amber-400">{Math.round(outOfRangeConfirm.distance * 3.281)} ft</span> away from the delivery address.
+                            This delivery will be flagged as out of range. Are you sure you want to proceed?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setOutOfRangeConfirm({ show: false, distance: 0 })}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={async () => {
+                                setOutOfRangeConfirm({ show: false, distance: 0 })
+                                await updateOrderStatus('delivered', outOfRangeConfirm.proofUrl, true)
+                            }}
+                            className="bg-amber-600 hover:bg-amber-700 text-white"
+                        >
+                            Deliver Anyway
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
                 <SheetContent side="bottom" className="h-[90vh] overflow-y-auto safe-area-pt pb-36">
                     <SheetHeader>
@@ -1161,8 +1305,10 @@ export default function ClientOrderDetails() {
                             <Input value={formData.zip_code || ''} onChange={e => setFormData(prev => ({ ...prev, zip_code: e.target.value }))} placeholder="ZIP" />
                             <Input value={formData.phone || ''} onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))} placeholder="Phone" />
                         </div>
+                        <Input value={formData.customer_email || ''} onChange={e => setFormData(prev => ({ ...prev, customer_email: e.target.value }))} type="email" placeholder="Customer Email" />
                         <Input value={formData.delivery_date ? new Date(formData.delivery_date).toISOString().split('T')[0] : ''} onChange={e => setFormData(prev => ({ ...prev, delivery_date: e.target.value }))} type="date" />
                         <textarea value={formData.notes || ''} onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))} className="w-full p-2 border rounded-md" placeholder="Notes" />
+                        <Input value={formData.weight_lbs != null ? String(formData.weight_lbs) : ''} onChange={e => setFormData(prev => ({ ...prev, weight_lbs: e.target.value ? parseFloat(e.target.value) : null }))} type="number" step="0.1" min="0" placeholder="Weight (kg)" />
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Priority Level</label>

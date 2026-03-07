@@ -13,12 +13,23 @@ import { calculateEvenSplit, type SplitSuggestion } from '@/lib/split-calculator
 import { WorkloadDashboard } from '@/components/WorkloadDashboard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { MapPin, Truck, Sparkles, AlertCircle, AlertTriangle, Lock, Unlock, Clock, ExternalLink, CheckCircle2, User as UserIcon, Edit, Loader2, Route, Timer, RotateCcw, MapPinOff } from 'lucide-react'
-import { smartGeocode } from '@/lib/smart-geocoder'
+import { MapPin, Truck, Sparkles, AlertCircle, AlertTriangle, Lock, Unlock, Clock, ExternalLink, CheckCircle2, User as UserIcon, Edit } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from "@/components/toast-provider"
 import { useTheme } from 'next-themes'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { smartGeocode } from '@/lib/smart-geocoder'
+import { NotificationService } from '@/lib/notification-service'
 import { PullToRefresh } from '@/components/pull-to-refresh'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import {
@@ -72,12 +83,12 @@ function DraggableOrderCard({ order, isOverlay = false, onViewDetails }: { order
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: isOverlay ? `overlay-${order.id}` : order.id,
         data: { order },
-        disabled: isOverlay, // Overlay is just visual — don't register as draggable
+        disabled: isOverlay, // Overlay is visual only — don't register as draggable
     })
 
     const style: React.CSSProperties = isDragging
         ? { opacity: 0.4, willChange: 'transform', touchAction: 'none', zIndex: 9999 }
-        : {} // TouchSensor uses delay-based activation, so no touchAction needed when not dragging
+        : {} // TouchSensor uses delay-based activation — no touchAction needed when not dragging
 
     return (
         <Card
@@ -194,8 +205,8 @@ function DroppableDriverContainer({ driver, orders, children, isLocked = false }
                     <span className={`font-bold text-[14px] ${isLocked ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>{driver.name}</span>
                     {isLocked && <span className="text-[10px] bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-rose-200 dark:border-rose-800">LOCKED</span>}
                 </div>
-                <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2.5 py-1 rounded-full">
-                    {orders.length} orders
+                <span className={`text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${driver.max_orders && orders.length >= driver.max_orders ? 'text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400' : 'text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400'}`}>
+                    {orders.length}{driver.max_orders ? `/${driver.max_orders}` : ''} orders
                 </span>
             </div>
 
@@ -248,34 +259,35 @@ export default function PlannerPage() {
     const router = useRouter()
     const { toast } = useToast()
     const { theme } = useTheme()
+    const isDesktop = useMediaQuery('(min-width: 768px)')
 
     // Data State
     const [orders, setOrders] = useState<Order[]>([])
     const [drivers, setDrivers] = useState<Driver[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [isRetryingGeocode, setIsRetryingGeocode] = useState(false)
+    const [companyId, setCompanyId] = useState<string | null>(null)
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null) // For Quick View Sheet
+
+    // Offline driver assignment confirmation
+    const [offlineAssignConfirm, setOfflineAssignConfirm] = useState<{
+        show: boolean; orderId: string; driverId: string; driverName: string
+    }>({ show: false, orderId: '', driverId: '', driverName: '' })
 
     // Subscription State
     const [driverLimit, setDriverLimit] = useState(1)
     const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false)
-    const [companyId, setCompanyId] = useState<string | null>(null)
-    const [isRetryingGeocode, setIsRetryingGeocode] = useState(false)
 
     const [optimizationReport, setOptimizationReport] = useState<{
         totalProcessed: number
         assigned: number
         unassigned: number
         problematic: number
-        totalDistanceKm: number
-        driverBreakdown: { driverId: string, driverName: string, orderCount: number, totalDistanceKm?: number, estimatedDurationMin?: number }[]
+        driverBreakdown: { driverId: string, driverName: string, orderCount: number }[]
         issues: { reason: string, count: number, orders: string[] }[]
-        warnings: {
-            timeWindowViolations: { orderId: string, orderNumber: string, windowEnd: string, estimatedArrival: string, driverName: string }[]
-            staleGpsDrivers: { driverName: string, lastUpdate: string, minutesAgo: number }[]
-            overloadedDrivers: { driverName: string, orderCount: number, estimatedHours: number }[]
-            depotReloadSuggestions: { driverName: string, splitAfterOrderNumber: string, ordersBefore: number, ordersAfter: number }[]
-        }
         driverDiagnostics?: { name: string, valid: boolean, lat: number, lng: number, address?: string }[]
+        capacityWarnings?: { driverName: string, orderCount: number, maxOrders: number | null, totalWeightLbs: number, vehicleCapacityLbs: number | null }[]
+        shiftViolations?: { driverName: string, shiftEnd: string, estimatedFinish: string, orderCount: number }[]
     } | null>(null)
 
     // Map State
@@ -289,6 +301,9 @@ export default function PlannerPage() {
 
     // Optimization Mode
     const [optimizationMode, setOptimizationMode] = useState<'morning' | 'reoptimize'>('morning')
+
+    // Route Start Time (configurable, default 8 AM)
+    const [routeStartHour, setRouteStartHour] = useState(8)
 
     useEffect(() => {
         // Auto-select all drivers when list loads
@@ -326,13 +341,13 @@ export default function PlannerPage() {
     const sensors = useSensors(
         useSensor(MouseSensor, {
             activationConstraint: {
-                distance: 8, // 8px movement to start drag on desktop
+                distance: 8, // Allow quick drag without long delays for desktop
             }
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 200, // Hold 200ms to start drag (allows scroll on touch)
-                tolerance: 8,
+                delay: 200, // Hold-to-drag — allows normal scroll on touch devices
+                tolerance: 8 // Forgiveness for finger wiggle
             }
         }),
         useSensor(KeyboardSensor)
@@ -398,14 +413,15 @@ export default function PlannerPage() {
             const { data: user } = await supabase.from('users').select('company_id, role, driver_limit').eq('id', userId).single()
             if (!user || user.role === 'driver') { router.replace('/orders'); return }
 
+            setCompanyId(user.company_id)
+
             // Set subscription limit
             const limit = user.driver_limit || 1
             setDriverLimit(limit)
-            setCompanyId(user.company_id)
 
             // Get Active Data
             const [ordersRes, driversRes] = await Promise.all([
-                supabase.from('orders').select('*').eq('company_id', user.company_id).neq('status', 'delivered'),
+                supabase.from('orders').select('*').eq('company_id', user.company_id).not('status', 'in', '("delivered","cancelled")'),
                 supabase.from('drivers').select('*').eq('company_id', user.company_id).eq('status', 'active')
             ])
 
@@ -587,7 +603,7 @@ export default function PlannerPage() {
             }
 
             // Run the algorithm
-            const result = await optimizeRoute(ordersToOptimize, allowedDrivers, strategy, optimizationMode)
+            const result = await optimizeRoute(ordersToOptimize, allowedDrivers, strategy, optimizationMode, routeStartHour)
 
             // Update Local State
             setOrders(result.orders)
@@ -598,6 +614,7 @@ export default function PlannerPage() {
                 driver_id: o.driver_id,
                 status: o.driver_id ? 'assigned' : 'pending',
                 route_index: o.route_index || null,
+                tracking_token: o.driver_id && !o.tracking_token ? crypto.randomUUID() : (o.tracking_token || null),
             }))
 
             const { error } = await supabase.from('orders').upsert(updates)
@@ -606,21 +623,45 @@ export default function PlannerPage() {
                 throw error
             }
 
+            // Fire-and-forget: send tracking emails for newly assigned orders
+            const previousOrderMap = new Map(ordersToOptimize.map(o => [o.id, o]))
+            updates.forEach(order => {
+                const prev = previousOrderMap.get(order.id)
+                const isNewlyAssigned = order.driver_id && (!prev?.driver_id || prev.driver_id !== order.driver_id)
+                if (isNewlyAssigned && order.customer_email && order.tracking_token) {
+                    supabase.functions.invoke('send-tracking-email', {
+                        body: {
+                            order_id: order.id,
+                            event_type: 'assigned',
+                            tracking_url: `${window.location.origin}/track/${order.tracking_token}`
+                        }
+                    }).catch(() => {}) // fire-and-forget
+                }
+            })
+
+            // Notify affected drivers about route update
+            const affectedDriverIds = [...new Set(result.orders.filter(o => o.driver_id).map(o => o.driver_id!))]
+            affectedDriverIds.forEach(dId => {
+                const driverOrderCount = result.orders.filter(o => o.driver_id === dId).length
+                NotificationService.notifyDriver(
+                    dId,
+                    'route_updated',
+                    'Route Updated',
+                    `Your route has been optimized — ${driverOrderCount} order${driverOrderCount === 1 ? '' : 's'} assigned`,
+                    { route: '/my-editor' }
+                )
+            })
+
             // Generate Optimization Report
             const assignedOrders = result.orders.filter(o => o.driver_id)
             const unassignedOrders = result.orders.filter(o => !o.driver_id)
 
-            // Driver Breakdown (enriched with distance/duration from optimizer)
-            const driverBreakdown = drivers.map(driver => {
-                const stats = result.driverStats?.find(s => s.driverId === driver.id)
-                return {
-                    driverId: driver.id,
-                    driverName: driver.name,
-                    orderCount: assignedOrders.filter(o => o.driver_id === driver.id).length,
-                    totalDistanceKm: stats?.totalDistanceKm,
-                    estimatedDurationMin: stats?.estimatedDurationMin
-                }
-            }).filter(d => d.orderCount > 0)
+            // Driver Breakdown
+            const driverBreakdown = drivers.map(driver => ({
+                driverId: driver.id,
+                driverName: driver.name,
+                orderCount: assignedOrders.filter(o => o.driver_id === driver.id).length
+            })).filter(d => d.orderCount > 0)
 
             // Issues Analysis
             const issues: { reason: string, count: number, orders: string[] }[] = []
@@ -665,11 +706,11 @@ export default function PlannerPage() {
                 assigned: assignedOrders.length,
                 unassigned: unassignedOrders.length,
                 problematic: noGpsOrders.length + lockedOrders.length,
-                totalDistanceKm: result.summary?.totalDistance || 0,
                 driverBreakdown,
                 issues,
-                warnings: result.warnings || { timeWindowViolations: [], staleGpsDrivers: [], overloadedDrivers: [], depotReloadSuggestions: [] },
-                driverDiagnostics: (result as any).debug?.drivers
+                driverDiagnostics: (result as any).debug?.drivers,
+                capacityWarnings: result.warnings?.capacityWarnings || [],
+                shiftViolations: result.warnings?.shiftViolations || [],
             })
 
             toast({
@@ -809,6 +850,40 @@ export default function PlannerPage() {
             return // Dropped somewhere invalid
         }
 
+        // ⚠️ CAPACITY WARNING: Warn (but don't block) if driver is over max capacity
+        if (newDriverId) {
+            const targetDriver = drivers.find(d => d.id === newDriverId)
+            if (targetDriver?.max_orders) {
+                const currentOrderCount = orders.filter(o => o.driver_id === newDriverId && o.id !== orderId).length
+                if (currentOrderCount >= targetDriver.max_orders) {
+                    toast({
+                        title: "⚠️ Over Capacity",
+                        description: `${targetDriver.name} now has ${currentOrderCount + 1} orders (max ${targetDriver.max_orders}).`,
+                        type: "error"
+                    })
+                    // Continue — don't block, just warn
+                }
+            }
+        }
+
+        // ⚠️ Warn if assigning to an offline driver
+        if (newDriverId) {
+            const targetDriver = drivers.find(d => d.id === newDriverId)
+            if (targetDriver && !isDriverOnline(targetDriver)) {
+                setOfflineAssignConfirm({
+                    show: true,
+                    orderId,
+                    driverId: newDriverId,
+                    driverName: targetDriver.name || 'This driver'
+                })
+                return // STOP: Wait for confirmation
+            }
+        }
+
+        // Generate tracking_token if assigning to a driver and order doesn't have one
+        const draggedOrder = orders.find(o => o.id === orderId)
+        const newTrackingToken = newDriverId && !draggedOrder?.tracking_token ? crypto.randomUUID() : (draggedOrder?.tracking_token || null)
+
         // Optimistic Update
         setOrders(prev => prev.map(o => {
             if (o.id === orderId) {
@@ -817,7 +892,8 @@ export default function PlannerPage() {
                     driver_id: newDriverId,
                     status: newDriverId ? 'assigned' : 'pending',
                     // Lock if assigned to a driver manually
-                    is_pinned: !!newDriverId
+                    is_pinned: !!newDriverId,
+                    tracking_token: newTrackingToken
                 }
             }
             return o
@@ -829,13 +905,86 @@ export default function PlannerPage() {
             .update({
                 driver_id: newDriverId,
                 status: newDriverId ? 'assigned' : 'pending',
-                is_pinned: !!newDriverId
+                is_pinned: !!newDriverId,
+                tracking_token: newTrackingToken
             })
             .eq('id', orderId)
 
         if (error) {
             toast({ title: 'Failed to update order', description: error.message, type: 'error' })
             fetchData() // Revert
+        } else {
+            const order = orders.find(o => o.id === orderId)
+            const previousDriverId = order?.driver_id
+
+            // Notify NEW driver about assignment
+            if (newDriverId && order) {
+                NotificationService.notifyDriver(
+                    newDriverId,
+                    'order_assigned',
+                    'New Order Assigned',
+                    `Order #${order.order_number} has been assigned to you`,
+                    { order_id: orderId, route: `/my-editor?id=${orderId}` }
+                )
+            }
+
+            // Notify PREVIOUS driver about unassignment (if order was taken from them)
+            if (previousDriverId && previousDriverId !== newDriverId && order) {
+                NotificationService.notifyDriver(
+                    previousDriverId,
+                    'order_unassigned',
+                    'Order Removed',
+                    `Order #${order.order_number} has been removed from your route`,
+                    { order_id: orderId, route: '/my-editor' }
+                )
+            }
+        }
+    }
+
+    // Confirm assignment to offline driver
+    async function confirmOfflineAssignment() {
+        const { orderId, driverId } = offlineAssignConfirm
+        setOfflineAssignConfirm({ show: false, orderId: '', driverId: '', driverName: '' })
+
+        // Optimistic Update
+        setOrders(prev => prev.map(o => {
+            if (o.id === orderId) {
+                return { ...o, driver_id: driverId, status: 'assigned', is_pinned: true }
+            }
+            return o
+        }))
+
+        const { error } = await supabase
+            .from('orders')
+            .update({ driver_id: driverId, status: 'assigned', is_pinned: true })
+            .eq('id', orderId)
+
+        if (error) {
+            toast({ title: 'Failed to update order', description: error.message, type: 'error' })
+            fetchData()
+        } else {
+            const order = orders.find(o => o.id === orderId)
+            const previousDriverId = order?.driver_id
+
+            if (order) {
+                NotificationService.notifyDriver(
+                    driverId,
+                    'order_assigned',
+                    'New Order Assigned',
+                    `Order #${order.order_number} has been assigned to you`,
+                    { order_id: orderId, route: `/my-editor?id=${orderId}` }
+                )
+            }
+
+            if (previousDriverId && previousDriverId !== driverId && order) {
+                NotificationService.notifyDriver(
+                    previousDriverId,
+                    'order_unassigned',
+                    'Order Removed',
+                    `Order #${order.order_number} has been removed from your route`,
+                    { order_id: orderId, route: '/my-editor' }
+                )
+            }
         }
     }
 
@@ -847,11 +996,11 @@ export default function PlannerPage() {
     }
 
     // Derived State
-    const isDesktop = useMediaQuery('(min-width: 768px)')
     const unassignedOrders = orders.filter(o => !o.driver_id)
     const activeDragOrder = orders.find(o => o.id === activeDragId)
 
     return (
+        <>
         <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -860,7 +1009,7 @@ export default function PlannerPage() {
             onDragCancel={handleDragCancel}
         >
             <div className="flex w-full bg-slate-50 dark:bg-slate-950 overflow-hidden" style={{ height: '100dvh' }}>
-                {/* SIDEBAR - Desktop Only */}
+                {/* SIDEBAR - Desktop Only (conditional render to avoid dnd-kit duplicate IDs) */}
                 {isDesktop && <div className="flex w-[420px] border-r border-slate-200/60 dark:border-slate-800 flex-col bg-slate-50/50 dark:bg-slate-950 z-20 shadow-[8px_0_30px_rgba(0,0,0,0.04)] transition-colors">
                     <div className="px-6 py-5 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl flex-shrink-0 safe-area-pt">
                         <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Route Planner</h1>
@@ -871,27 +1020,17 @@ export default function PlannerPage() {
                     <div className="flex-1 overflow-y-auto flex flex-col min-h-0 pb-20 custom-scrollbar overscroll-y-contain">
                         {/* GLOBAL WARNING: MISSING GPS */}
                         {orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
-                            <div className="mx-5 mt-5 p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-[24px] flex items-center justify-between gap-3 shadow-sm relative group">
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
-                                    <div>
-                                        <h3 className="text-[13px] font-black tracking-tight text-rose-800 dark:text-rose-300">
-                                            {orders.filter(o => !o.latitude || !o.longitude).length} Orders Missing GPS
-                                        </h3>
-                                        <p className="text-[11px] font-semibold text-rose-600/80 dark:text-rose-400/80">
-                                            Hidden from map, cannot be optimized.
-                                        </p>
-                                    </div>
+                            <div className="mx-5 mt-5 p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-[24px] flex items-start gap-3 shadow-sm relative overflow-hidden group">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-400 to-red-500 opacity-20"></div>
+                                <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" size={18} />
+                                <div className="space-y-1">
+                                    <h3 className="text-[14px] font-black tracking-tight text-rose-800 dark:text-rose-300">
+                                        {orders.filter(o => !o.latitude || !o.longitude).length} Orders Missing GPS
+                                    </h3>
+                                    <p className="text-[12px] font-semibold text-rose-600/80 dark:text-rose-400/80 leading-relaxed">
+                                        These orders are hidden from the map but appear in the list below marked "No GPS".
+                                    </p>
                                 </div>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={retryFailedGeocoding}
-                                    disabled={isRetryingGeocode}
-                                    className="shrink-0 border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/30 text-xs"
-                                >
-                                    {isRetryingGeocode ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Fixing...</> : <><Sparkles size={12} className="mr-1" /> Fix with AI</>}
-                                </Button>
                             </div>
                         )}
                         <div className="p-5 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 flex-shrink-0">
@@ -1012,16 +1151,15 @@ export default function PlannerPage() {
                         </div>
 
                         {/* Optimization Mode Toggle */}
-                        <div className="m-5 flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-[24px] shadow-sm relative group">
-                            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-[24px]"></div>
+                        <div className="m-5 flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-2xl shadow-sm">
                             <input
                                 type="checkbox"
                                 id="reoptimize-mode"
                                 checked={optimizationMode === 'reoptimize'}
                                 onChange={(e) => setOptimizationMode(e.target.checked ? 'reoptimize' : 'morning')}
-                                className="h-5 w-5 rounded-md border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20"
+                                className="h-5 w-5 rounded-md border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20 shrink-0"
                             />
-                            <label htmlFor="reoptimize-mode" className="text-sm cursor-pointer flex-1 user-select-none">
+                            <label htmlFor="reoptimize-mode" className="text-sm cursor-pointer flex-1 min-w-0">
                                 <span className="font-black text-slate-900 dark:text-white">Use driver current locations</span>
                                 <span className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                                     {optimizationMode === 'reoptimize'
@@ -1030,6 +1168,25 @@ export default function PlannerPage() {
                                 </span>
                             </label>
                         </div>
+
+                        {/* Route Start Time — only shown in morning mode */}
+                        {optimizationMode === 'morning' && (
+                            <div className="mx-5 mb-5 flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-[16px] shadow-sm">
+                                <Clock size={16} className="text-slate-500 shrink-0" />
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">Start Time</span>
+                                <select
+                                    value={routeStartHour}
+                                    onChange={(e) => setRouteStartHour(parseInt(e.target.value))}
+                                    className="ml-auto text-sm font-bold bg-slate-100 dark:bg-slate-800 border-0 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {Array.from({ length: 18 }, (_, i) => i + 4).map(h => (
+                                        <option key={h} value={h}>
+                                            {h > 12 ? `${h - 12}:00 PM` : h === 12 ? '12:00 PM' : `${h}:00 AM`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         {/* Workload Dashboard */}
                         <div className="px-5 mb-5">
@@ -1068,7 +1225,7 @@ export default function PlannerPage() {
                                         driver={driver}
                                         orders={orders.filter(o => o.driver_id === driver.id)}
                                         isLocked={index >= driverLimit}
-                                                                           >
+                                    >
                                         {orders.filter(o => o.driver_id === driver.id).map(order => (
                                             <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
                                         ))}
@@ -1078,7 +1235,7 @@ export default function PlannerPage() {
                         </div>
                     </div>
                 </div>}
-                {/* MAP AREA — DESKTOP ONLY (same pattern as map page) */}
+                {/* MAP AREA — DESKTOP ONLY (conditional render) */}
                 {isDesktop && <div className="flex flex-1 relative h-full z-10">
                     {/* Map Theme Toggle */}
                     <div className="absolute top-6 right-6 z-[500]">
@@ -1195,6 +1352,7 @@ export default function PlannerPage() {
 
                 {/* ============================================= */}
                 {/* MOBILE PLANNER UI — Card/List layout           */}
+                {/* Conditional render to avoid dnd-kit duplicate IDs */}
                 {/* ============================================= */}
                 {!isDesktop && <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-950 overflow-y-auto overscroll-y-contain pb-36" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 0.5rem)` }}>
                     {/* Header */}
@@ -1221,25 +1379,17 @@ export default function PlannerPage() {
 
                     {/* GPS Warning */}
                     {orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
-                        <div className="mx-5 mb-5 p-4 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/50 dark:border-rose-800/50 rounded-3xl flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                                <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
-                                <div>
-                                    <p className="text-[13px] font-extrabold tracking-tight text-rose-800 dark:text-rose-300">
-                                        {orders.filter(o => !o.latitude || !o.longitude).length} orders missing GPS
-                                    </p>
-                                    <p className="text-[11px] font-semibold text-rose-600/80 dark:text-rose-400/80">Cannot be optimized</p>
-                                </div>
+                        <div className="mx-5 mb-5 p-5 bg-rose-50/80 dark:bg-rose-950/40 backdrop-blur-md border border-rose-200/50 dark:border-rose-800/50 rounded-3xl flex items-center gap-4 shadow-sm shadow-rose-100/50 dark:shadow-none relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-gradient-to-br from-rose-400/5 to-red-500/10 opacity-50" />
+                            <div className="p-2.5 bg-rose-100 dark:bg-rose-900/50 rounded-full relative z-10 shrink-0">
+                                <AlertCircle className="text-rose-600 dark:text-rose-400" size={20} strokeWidth={2.5} />
                             </div>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={retryFailedGeocoding}
-                                disabled={isRetryingGeocode}
-                                className="shrink-0 border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300 text-xs"
-                            >
-                                {isRetryingGeocode ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Fixing...</> : <><Sparkles size={12} className="mr-1" /> Fix</>}
-                            </Button>
+                            <div className="relative z-10 flex-1 pr-2">
+                                <p className="text-[14px] font-extrabold tracking-tight text-rose-800 dark:text-rose-300">
+                                    {orders.filter(o => !o.latitude || !o.longitude).length} orders missing GPS
+                                </p>
+                                <p className="text-[12px] font-semibold text-rose-600/90 dark:text-rose-400/80 mt-0.5 leading-tight">These cannot be optimized until fixed.</p>
+                            </div>
                         </div>
                     )}
 
@@ -1322,23 +1472,42 @@ export default function PlannerPage() {
                     </div>
 
                     {/* Optimization Mode Toggle */}
-                    <div className="mx-5 mb-5 flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-full shadow-sm">
+                    <div className="mx-5 mb-5 flex items-center gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-2xl shadow-sm">
                         <input
                             type="checkbox"
                             id="mobile-reoptimize-mode"
                             checked={optimizationMode === 'reoptimize'}
                             onChange={(e) => setOptimizationMode(e.target.checked ? 'reoptimize' : 'morning')}
-                            className="h-5 w-5 ml-1 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20"
+                            className="h-5 w-5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20 shrink-0"
                         />
-                        <label htmlFor="mobile-reoptimize-mode" className="text-sm cursor-pointer flex-1">
-                            <span className="font-black text-slate-900 dark:text-white">Use current locations</span>
-                            <span className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-tight">
+                        <label htmlFor="mobile-reoptimize-mode" className="text-sm cursor-pointer flex-1 min-w-0">
+                            <span className="font-black text-slate-900 dark:text-white">Use driver current locations</span>
+                            <span className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                                 {optimizationMode === 'reoptimize'
-                                    ? '📍 Routes start from where drivers are now'
-                                    : '🏢 Routes start from depot (morning)'}
+                                    ? '📍 Routes start from where drivers are now (mid-day re-routing)'
+                                    : '🏢 Routes start from depot/warehouse (morning planning)'}
                             </span>
                         </label>
                     </div>
+
+                    {/* Route Start Time (Mobile) — only shown in morning mode */}
+                    {optimizationMode === 'morning' && (
+                        <div className="mx-5 mb-4 flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-2xl shadow-sm">
+                            <Clock size={16} className="text-slate-500 shrink-0" />
+                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Start Time</span>
+                            <select
+                                value={routeStartHour}
+                                onChange={(e) => setRouteStartHour(parseInt(e.target.value))}
+                                className="ml-auto text-sm font-bold bg-slate-100 dark:bg-slate-800 border-0 rounded-lg px-3 py-1.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            >
+                                {Array.from({ length: 18 }, (_, i) => i + 4).map(h => (
+                                    <option key={h} value={h}>
+                                        {h > 12 ? `${h - 12}:00 PM` : h === 12 ? '12:00 PM' : `${h}:00 AM`}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     {/* No Drivers Warning */}
                     {selectedDrivers.length === 0 && (
@@ -1400,7 +1569,7 @@ export default function PlannerPage() {
                                         driver={driver}
                                         orders={orders.filter(o => o.driver_id === driver.id)}
                                         isLocked={index >= driverLimit}
-                                                                           >
+                                    >
                                         {orders.filter(o => o.driver_id === driver.id).map(order => (
                                             <DraggableOrderCard key={order.id} order={order} onViewDetails={setSelectedOrder} />
                                         ))}
@@ -1487,28 +1656,20 @@ export default function PlannerPage() {
                         {optimizationReport && (
                             <div className="space-y-8 mt-8 px-2">
                                 {/* Summary Cards */}
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 gap-4">
                                     <Card className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-white/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden group">
                                         <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-emerald-600/5 opacity-50 transition-opacity group-hover:opacity-100" />
-                                        <CardContent className="p-4 text-center relative z-10">
-                                            <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-br from-green-600 to-emerald-500 dark:from-green-400 dark:to-emerald-300 drop-shadow-sm mb-1">{optimizationReport.assigned}</div>
-                                            <div className="text-[10px] uppercase tracking-wider text-green-700 dark:text-green-400 font-bold">Assigned</div>
+                                        <CardContent className="p-5 text-center relative z-10">
+                                            <div className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-br from-green-600 to-emerald-500 dark:from-green-400 dark:to-emerald-300 drop-shadow-sm mb-1">{optimizationReport.assigned}</div>
+                                            <div className="text-[11px] uppercase tracking-wider text-green-700 dark:text-green-400 font-bold">Assigned</div>
                                         </CardContent>
                                     </Card>
 
                                     <Card className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-white/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden group">
                                         <div className="absolute inset-0 bg-gradient-to-br from-orange-400/10 to-amber-600/5 opacity-50 transition-opacity group-hover:opacity-100" />
-                                        <CardContent className="p-4 text-center relative z-10">
-                                            <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-br from-orange-500 to-amber-500 dark:from-orange-400 dark:to-amber-300 drop-shadow-sm mb-1">{optimizationReport.unassigned}</div>
-                                            <div className="text-[10px] uppercase tracking-wider text-orange-700 dark:text-orange-400 font-bold">Unassigned</div>
-                                        </CardContent>
-                                    </Card>
-
-                                    <Card className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-white/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden group">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-indigo-600/5 opacity-50 transition-opacity group-hover:opacity-100" />
-                                        <CardContent className="p-4 text-center relative z-10">
-                                            <div className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-br from-blue-600 to-indigo-500 dark:from-blue-400 dark:to-indigo-300 drop-shadow-sm mb-1">{optimizationReport.totalDistanceKm > 0 ? `${optimizationReport.totalDistanceKm}` : '—'}</div>
-                                            <div className="text-[10px] uppercase tracking-wider text-blue-700 dark:text-blue-400 font-bold">Total km</div>
+                                        <CardContent className="p-5 text-center relative z-10">
+                                            <div className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-br from-orange-500 to-amber-500 dark:from-orange-400 dark:to-amber-300 drop-shadow-sm mb-1">{optimizationReport.unassigned}</div>
+                                            <div className="text-[11px] uppercase tracking-wider text-orange-700 dark:text-orange-400 font-bold">Unassigned</div>
                                         </CardContent>
                                     </Card>
                                 </div>
@@ -1524,148 +1685,19 @@ export default function PlannerPage() {
                                             {optimizationReport.driverBreakdown.map((driver) => (
                                                 <div
                                                     key={driver.driverId}
-                                                    className="p-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-white/60 dark:border-slate-800 rounded-2xl shadow-sm"
+                                                    className="flex items-center justify-between p-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-white/60 dark:border-slate-800 rounded-2xl shadow-sm"
                                                 >
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="h-3 w-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{driver.driverName}</span>
-                                                        </div>
-                                                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-900/50 px-3 py-1.5 rounded-full border border-blue-200/50 dark:border-blue-800/50">
-                                                            {driver.orderCount} orders
-                                                        </span>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-3 w-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-200">{driver.driverName}</span>
                                                     </div>
-                                                    {(driver.totalDistanceKm || driver.estimatedDurationMin) && (
-                                                        <div className="flex items-center gap-3 mt-2 pl-6 text-[11px] text-slate-500 dark:text-slate-400">
-                                                            {driver.totalDistanceKm != null && (
-                                                                <span className="flex items-center gap-1">
-                                                                    <Route size={11} /> {driver.totalDistanceKm} km
-                                                                </span>
-                                                            )}
-                                                            {driver.estimatedDurationMin != null && (
-                                                                <span className="flex items-center gap-1">
-                                                                    <Timer size={11} /> ~{driver.estimatedDurationMin >= 60 ? `${(driver.estimatedDurationMin / 60).toFixed(1)} hrs` : `${driver.estimatedDurationMin} min`}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-900/50 px-3 py-1.5 rounded-full border border-blue-200/50 dark:border-blue-800/50">
+                                                        {driver.orderCount} orders
+                                                    </span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
-                                )}
-
-                                {/* Smart Warnings */}
-                                {optimizationReport.warnings && (
-                                    (() => {
-                                        const w = optimizationReport.warnings
-                                        const hasWarnings = w.timeWindowViolations.length > 0 || w.staleGpsDrivers.length > 0 || w.overloadedDrivers.length > 0 || w.depotReloadSuggestions.length > 0
-                                        if (!hasWarnings) return null
-                                        return (
-                                            <div className="space-y-3">
-                                                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                                    <AlertTriangle size={16} className="text-amber-600" />
-                                                    Smart Alerts
-                                                </h3>
-
-                                                {/* Time Window Violations */}
-                                                {w.timeWindowViolations.length > 0 && (
-                                                    <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/50">
-                                                        <CardContent className="p-3">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <Clock size={14} className="text-red-600 dark:text-red-400" />
-                                                                <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-                                                                    {w.timeWindowViolations.length} order{w.timeWindowViolations.length > 1 ? 's' : ''} may miss delivery window
-                                                                </p>
-                                                            </div>
-                                                            <div className="space-y-1.5 mt-2">
-                                                                {w.timeWindowViolations.slice(0, 5).map((v, i) => (
-                                                                    <div key={i} className="flex items-center justify-between text-xs bg-red-100 dark:bg-red-900/40 px-2 py-1.5 rounded">
-                                                                        <span className="font-mono text-red-800 dark:text-red-300">#{v.orderNumber}</span>
-                                                                        <span className="text-red-600 dark:text-red-400">
-                                                                            Window: {v.windowEnd} | ETA: {v.estimatedArrival}
-                                                                        </span>
-                                                                    </div>
-                                                                ))}
-                                                                {w.timeWindowViolations.length > 5 && (
-                                                                    <p className="text-[10px] text-red-500 pl-2">+{w.timeWindowViolations.length - 5} more</p>
-                                                                )}
-                                                            </div>
-                                                        </CardContent>
-                                                    </Card>
-                                                )}
-
-                                                {/* Stale GPS Warning */}
-                                                {w.staleGpsDrivers.length > 0 && (
-                                                    <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50">
-                                                        <CardContent className="p-3">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <MapPinOff size={14} className="text-amber-600 dark:text-amber-400" />
-                                                                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                                                                    {w.staleGpsDrivers.length} driver{w.staleGpsDrivers.length > 1 ? 's' : ''} with stale GPS ({'>'}30 min old)
-                                                                </p>
-                                                            </div>
-                                                            <div className="space-y-1.5 mt-2">
-                                                                {w.staleGpsDrivers.map((d, i) => (
-                                                                    <div key={i} className="flex items-center justify-between text-xs bg-amber-100 dark:bg-amber-900/40 px-2 py-1.5 rounded">
-                                                                        <span className="font-medium text-amber-800 dark:text-amber-300">{d.driverName}</span>
-                                                                        <span className="text-amber-600 dark:text-amber-400">Last seen {d.minutesAgo} min ago</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                            <p className="text-[10px] text-amber-600 dark:text-amber-500 mt-2">Routes may start from incorrect location. Depot location used as fallback when available.</p>
-                                                        </CardContent>
-                                                    </Card>
-                                                )}
-
-                                                {/* Driver Overload */}
-                                                {w.overloadedDrivers.length > 0 && (
-                                                    <Card className="border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/50">
-                                                        <CardContent className="p-3">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <AlertCircle size={14} className="text-orange-600 dark:text-orange-400" />
-                                                                <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">
-                                                                    {w.overloadedDrivers.length} driver{w.overloadedDrivers.length > 1 ? 's' : ''} may be overloaded
-                                                                </p>
-                                                            </div>
-                                                            <div className="space-y-1.5 mt-2">
-                                                                {w.overloadedDrivers.map((d, i) => (
-                                                                    <div key={i} className="flex items-center justify-between text-xs bg-orange-100 dark:bg-orange-900/40 px-2 py-1.5 rounded">
-                                                                        <span className="font-medium text-orange-800 dark:text-orange-300">{d.driverName}</span>
-                                                                        <span className="text-orange-600 dark:text-orange-400">{d.orderCount} orders · ~{d.estimatedHours} hrs</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                            <p className="text-[10px] text-orange-600 dark:text-orange-500 mt-2">Consider using Balanced mode or adding more drivers to distribute the load.</p>
-                                                        </CardContent>
-                                                    </Card>
-                                                )}
-
-                                                {/* Depot Reload Suggestions */}
-                                                {w.depotReloadSuggestions.length > 0 && (
-                                                    <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/50">
-                                                        <CardContent className="p-3">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <RotateCcw size={14} className="text-purple-600 dark:text-purple-400" />
-                                                                <p className="text-sm font-semibold text-purple-800 dark:text-purple-300">
-                                                                    Depot Reload Suggestions
-                                                                </p>
-                                                            </div>
-                                                            <div className="space-y-1.5 mt-2">
-                                                                {w.depotReloadSuggestions.map((s, i) => (
-                                                                    <div key={i} className="text-xs bg-purple-100 dark:bg-purple-900/40 px-2 py-1.5 rounded">
-                                                                        <span className="font-medium text-purple-800 dark:text-purple-300">{s.driverName}</span>
-                                                                        <span className="text-purple-600 dark:text-purple-400"> could reload at depot after #{s.splitAfterOrderNumber}</span>
-                                                                        <span className="text-purple-500 dark:text-purple-500 block mt-0.5">{s.ordersBefore} orders before · {s.ordersAfter} orders after reload</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </CardContent>
-                                                    </Card>
-                                                )}
-                                            </div>
-                                        )
-                                    })()
                                 )}
 
                                 {/* Issues / Warnings */}
@@ -1710,6 +1742,64 @@ export default function PlannerPage() {
                                                         </details>
                                                     </CardContent>
                                                 </Card>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Capacity Warnings */}
+                                {optimizationReport.capacityWarnings && optimizationReport.capacityWarnings.length > 0 && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                            <AlertTriangle size={18} className="text-amber-500" />
+                                            Capacity Warnings
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {optimizationReport.capacityWarnings.map((warning, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="flex items-start gap-3 p-4 bg-amber-50/60 dark:bg-amber-950/20 backdrop-blur-md border border-amber-200/60 dark:border-amber-800/30 rounded-2xl shadow-sm"
+                                                >
+                                                    <span className="text-amber-500 mt-0.5 shrink-0">&#9888;&#65039;</span>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-amber-800 dark:text-amber-300 leading-tight">
+                                                            {warning.driverName} has {warning.orderCount} orders but max capacity is {warning.maxOrders}
+                                                        </p>
+                                                        {warning.totalWeightLbs > 0 && warning.vehicleCapacityLbs && (
+                                                            <p className="text-[11px] font-medium text-amber-600/80 dark:text-amber-400/80 mt-1">
+                                                                Weight: {warning.totalWeightLbs.toFixed(1)} lbs / {warning.vehicleCapacityLbs} lbs capacity
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Shift Violations */}
+                                {optimizationReport.shiftViolations && optimizationReport.shiftViolations.length > 0 && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                            <Clock size={18} className="text-amber-500" />
+                                            Shift Violations
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {optimizationReport.shiftViolations.map((violation, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="flex items-start gap-3 p-4 bg-amber-50/60 dark:bg-amber-950/20 backdrop-blur-md border border-amber-200/60 dark:border-amber-800/30 rounded-2xl shadow-sm"
+                                                >
+                                                    <span className="text-amber-500 mt-0.5 shrink-0">&#9888;&#65039;</span>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-amber-800 dark:text-amber-300 leading-tight">
+                                                            {violation.driverName}&apos;s route finishes at {violation.estimatedFinish} but shift ends at {violation.shiftEnd}
+                                                        </p>
+                                                        <p className="text-[11px] font-medium text-amber-600/80 dark:text-amber-400/80 mt-1 uppercase tracking-wider">
+                                                            {violation.orderCount} orders assigned
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -1925,5 +2015,26 @@ export default function PlannerPage() {
 
             </div>
         </DndContext>
+
+        {/* Offline Driver Assignment Warning */}
+        <AlertDialog open={offlineAssignConfirm.show} onOpenChange={(open) => !open && setOfflineAssignConfirm({ show: false, orderId: '', driverId: '', driverName: '' })}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="text-amber-600 flex items-center gap-2">
+                        <AlertTriangle size={20} /> Driver is Offline
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        <strong>{offlineAssignConfirm.driverName}</strong> is currently offline. They won&apos;t receive this order until they come back online. Are you sure you want to assign?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmOfflineAssignment} className="bg-amber-600 hover:bg-amber-700">
+                        Assign Anyway
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        </>
     )
 }

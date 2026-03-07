@@ -1,15 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, User as AppUser } from '@/lib/supabase' // Use our type alias
+import { supabase, User as AppUser } from '@/lib/supabase'
 import { waitForSession } from '@/lib/wait-for-session'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { PasswordInput } from '@/components/ui/password-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { UserCog, Plus, Trash2, Power, Lock, Unlock, ShieldAlert } from 'lucide-react'
+import { UserCog, Plus, Trash2, Power, Lock, Unlock, ShieldAlert, Send } from 'lucide-react'
 import { useToast } from '@/components/toast-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
@@ -46,9 +44,8 @@ export default function DispatchersPage() {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
-        password: '',
         permissions: {
-            view_orders: true, // Default
+            view_orders: true,
             view_drivers: true
         } as Record<string, boolean>
     })
@@ -67,7 +64,6 @@ export default function DispatchersPage() {
                 currentUserId = session.user.id
             }
 
-            // On web, getSession() may time out due to navigator.locks — fallback to getUser()
             if (!currentUserId) {
                 try {
                     const { data: userData } = await supabase.auth.getUser()
@@ -83,20 +79,16 @@ export default function DispatchersPage() {
 
             let userData = currentUser
 
-            // FALLBACK: If direct query failed, use server-side API
             if (userError || !userData) {
-                console.warn('⚠️ Dispatchers: Direct DB query failed:', userError?.message, '— trying fallback API...')
                 try {
                     const res = await authenticatedFetch('/api/user-profile')
                     if (res.ok) {
                         const apiData = await res.json()
                         if (apiData.success && apiData.user) {
                             userData = apiData.user
-                            console.log('✅ Dispatchers: Fallback API succeeded')
                         }
                     }
                 } catch (apiErr) {
-                    console.warn('⚠️ Dispatchers: Fallback API also failed:', apiErr)
                 }
             }
 
@@ -105,13 +97,11 @@ export default function DispatchersPage() {
                 return
             }
 
-            // 🚨 SECURITY: Manager/Admin Only 🚨
             if (userData.role === 'driver') {
                 window.location.href = '/dashboard'
                 return
             }
 
-            // Use RPC to fetch dispatchers (Bypass RLS)
             const { data, error } = await supabase.rpc('get_company_dispatchers', {
                 company_id_param: userData.company_id
             })
@@ -129,19 +119,16 @@ export default function DispatchersPage() {
     const [editingDispatcher, setEditingDispatcher] = useState<AppUser | null>(null)
     const [deletingDispatcher, setDeletingDispatcher] = useState<AppUser | null>(null)
 
-    // Helper to open Edit Sheet
     function openEdit(dispatcher: AppUser) {
         setEditingDispatcher(dispatcher)
         setFormData({
             name: dispatcher.full_name || '',
             email: dispatcher.email || '',
-            password: '', // Leave blank if not changing
             permissions: (dispatcher.permissions as Record<string, boolean>) || {}
         })
         setIsAddOpen(true)
     }
 
-    // Helper to initiate delete
     function initiateDelete(dispatcher: AppUser) {
         setDeletingDispatcher(dispatcher)
     }
@@ -149,7 +136,6 @@ export default function DispatchersPage() {
     async function handleDeleteDispatcher() {
         if (!deletingDispatcher) return
         try {
-            // const response = await fetch(`/api/manage-dispatcher?id=${deletingDispatcher.id}`, { method: 'DELETE' })
             const { error, data } = await supabase.rpc('delete_user_by_admin', { target_user_id: deletingDispatcher.id })
 
             if (error) throw error
@@ -163,16 +149,27 @@ export default function DispatchersPage() {
         }
     }
 
+    async function handleResendSetupEmail(dispatcher: AppUser) {
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(dispatcher.email || '', {
+                redirectTo: window.location.origin + '/update-password'
+            })
+
+            if (!error) {
+                toast({ title: 'Setup email sent!', description: `${dispatcher.full_name} will receive an email at ${dispatcher.email} to set their password.`, type: 'success' })
+            } else {
+                toast({ title: 'Failed to send setup email', description: error.message, type: 'error' })
+            }
+        } catch {
+            toast({ title: 'Failed to send setup email', type: 'error' })
+        }
+    }
+
     async function handleSubmit() {
         if (editingDispatcher) {
             // UPDATE MODE
             setIsSubmitting(true)
             try {
-                /* const response = await fetch('/api/manage-dispatcher', {
-                     method: 'PUT', ...
-                }) */
-
-                // Use RPC
                 const { error, data } = await supabase.rpc('update_dispatcher_account', {
                     target_user_id: editingDispatcher.id,
                     full_name: formData.name,
@@ -182,14 +179,6 @@ export default function DispatchersPage() {
 
                 if (error) throw error
                 if (data && !data.success) throw new Error(data.error || 'Update failed')
-
-                // If password provided, update it too
-                if (formData.password) {
-                    await supabase.rpc('update_user_password_by_admin', {
-                        target_user_id: editingDispatcher.id,
-                        new_password: formData.password
-                    })
-                }
 
                 toast({ title: 'Dispatcher Updated', type: 'success' })
                 setIsAddOpen(false)
@@ -208,14 +197,14 @@ export default function DispatchersPage() {
 
     async function handleCreateDispatcher() {
 
-        if (!formData.name || !formData.email || !formData.password) {
-            toast({ title: 'Missing Fields', description: 'Please fill in all required fields.', type: 'error' })
+        if (!formData.name || !formData.email) {
+            toast({ title: 'Missing Fields', description: 'Please fill in name and email.', type: 'error' })
             return
         }
 
         setIsSubmitting(true)
         try {
-            // 1. Auth Check with Fallback
+            // Auth Check
             let currentUserId = null
             const { data: { session } } = await supabase.auth.getSession()
 
@@ -230,7 +219,6 @@ export default function DispatchersPage() {
             const { data: directUser } = await supabase.from('users').select('company_id').eq('id', currentUserId).single()
             companyUser = directUser
 
-            // FALLBACK: If direct query failed, use server-side API
             if (!companyUser) {
                 try {
                     const res = await authenticatedFetch('/api/user-profile')
@@ -244,28 +232,42 @@ export default function DispatchersPage() {
             }
             if (!companyUser) throw new Error("No company found")
 
+            // Generate random password (dispatcher will set their own via email)
+            const randomPassword = crypto.randomUUID() + 'Aa1!'
+
             // RPC Call
             const { data, error } = await supabase.rpc('create_dispatcher_account', {
                 email: formData.email,
-                password: formData.password,
+                password: randomPassword,
                 full_name: formData.name,
                 company_id: companyUser.company_id,
                 permissions: formData.permissions
             })
 
-
-
             if (error) throw error
             if (data && !data.success) throw new Error(data.error || "Failed to create dispatcher")
 
-            toast({
-                title: 'Dispatcher Created!',
-                description: `Successfully created account for ${formData.email}`,
-                type: 'success'
+            // Send account setup email
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+                redirectTo: `${window.location.origin}/update-password`,
             })
 
+            if (resetError) {
+                toast({
+                    title: 'Dispatcher Created!',
+                    description: `Account created but setup email failed. You can resend it from the dispatcher's card using the mail icon.`,
+                    type: 'success'
+                })
+            } else {
+                toast({
+                    title: 'Dispatcher Created!',
+                    description: `A setup email has been sent to ${formData.email}. They need to click the link to set their password.`,
+                    type: 'success'
+                })
+            }
+
             setIsAddOpen(false)
-            setFormData({ name: '', email: '', password: '', permissions: { view_orders: true, view_drivers: true } })
+            setFormData({ name: '', email: '', permissions: { view_orders: true, view_drivers: true } })
             fetchDispatchers()
 
         } catch (error: any) {
@@ -295,12 +297,6 @@ export default function DispatchersPage() {
             toast({ title: 'Update Failed', type: 'error' })
         }
     }
-
-    /* 
-     * PERMISSIONS TOGGLE
-     * (Normally we'd have a separate edit modal, but for speed, let's just create logic.
-     *  For now, permissions are set on create. Updating them would require an update API or direct DB call.)
-     */
 
     // LOADING SKELETON
     if (isLoading) {
@@ -362,7 +358,7 @@ export default function DispatchersPage() {
                         setIsAddOpen(open)
                         if (!open) {
                             setEditingDispatcher(null)
-                            setFormData({ name: '', email: '', password: '', permissions: { view_orders: true, view_drivers: true } })
+                            setFormData({ name: '', email: '', permissions: { view_orders: true, view_drivers: true } })
                         }
                     }}>
                         <SheetTrigger asChild>
@@ -391,14 +387,29 @@ export default function DispatchersPage() {
                                         placeholder="dispatcher@company.com"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Password {editingDispatcher && '(Leave blank to keep current)'}</label>
-                                    <PasswordInput
-                                        value={formData.password}
-                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                        placeholder={editingDispatcher ? "••••••••" : "Create password"}
-                                    />
-                                </div>
+
+                                {!editingDispatcher && (
+                                    <div className="bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 text-sm p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <p className="font-medium">A setup email will be sent to this address.</p>
+                                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">The dispatcher will set their own password via the link in the email.</p>
+                                    </div>
+                                )}
+
+                                {editingDispatcher && (
+                                    <div className="space-y-2 pt-2 border-t border-border">
+                                        <label className="text-sm font-medium">Account Setup</label>
+                                        <p className="text-xs text-muted-foreground">Send a setup email so this dispatcher can set or reset their password.</p>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleResendSetupEmail(editingDispatcher)}
+                                        >
+                                            <Send size={14} className="mr-2" />
+                                            Send Setup Email
+                                        </Button>
+                                    </div>
+                                )}
 
                                 <div className="pt-4 border-t">
                                     <label className="text-sm font-bold mb-3 block flex items-center gap-2">
@@ -484,6 +495,14 @@ export default function DispatchersPage() {
                                         {dispatcher.status === 'suspended' ? <Unlock size={16} className="mr-1.5" strokeWidth={2.5} /> : <Lock size={16} className="mr-1.5" strokeWidth={2.5} />}
                                         {dispatcher.status === 'suspended' ? 'Unfreeze' : 'Freeze'}
                                     </Button>
+
+                                    <button
+                                        className="h-11 w-11 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200/50 dark:border-blue-900/50"
+                                        onClick={() => handleResendSetupEmail(dispatcher)}
+                                        title="Resend Setup Email"
+                                    >
+                                        <Send size={18} strokeWidth={2} />
+                                    </button>
 
                                     <button
                                         className="h-11 w-11 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200/50 dark:border-slate-700/50"

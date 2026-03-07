@@ -67,7 +67,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
         if (!isMountedRef.current || isPublicRoute || resolvedRef.current) return
         const now = Date.now()
         if (now - lastRedirectRef.current > 3000) {
-            console.log(`⛔ Redirecting to login: ${reason || 'no session'}`)
             lastRedirectRef.current = now
             resolvedRef.current = true
             sessionConfirmedRef.current = false
@@ -115,8 +114,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
         const maxTimeoutMs = 15000
         const maxTimeout = setTimeout(async () => {
             if (resolvedRef.current) return
-            console.warn(`⏱️ Auth check timeout (${maxTimeoutMs / 1000}s) - forcing resolve`)
-
             // CRITICAL: Don't blindly redirect to login on timeout!
             // The timeout fires because getSession() is blocked waiting for
             // _initialize() to finish a token refresh. The stored session is
@@ -147,7 +144,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                 }
 
                 if (hasStoredAuth) {
-                    console.log('✅ Auth timeout but stored auth found — allowing through (token refresh in progress)')
                     finishLoading()
                     return
                 }
@@ -168,7 +164,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                 // On web, after 2 getSession timeouts, try getUser() as fallback.
                 // getUser() bypasses navigator.locks and makes a direct API call.
                 if (!isNative && getSessionTimeoutCount >= 2) {
-                    console.log('⏳ AuthCheck: getSession blocked by locks, trying getUser() fallback...')
                     try {
                         const { data: userData, error: userError } = await Promise.race([
                             supabase.auth.getUser(),
@@ -177,9 +172,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                             ),
                         ])
                         if (!userError && userData.user) {
-                            console.log('✅ AuthCheck: user verified via getUser()', {
-                                userId: userData.user.id.substring(0, 8)
-                            })
                             if (!userData.user.email_confirmed_at && pathname !== '/verify-email') {
                                 const now = Date.now()
                                 if (now - lastRedirectRef.current > 3000) {
@@ -210,7 +202,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                     if (error.message.includes('string did not match') ||
                         error.message.includes('pattern') ||
                         error.message.includes('Invalid')) {
-                        console.warn('⚠️ Session validation error - clearing corrupted data')
                         try {
                             await supabase.auth.signOut({ scope: 'local' })
                             if (isNative) {
@@ -248,7 +239,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                     const isExpired = expiresAt && expiresAt * 1000 < Date.now()
 
                     if (isExpired) {
-                        console.warn('⚠️ Session token expired, attempting refresh...')
                         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
                         if (refreshError || !refreshData.session) {
                             console.error('❌ Token refresh failed:', refreshError?.message)
@@ -257,13 +247,8 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                             redirectToLogin('token_refresh_failed')
                             return
                         }
-                        console.log('✅ Token refreshed successfully')
                     }
 
-                    console.log('✅ AuthCheck: session found', {
-                        path: pathname,
-                        userId: data.session.user.id.substring(0, 8)
-                    })
                     // Check email verification
                     if (!data.session.user.email_confirmed_at && pathname !== '/verify-email') {
                         const now = Date.now()
@@ -284,8 +269,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                 // all subsequent getSession() calls return null — retrying is pointless.
                 // Instead, read directly from storage and use refreshSession() to restore.
                 if (isNative && retries <= 2 && !isPublicRoute) {
-                    console.log('🔄 Attempting direct storage recovery...')
-
                     // Try Supabase's internal storage key first
                     try {
                         const { capacitorStorage } = await import('@/lib/capacitor-storage')
@@ -297,7 +280,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                                     refresh_token: parsed.refresh_token
                                 })
                                 if (refreshData.session) {
-                                    console.log('✅ Session recovered via direct storage + refreshSession!')
                                     clearTimeout(maxTimeout)
                                     finishLoading()
                                     return
@@ -305,20 +287,17 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                             }
                         }
                     } catch (err) {
-                        console.warn('⚠️ Storage recovery failed:', err)
                     }
 
                     // Try redundant session backup
                     try {
                         const restored = await restoreSessionFromBackup()
                         if (restored) {
-                            console.log('✅ Session recovered from backup!')
                             clearTimeout(maxTimeout)
                             finishLoading()
                             return
                         }
                     } catch (err) {
-                        console.warn('⚠️ Backup restore failed:', err)
                     }
                 }
 
@@ -326,7 +305,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                 // On web: cookies from signInWithPassword may take a moment to be readable
                 // On native: continue retrying in case Capacitor bridge becomes ready
                 if (retries > 0) {
-                    console.log(`⏳ No session yet, retrying... (${retries} left)`)
                     setTimeout(() => {
                         if (isMountedRef.current && !resolvedRef.current) checkAuth(retries - 1)
                     }, 500)
@@ -335,7 +313,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
 
                 // NO SESSION on web — no retries needed (cookies are instant)
                 // Give up and redirect to login
-                console.log('✅ AuthCheck: no session found', { path: pathname })
                 clearTimeout(maxTimeout)
                 if (!isPublicRoute) {
                     redirectToLogin('no_session')
@@ -354,7 +331,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                 if (isLockTimeout) {
                     getSessionTimeoutCount++
                     if (retries > 0) {
-                        console.log(`⏳ Lock busy / getSession timeout (count: ${getSessionTimeoutCount}), retrying auth check...`)
                         setTimeout(() => {
                             if (isMountedRef.current && !resolvedRef.current) checkAuth(retries - 1)
                         }, 1000)
@@ -382,8 +358,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
 
         // Subscribe to auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('🔔 Auth event:', event, 'hasSession:', !!session)
-
             if (event === 'SIGNED_OUT') {
                 sessionConfirmedRef.current = false
 
@@ -395,7 +369,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                         clearTimeout(_intentionalLogoutTimeout)
                         _intentionalLogoutTimeout = null
                     }
-                    console.log('⛔ Intentional logout — redirecting to login')
                     if (isMountedRef.current && !isPublicRoute) {
                         router.push('/login')
                     }
@@ -424,35 +397,29 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                         ])
 
                         if (!userError && userData.user) {
-                            console.log('⚠️ SIGNED_OUT event but user still valid server-side — refreshing session')
                             const { data: refreshData } = await supabase.auth.refreshSession()
                             if (refreshData.session) {
-                                console.log('✅ Session refreshed after false SIGNED_OUT')
                                 sessionConfirmedRef.current = true
                                 return
                             }
                         }
 
-                        console.log('⛔ SIGNED_OUT confirmed — no valid session, redirecting')
                         // Clear any stale cached session data
                         try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
                         router.push('/login')
                     } catch {
                         // If all checks fail (timeout, network error), redirect to be safe
-                        console.log('⛔ SIGNED_OUT recovery failed — redirecting to login')
                         try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
                         router.push('/login')
                     }
                 }
             } else if (event === 'INITIAL_SESSION') {
                 if (session && isMountedRef.current) {
-                    console.log('✅ INITIAL_SESSION with session - stopping loading')
                     clearTimeout(maxTimeout)
                     finishLoading()
                 } else if (!session && isNative && !isPublicRoute) {
                     // On native, INITIAL_SESSION fires before Preferences is ready
                     // Let checkAuth handle the retries
-                    console.log('⏳ INITIAL_SESSION null on native - waiting for retries...')
                 }
                 // On web, if INITIAL_SESSION has no session, checkAuth will handle redirect
             } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {

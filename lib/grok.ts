@@ -8,12 +8,14 @@ export interface ParsedOrder {
   state: string;
   zip_code: string;
   phone: string;
+  customer_email: string;
   order_number: string;
   delivery_date: string;
   notes: string;
   priority_level?: 'normal' | 'high' | 'critical';
   time_window_start?: string;
   time_window_end?: string;
+  weight_lbs?: number | null;
 }
 
 /**

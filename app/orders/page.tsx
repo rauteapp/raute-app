@@ -2,11 +2,10 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, CloudOff, Database } from "lucide-react"
+import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
-import { cacheData, getCachedData, getLastSyncTime } from "@/lib/offline-cache"
 import { waitForSession } from "@/lib/wait-for-session"
 import { parseOrderAI, type ParsedOrder } from "@/lib/grok"
 import { smartGeocode, batchSmartGeocode } from "@/lib/smart-geocoder"
@@ -21,6 +20,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { DriverTracker } from "@/components/driver-tracker"
 import { useToast } from "@/components/toast-provider"
 import { XCircle } from "lucide-react"
+import { NotificationService } from '@/lib/notification-service'
 import dynamic from 'next/dynamic'
 import { Skeleton } from "@/components/ui/skeleton"
 import { DriverSetupGuide } from "@/components/driver-setup-guide"
@@ -234,7 +234,6 @@ export default function OrdersPage() {
                 try {
                     const { data: userData } = await supabase.auth.getUser()
                     if (userData.user) {
-                        console.log('✅ Orders: session null but getUser() succeeded')
                         currentUserId = userData.user.id
                     }
                 } catch { }
@@ -242,15 +241,15 @@ export default function OrdersPage() {
 
             if (!currentUserId) return
 
-            // ⚡ QUICK LOAD: Try to load from IDB cache immediately for instant UI
-            if (orders.length === 0) {
-                try {
-                    const cached = await getCachedData<Order>('orders')
-                    if (cached.length > 0) {
-                        setOrders(cached)
-                        console.log("Loaded cached orders from IDB:", cached.length)
-                    }
-                } catch (e) { console.error("IDB cache read error", e) }
+            // ⚡ QUICK LOAD: Try to load from cache immediately for instant UI
+            if (typeof window !== 'undefined') {
+                const cachedOrders = localStorage.getItem('cached_orders')
+                if (cachedOrders && orders.length === 0) {
+                    try {
+                        const parsed = JSON.parse(cachedOrders)
+                        setOrders(parsed)
+                    } catch (e) { console.error("Cache parse error", e) }
+                }
             }
 
             const { data: userProfile } = await supabase
@@ -306,7 +305,8 @@ export default function OrdersPage() {
                 fetchedOrders = data || []
                 setOrders(fetchedOrders)
                 if (data) {
-                    cacheData('orders', data).catch(() => {})
+                    localStorage.setItem('cached_orders', JSON.stringify(data))
+                    localStorage.setItem('cached_orders_ts', new Date().toISOString())
                 }
 
             } else {
@@ -325,7 +325,8 @@ export default function OrdersPage() {
                 fetchedOrders = data || []
                 setOrders(fetchedOrders)
                 if (data) {
-                    cacheData('orders', data).catch(() => {})
+                    localStorage.setItem('cached_orders', JSON.stringify(data))
+                    localStorage.setItem('cached_orders_ts', new Date().toISOString())
                 }
             }
             // Auto-expand date range if no orders match today but there are orders
@@ -344,26 +345,21 @@ export default function OrdersPage() {
             }
         } catch (error: any) {
             console.error("Fetch error:", error)
-            // 🛑 ERROR: Fallback to IDB Cache if empty
-            if (orders.length === 0) {
+            // 🛑 ERROR: Fallback to Cache if empty
+            const cachedOrders = localStorage.getItem('cached_orders')
+            if (orders.length === 0 && cachedOrders) {
                 try {
-                    const cached = await getCachedData<Order>('orders')
-                    if (cached.length > 0) {
-                        setOrders(cached)
-                        const lastSync = await getLastSyncTime('orders')
-                        toast({
-                            title: 'Offline Mode',
-                            description: `Showing data from ${lastSync ? new Date(lastSync).toLocaleTimeString() : 'cache'}`,
-                            type: 'info'
-                        })
-                    } else {
-                        toast({ title: 'Failed to load orders', description: error.message, type: 'error' })
-                    }
-                } catch (e) {
-                    toast({ title: 'Failed to load orders', description: error.message, type: 'error' })
-                }
+                    const parsed = JSON.parse(cachedOrders)
+                    setOrders(parsed)
+                    const ts = localStorage.getItem('cached_orders_ts')
+                    toast({
+                        title: 'Offline Mode',
+                        description: `Showing data from ${ts ? new Date(ts).toLocaleTimeString() : 'cache'}`,
+                        type: 'info'
+                    })
+                } catch (e) { }
             } else {
-                toast({ title: 'Failed to update orders', description: error.message, type: 'error' })
+                toast({ title: 'Failed to update order', description: error.message, type: 'error' })
             }
         } finally {
             setIsLoading(false)
@@ -463,51 +459,57 @@ export default function OrdersPage() {
         setFilteredOrders(filtered)
     }
 
-    const [isTogglingStatus, setIsTogglingStatus] = useState(false)
-
     async function toggleOnlineStatus() {
-        if (!driverId || isTogglingStatus) {
-            if (!driverId) toast({ title: "Error", description: "Driver profile not found.", type: "error" })
+        if (!driverId) {
+            toast({ title: "Error", description: "Driver profile not found.", type: "error" })
             return
         }
-        setIsTogglingStatus(true)
 
-        const newStatus = !isOnline
+        const currentStatus = isOnline
+        const newStatus = !currentStatus
+
+        // 1. Optimistic Update
+        setIsOnline(newStatus)
+        // Save to localStorage for persistence across refreshes
+        localStorage.setItem('driver_online_status', String(newStatus))
 
         try {
-            // Update DB first — also set last_location_update so isDriverOnline() works immediately
-            const updatePayload: Record<string, any> = { is_online: newStatus }
-            if (newStatus) {
-                updatePayload.last_location_update = new Date().toISOString()
-            }
-            const { error } = await supabase
+            // 2. Perform DB Update
+            const { data, error } = await supabase
                 .from('drivers')
-                .update(updatePayload)
+                .update({ is_online: newStatus })
                 .eq('id', driverId)
+                .select()
 
             if (error) throw error
 
-            // Only update UI after DB succeeds
-            setIsOnline(newStatus)
-            localStorage.setItem('driver_online_status', String(newStatus))
-
-            // Log Activity (non-blocking)
-            Promise.resolve(supabase.from('driver_activity_logs').insert({
+            // 3. Log Activity
+            await supabase.from('driver_activity_logs').insert({
                 driver_id: driverId,
                 status: newStatus ? 'online' : 'offline',
                 timestamp: new Date().toISOString()
-            })).catch(() => {})
+            })
+
+            // 4. Notify managers when driver goes offline
+            if (!newStatus && companyId) {
+                NotificationService.notifyManagers(
+                    companyId,
+                    'driver_offline',
+                    'Driver Went Offline',
+                    `A driver has gone offline`,
+                    { driver_id: driverId, route: '/drivers' }
+                )
+            }
 
             toast({ title: newStatus ? "You are ONLINE 🟢" : "You are OFFLINE ⚫", type: "success" })
 
         } catch (error: any) {
+            setIsOnline(currentStatus) // Revert UI
             toast({
                 title: "Failed to update status",
-                description: error?.message || "Database permission denied",
+                description: error.message || "Database permission denied",
                 type: "error"
             })
-        } finally {
-            setIsTogglingStatus(false)
         }
     }
 
@@ -586,7 +588,6 @@ export default function OrdersPage() {
                 }
 
                 if (!targetCompanyId) throw new Error("Company ID Not Found")
-                console.log('🏢 Using company_id:', targetCompanyId)
 
                 // Map all results to database objects
                 // First, build order objects without geocoding (instant)
@@ -601,6 +602,7 @@ export default function OrdersPage() {
                         state: result.state || '',
                         zip_code: result.zip_code || '',
                         phone: result.phone || '',
+                        customer_email: result.customer_email || null,
                         delivery_date: result.delivery_date || new Date().toISOString().split('T')[0],
                         notes: result.notes || '',
                         status: 'pending',
@@ -608,6 +610,7 @@ export default function OrdersPage() {
                         priority_level: result.priority_level || 'normal',
                         time_window_start: result.time_window_start || null,
                         time_window_end: result.time_window_end || null,
+                        weight_lbs: result.weight_lbs ?? null,
                         latitude: null as number | null,
                         longitude: null as number | null,
                         geocoding_confidence: null as string | null,
@@ -617,52 +620,43 @@ export default function OrdersPage() {
 
                 // Save orders FIRST (instant), then geocode in background
                 setProcessingStage("Saving orders...")
-                console.log('📦 Orders to insert:', newOrders.length)
                 const { data: insertedData, error } = await supabase
                     .from('orders')
                     .insert(newOrders)
                     .select('id')
-                console.log('📥 Insert result:', { insertedCount: insertedData?.length, error })
                 if (error) throw error
                 if (!insertedData || insertedData.length === 0) {
                     throw new Error('Orders were not saved (0 rows inserted). This may be a permissions issue.')
                 }
-                console.log(`✅ Successfully inserted ${insertedData.length} orders`)
-
-                // Smart geocode in background — tries fast/free strategies first, AI only as last resort
+                // Geocode in background — don't block the user
                 const orderIds = insertedData.map(d => d.id)
                 setTimeout(async () => {
-                    const addressInputs = results.map(r => ({
-                        address: r.address || '', city: r.city || '', state: r.state || '', zip_code: r.zip_code || ''
-                    }))
-                    const geoResults = await batchSmartGeocode(addressInputs)
-
-                    let geocodedCount = 0
-                    for (let i = 0; i < geoResults.length; i++) {
-                        const geo = geoResults[i]
-                        if (geo && orderIds[i]) {
-                            const updates: Record<string, any> = {
-                                latitude: geo.lat,
-                                longitude: geo.lng,
-                                geocoding_confidence: geo.confidence,
-                                geocoded_address: geo.foundAddress,
-                                geocoding_attempted_at: new Date().toISOString()
+                    for (let i = 0; i < results.length; i++) {
+                        const result = results[i]
+                        try {
+                            const coords = await geocodeAddress(
+                                [result.address, result.city, result.state].filter(Boolean).join(', ')
+                            )
+                            if (coords && orderIds[i]) {
+                                const { error: geoUpdateErr } = await supabase.from('orders').update({
+                                    latitude: coords.lat,
+                                    longitude: coords.lng,
+                                    geocoding_confidence: coords.confidence,
+                                    geocoded_address: coords.foundAddress
+                                }).eq('id', orderIds[i])
+                                if (geoUpdateErr) console.error(`Failed to save geocode for order ${orderIds[i]}:`, geoUpdateErr.message)
+                            } else if (orderIds[i]) {
+                                const { error: geoFailErr } = await supabase.from('orders').update({
+                                    geocoding_confidence: 'failed',
+                                    geocoding_attempted_at: new Date().toISOString()
+                                }).eq('id', orderIds[i])
+                                if (geoFailErr) console.error(`Failed to mark geocode failure for order ${orderIds[i]}:`, geoFailErr.message)
                             }
-                            if (geo.correctedAddress) {
-                                updates.address = geo.correctedAddress
-                            }
-                            const { error: geoUpdateErr } = await supabase.from('orders').update(updates).eq('id', orderIds[i])
-                            if (geoUpdateErr) console.error(`Failed to save geocode for order ${orderIds[i]}:`, geoUpdateErr.message)
-                            else geocodedCount++
-                        } else if (orderIds[i]) {
-                            const { error: geoFailErr } = await supabase.from('orders').update({
-                                geocoding_confidence: 'failed',
-                                geocoding_attempted_at: new Date().toISOString()
-                            }).eq('id', orderIds[i])
-                            if (geoFailErr) console.error(`Failed to mark geocode failure for order ${orderIds[i]}:`, geoFailErr.message)
+                        } catch {
+                            // Skip geocoding errors silently
                         }
                     }
-                    console.log(`✅ Background geocoding complete: ${geocodedCount}/${orderIds.length} orders geocoded`)
+                    // Refresh to show geocoded coordinates
                     fetchData()
                 }, 100)
 
@@ -711,11 +705,13 @@ export default function OrdersPage() {
         if (data.state) setVal('state', data.state)
         if (data.zip_code) setVal('zip_code', data.zip_code)
         if (data.phone) setVal('phone', data.phone)
+        if (data.customer_email) setVal('customer_email', data.customer_email)
         if (data.delivery_date) setVal('delivery_date', data.delivery_date)
         if (data.delivery_date) setVal('delivery_date', data.delivery_date)
         if (data.time_window_start) setVal('time_window_start', data.time_window_start)
         if (data.time_window_end) setVal('time_window_end', data.time_window_end)
         if (data.notes) setVal('notes', data.notes)
+        if (data.weight_lbs != null) setVal('weight_lbs', String(data.weight_lbs))
     }
 
     function toggleOrderSelection(orderId: string) {
@@ -896,6 +892,10 @@ export default function OrdersPage() {
                 usedAddress = verificationResult.foundAddress
             }
 
+            const customerEmail = formData.get('customer_email') as string
+            const weightKgRaw = formData.get('weight_lbs') as string
+            const weightKg = weightKgRaw ? parseFloat(weightKgRaw) : null
+
             const newOrder: any = {
                 company_id: userProfile.company_id,
                 order_number: formData.get('order_number') as string,
@@ -905,6 +905,7 @@ export default function OrdersPage() {
                 state,
                 zip_code: zipCode,
                 phone: phone,
+                customer_email: customerEmail || null,
                 delivery_date: formData.get('delivery_date') as string,
                 notes: formData.get('notes') as string,
                 status: 'pending' as const,
@@ -914,7 +915,8 @@ export default function OrdersPage() {
                 longitude: lng,
                 geocoding_confidence: confidence,
                 geocoded_address: verificationResult?.foundAddress,
-                geocoding_attempted_at: new Date().toISOString()
+                geocoding_attempted_at: new Date().toISOString(),
+                weight_lbs: weightKg
             }
 
             const { error } = await supabase.from('orders').insert(newOrder)
@@ -1021,17 +1023,15 @@ export default function OrdersPage() {
 
                             <button
                                 onClick={toggleOnlineStatus}
-                                disabled={isTogglingStatus}
                                 className={cn(
                                     "flex items-center gap-2 px-4 py-2 rounded-full shadow-sm border transition-all text-sm font-bold",
-                                    isTogglingStatus && "opacity-50 cursor-not-allowed",
                                     isOnline
                                         ? "bg-green-500/10 text-green-600 border-green-200 dark:border-green-900"
                                         : "bg-muted text-muted-foreground border-border"
                                 )}
                             >
                                 <div className={cn("w-2 h-2 rounded-full transition-colors", isOnline ? "bg-green-500 animate-pulse" : "bg-slate-400")} />
-                                {isTogglingStatus ? "..." : isOnline ? "ONLINE" : "OFFLINE"}
+                                {isOnline ? "ONLINE" : "OFFLINE"}
                             </button>
                         </div>
                     </div>
@@ -1163,11 +1163,6 @@ export default function OrdersPage() {
                                                     <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", statusColors[order.status as keyof typeof statusColors])}>
                                                         {order.status.replace('_', ' ')}
                                                     </span>
-                                                    {(order as any)._pendingSync && (
-                                                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800">
-                                                            <CloudOff size={9} /> Pending Sync
-                                                        </span>
-                                                    )}
                                                     <p className="text-[10px] text-muted-foreground mt-1">
                                                         {format(new Date(order.delivery_date || order.created_at), "MMM dd")}
                                                     </p>
@@ -1260,11 +1255,6 @@ export default function OrdersPage() {
                                                                     HIGH
                                                                 </span>
                                                             )}
-                                                            {(order as any)._pendingSync && (
-                                                                <span className="flex items-center gap-1 text-[10px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800 uppercase tracking-wider">
-                                                                    <CloudOff size={10} /> Pending Sync
-                                                                </span>
-                                                            )}
                                                         </div>
 
                                                         {/* Time Window Badge */}
@@ -1284,7 +1274,7 @@ export default function OrdersPage() {
                                                         )}
                                                         {order.was_out_of_range && (
                                                             <span className="flex items-center gap-1 text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">
-                                                                <AlertCircle size={10} /> Out of Range
+                                                                <AlertCircle size={10} /> Out of Range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters * 3.281)} ft)` : ''}
                                                             </span>
                                                         )}
                                                     </div>
@@ -1600,7 +1590,6 @@ export default function OrdersPage() {
                                             id="add-order-form"
                                             onSubmit={(e) => {
                                                 e.preventDefault()
-                                                console.log("Form submitted!")
                                                 const formData = new FormData(e.currentTarget)
                                                 handleAddOrder(formData)
                                             }}
@@ -1653,6 +1642,10 @@ export default function OrdersPage() {
                                                                 placeholder="Enter phone number"
                                                             />
                                                         </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-bold text-slate-800 dark:text-slate-200">Customer Email</label>
+                                                        <Input name="customer_email" type="email" placeholder="customer@example.com" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" />
                                                     </div>
                                                 </div>
 
@@ -1712,6 +1705,10 @@ export default function OrdersPage() {
                                                         <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">End Time</label><Input name="time_window_end" type="time" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" /></div>
                                                     </div>
                                                     <div className="space-y-2"><label className="text-sm font-bold text-slate-800 dark:text-slate-200">Notes</label><textarea name="notes" className="w-full min-h-[100px] rounded-xl border border-input shadow-sm bg-white dark:bg-slate-950 px-3 py-3 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y" placeholder="Any special delivery instructions..." /></div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-bold text-slate-800 dark:text-slate-200">Weight (lbs)</label>
+                                                        <Input name="weight_lbs" type="number" step="0.1" min="0" placeholder="e.g., 12" className="bg-white dark:bg-slate-950 h-11 rounded-xl shadow-sm" />
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -1722,7 +1719,6 @@ export default function OrdersPage() {
                                                 onClick={(e) => {
                                                     e.preventDefault()
                                                     if (isSubmitting) return
-                                                    console.log("Button clicked, forcing submit...")
                                                     const form = document.getElementById('add-order-form') as HTMLFormElement
                                                     if (form) form.requestSubmit()
                                                 }}
@@ -1953,30 +1949,6 @@ export default function OrdersPage() {
                 )
             }
 
-            {/* --- Missing GPS Banner with AI Fix --- */}
-            {userRole !== 'driver' && orders.filter(o => !o.latitude || !o.longitude).length > 0 && (
-                <div className="mx-1 md:mx-0 mb-4 p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-2xl flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
-                        <div>
-                            <p className="text-sm font-bold text-rose-800 dark:text-rose-300">
-                                {orders.filter(o => !o.latitude || !o.longitude).length} Orders Missing GPS
-                            </p>
-                            <p className="text-xs text-rose-600/80 dark:text-rose-400/80">Hidden from map view</p>
-                        </div>
-                    </div>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={retryFailedGeocoding}
-                        disabled={isRetryingGeocode}
-                        className="shrink-0 border-rose-300 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/30"
-                    >
-                        {isRetryingGeocode ? <><Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> Fixing...</> : <><Sparkles size={14} className="mr-1.5" /> Fix with AI</>}
-                    </Button>
-                </div>
-            )}
-
             {/* --- MOBILE VIEW: CARDS --- */}
             <div className="md:hidden space-y-4">
                 {filteredOrders.length > 0 && (
@@ -2126,12 +2098,7 @@ export default function OrdersPage() {
                                                 </p>
                                                 {order.was_out_of_range && (
                                                     <span className="inline-flex items-center gap-1.5 text-[10px] bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-1 rounded-md font-bold w-fit mt-1 border border-red-100 dark:border-red-900/50">
-                                                        <AlertCircle size={10} strokeWidth={3} /> Out of Range
-                                                    </span>
-                                                )}
-                                                {(order as any)._pendingSync && (
-                                                    <span className="flex items-center gap-1 text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-1.5 py-0.5 rounded border border-orange-200 dark:border-orange-800">
-                                                        <CloudOff size={9} /> Pending Sync
+                                                        <AlertCircle size={10} strokeWidth={3} /> Out of Range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters * 3.281)} ft)` : ''}
                                                     </span>
                                                 )}
                                             </div>
@@ -2179,7 +2146,7 @@ export default function OrdersPage() {
                                 </tr>
                             ) : (
                                 filteredOrders.map((order) => (
-                                    <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                    <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer" onDoubleClick={() => { window.location.href = `/my-editor?id=${order.id}` }}>
                                         <td className="px-6 py-4 w-12">
                                             <input
                                                 type="checkbox"
@@ -2223,7 +2190,7 @@ export default function OrdersPage() {
                                             {order.was_out_of_range && (
                                                 <div className="mt-1">
                                                     <span className="flex items-center gap-1 text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 px-1.5 py-0.5 rounded font-bold w-fit">
-                                                        <AlertCircle size={9} /> Out of Range
+                                                        <AlertCircle size={9} /> Out of Range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters * 3.281)} ft)` : ''}
                                                     </span>
                                                 </div>
                                             )}

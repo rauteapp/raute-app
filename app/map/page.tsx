@@ -120,7 +120,6 @@ export default function MapPage() {
         const pollIntervalId = setInterval(async () => {
             const timeSinceLastEvent = Date.now() - lastRealtimeEventRef.current
             if (timeSinceLastEvent > REALTIME_STALE_THRESHOLD) {
-                console.log('⏳ Realtime stale, fallback polling drivers...')
                 const { data } = await supabase
                     .from('drivers')
                     .select('*')
@@ -167,7 +166,6 @@ export default function MapPage() {
                 .maybeSingle()
 
             if (!userProfile) {
-                console.log('❌ Map: No user profile found!')
                 return
             }
 

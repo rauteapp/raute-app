@@ -20,6 +20,7 @@ import { offlineManager } from '@/lib/offline-manager' // Auto-inits
 import { DriverSetupGuide } from '@/components/driver-setup-guide'
 import { useToast } from '@/components/toast-provider'
 import { Power } from 'lucide-react'
+import { NotificationBell } from '@/components/notification-bell'
 
 export function DriverDashboardView({ userId }: { userId: string }) {
     const router = useRouter()
@@ -76,14 +77,11 @@ export function DriverDashboardView({ userId }: { userId: string }) {
     }, [])
 
     useEffect(() => {
-        console.log("✅ DriverDashboardView MOUNTED with userId:", userId)
         if (!userId || userId === '') {
-            console.warn("⚠️ DriverDashboardView: Invalid userId, skipping fetch")
             setIsLoading(false)
             return
         }
         fetchDriverStats()
-        return () => console.log("❌ DriverDashboardView UNMOUNTED")
     }, [userId, dateRange])
 
     async function fetchDriverStats() {
@@ -299,9 +297,12 @@ export function DriverDashboardView({ userId }: { userId: string }) {
             {/* Header with Date Picker */}
             <div className="flex items-center justify-between animate-in fade-in slide-in-from-bottom-2 duration-500">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                        {isToday ? "My Route Today" : isRange ? "Period Reports" : "History Log"} {isToday && <Truck className="h-6 w-6 text-blue-500" />}
-                    </h1>
+                    <div className="flex items-center gap-1">
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            {isToday ? "My Route Today" : isRange ? "Period Reports" : "History Log"} {isToday && <Truck className="h-6 w-6 text-blue-500" />}
+                        </h1>
+                        <NotificationBell userId={userId} />
+                    </div>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">
                         {isRange
                             ? `${dateRange?.from ? format(dateRange.from, 'MMM d') : ''} - ${dateRange?.to ? format(dateRange.to, 'MMM d, yyyy') : ''}`

@@ -53,7 +53,6 @@ export default function AuthCallback() {
         if (result && 'data' in result) {
           const { data: userProfile } = result
           if (!userProfile || !userProfile.role || !userProfile.company_id) {
-            console.warn('⚠️ User has no complete profile, redirecting to login')
             window.location.href = '/login?message=verified'
             return
           }
@@ -82,7 +81,6 @@ export default function AuthCallback() {
           await syncRoleAndRedirect(data.session.user.id, data.session.user.email_confirmed_at)
           return true
         }
-        console.warn('Code exchange failed:', error?.message)
         return false
       } catch {
         return false
@@ -102,7 +100,6 @@ export default function AuthCallback() {
     let deepLinkListener: { remove: () => void } | null = null
     if (isNative) {
       App.addListener('appUrlOpen', async (event) => {
-        console.log('🔗 Deep link received:', event.url)
         const handled = await exchangeCode(event.url)
         if (!handled && !hasRedirected.current) {
           // Couldn't exchange — check if already has session (e.g. magic link flow)
@@ -178,13 +175,11 @@ export default function AuthCallback() {
           if (!isNative && !hasRedirected.current) {
             const { data: sessionData } = await supabase.auth.getSession()
             if (sessionData.session) {
-              console.log('✅ Code exchange failed but session exists (handled by onAuthStateChange)')
               await syncRoleAndRedirect(sessionData.session.user.id, sessionData.session.user.email_confirmed_at)
               return
             }
 
             // No session — likely mobile-originated PKCE without verifier
-            console.warn('Code exchange failed (likely missing PKCE verifier from mobile signup):', code)
             setShowAppRedirect(true)
             hasRedirected.current = true
             return
@@ -200,18 +195,29 @@ export default function AuthCallback() {
     handleUrlTokens()
 
     // === APPROACH 4: Polling fallback ===
+    // Use 3s interval (not 1s) and timeout-wrapped getSession() to avoid
+    // flooding navigator.locks and causing contention on the dashboard page.
     const pollInterval = setInterval(async () => {
       if (hasRedirected.current) {
         clearInterval(pollInterval)
         return
       }
 
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        clearInterval(pollInterval)
-        await syncRoleAndRedirect(data.session.user.id, data.session.user.email_confirmed_at)
+      try {
+        const { data } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null } }), 3000)
+          ),
+        ])
+        if (data.session) {
+          clearInterval(pollInterval)
+          await syncRoleAndRedirect(data.session.user.id, data.session.user.email_confirmed_at)
+        }
+      } catch {
+        // getSession timed out or threw — next poll will retry
       }
-    }, 1000)
+    }, 3000)
 
     // === TIMEOUT: Give up after 15 seconds ===
     const timeout = setTimeout(() => {

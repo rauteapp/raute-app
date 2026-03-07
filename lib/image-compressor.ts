@@ -42,7 +42,6 @@ export class ImageCompressor {
                     canvas.toBlob(
                         (blob) => {
                             if (blob) {
-                                console.log(`📸 Compressed: ${img.width}x${img.height} → ${width}x${height}, ${(blob.size / 1024).toFixed(0)}KB`)
                                 resolve(blob)
                             } else {
                                 reject(new Error('Blob conversion failed'))

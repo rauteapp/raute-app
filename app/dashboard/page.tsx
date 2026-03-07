@@ -2,8 +2,6 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { cacheData, getCachedData } from '@/lib/offline-cache'
-import { waitForSession } from '@/lib/wait-for-session'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity, CheckCircle2, Clock, Package, Truck, AlertCircle, AlertTriangle, TrendingUp, MapPin, ArrowRight, Calendar as CalendarIcon, Filter, X, Sparkles, User } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,6 +21,7 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/components/toast-provider"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
 import { PullToRefresh } from "@/components/pull-to-refresh"
+import { NotificationBell } from "@/components/notification-bell"
 
 export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true)
@@ -88,69 +87,64 @@ export default function DashboardPage() {
         // Global safety timeout to prevent endless skeleton loader if Supabase hangs
         const maxWaitGlobal = setTimeout(() => {
             if (isMountedRef.current && !isInitDone) {
-                console.warn('⏱️ initDashboard: Global timeout reached! Forcing UI to load.')
                 setIsLoading(false)
                 toast({ title: "Connection Timeout", description: "Database is taking too long to respond. Some data may be missing.", type: "error" })
             }
-        }, 15000)
+        }, 10000)
 
-        // Session-aware init with retry for Capacitor async storage
+        // Session-aware init — run getSession() and getUser() in parallel for speed.
+        // getSession() may hang due to navigator.locks, but getUser() bypasses locks.
         const initDashboard = async (): Promise<void> => {
             try {
-                let session = await waitForSession()
+                let currentUserId: string | null = null
+                let userMeta: Record<string, any> = {}
+                let session: any = null
 
-                // On web, getSession() may time out due to navigator.locks but the user
-                // IS authenticated (auth-check allows through via stored auth cookie).
-                // Fall back to getUser() to get the user ID and proceed.
-                let currentUserId: string | null = session?.user?.id ?? null
-                let userMeta = session?.user?.user_metadata ?? {}
-
-                if (!session && !currentUserId) {
-                    try {
-                        const result: any = await Promise.race([
+                try {
+                    const [sessionResult, userResult] = await Promise.allSettled([
+                        Promise.race([
+                            supabase.auth.getSession(),
+                            new Promise<{ data: { session: null } }>((resolve) =>
+                                setTimeout(() => resolve({ data: { session: null } }), 4000)
+                            ),
+                        ]),
+                        Promise.race([
                             supabase.auth.getUser(),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timeout')), 5000))
-                        ])
-                        const userData = result.data
-                        if (userData?.user) {
-                            console.log('✅ Dashboard: session null but getUser() succeeded')
-                            currentUserId = userData.user.id
-                            userMeta = userData.user.user_metadata ?? {}
+                            new Promise<{ data: { user: null } }>((resolve) =>
+                                setTimeout(() => resolve({ data: { user: null } }), 4000)
+                            ),
+                        ]),
+                    ])
+
+                    if (sessionResult.status === 'fulfilled') {
+                        const s = (sessionResult.value as any)?.data?.session
+                        if (s?.user?.id) {
+                            session = s
+                            currentUserId = s.user.id
+                            userMeta = s.user.user_metadata ?? {}
                         }
-                    } catch { }
+                    }
+
+                    if (!currentUserId && userResult.status === 'fulfilled') {
+                        const u = (userResult.value as any)?.data?.user
+                        if (u?.id) {
+                                currentUserId = u.id
+                            userMeta = u.user_metadata ?? {}
+                        }
+                    }
+                } catch {
+                    // Both failed
                 }
 
                 if (!currentUserId) {
-                    // No session and no user — likely a temporary navigator.locks issue.
-                    // DON'T force sign out or redirect — this causes redirect loops.
-                    // Instead, just stop loading and let the global timeout toast show.
-                    console.warn('⚠️ Dashboard: No valid session/user found. Waiting for session recovery...')
-
-                    // One final attempt after a longer wait (locks may release)
-                    await new Promise(resolve => setTimeout(resolve, 2000))
-                    try {
-                        const { data: retryData } = await supabase.auth.getUser()
-                        if (retryData?.user) {
-                            console.log('✅ Dashboard: session recovered on final retry')
-                            currentUserId = retryData.user.id
-                            userMeta = retryData.user.user_metadata ?? {}
-                        }
-                    } catch { }
-
-                    if (!currentUserId) {
-                        // Still no user — check if there's a cached role (means user WAS logged in)
-                        const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null
-                        if (cachedRole) {
-                            // User was logged in before — this is a temporary lock issue, don't redirect
-                            console.warn('⚠️ Dashboard: Session locked but cached role exists. Showing timeout UI.')
-                            if (isMountedRef.current) setIsLoading(false)
-                            return
-                        }
-                        // No cached role either — user is genuinely not logged in
-                        console.error('⛔ Dashboard: No session, no cache. Redirecting to login.')
-                        router.replace('/login?error=no_session')
+                    const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null
+                    if (cachedRole) {
+                        if (isMountedRef.current) setIsLoading(false)
                         return
                     }
+                    console.error('⛔ Dashboard: No session, no cache. Redirecting to login.')
+                    router.replace('/login?error=no_session')
+                    return
                 }
 
                 // Get user role and full_name from database
@@ -183,7 +177,6 @@ export default function DashboardPage() {
                     role = dbUser.role || role
                     fullName = dbUser.full_name || fullName
                 } else {
-                    console.warn('⚠️ Direct DB query failed:', dbError?.message, '— trying fallback API...')
                     // FALLBACK: Use server-side API to bypass RLS
                     try {
                         const res = await authenticatedFetch('/api/user-profile')
@@ -192,11 +185,9 @@ export default function DashboardPage() {
                             if (apiData.success && apiData.user) {
                                 role = apiData.user.role || role
                                 fullName = apiData.user.full_name || fullName
-                                console.log('✅ Fallback API succeeded:', apiData.user.role)
                             }
                         }
                     } catch (apiErr) {
-                        console.warn('⚠️ Fallback API also failed:', apiErr)
                     }
                 }
 
@@ -207,7 +198,7 @@ export default function DashboardPage() {
                 if (isMountedRef.current) {
                     setUserId(currentUserId)
                     setUserRole(role)
-                    setUserName(fullName)
+                    setUserName(fullName || 'User')
                 }
 
                 // 🔥 FETCH DASHBOARD DATA (For all management roles)
@@ -240,7 +231,6 @@ export default function DashboardPage() {
 
                         if (ordersData && !ordersError) {
                             setOrders(ordersData)
-                            cacheData('orders', ordersData).catch(() => {})
 
                             // Calculate stats
                             const statsCalc = {
@@ -252,23 +242,6 @@ export default function DashboardPage() {
                                 cancelled: ordersData.filter(o => o.status === 'cancelled').length
                             }
                             setStats(statsCalc)
-                        } else if (ordersError) {
-                            // Offline fallback: load from IDB
-                            const cached = await getCachedData('orders', {
-                                filter: (o: any) => o.company_id === companyId
-                            })
-                            if (cached.length > 0) {
-                                setOrders(cached as any)
-                                const statsCalc = {
-                                    total: cached.length,
-                                    pending: cached.filter((o: any) => o.status === 'pending').length,
-                                    assigned: cached.filter((o: any) => o.status === 'assigned').length,
-                                    inProgress: cached.filter((o: any) => o.status === 'in_progress').length,
-                                    delivered: cached.filter((o: any) => o.status === 'delivered').length,
-                                    cancelled: cached.filter((o: any) => o.status === 'cancelled').length
-                                }
-                                setStats(statsCalc)
-                            }
                         }
 
                         // Fetch Drivers
@@ -279,7 +252,6 @@ export default function DashboardPage() {
 
                         if (driversData) {
                             setTotalDriversCount(driversData.length)
-                            cacheData('drivers', driversData).catch(() => {})
                             // Build drivers map for quick lookup
                             const dMap: Record<string, any> = {}
                             driversData.forEach(d => {
@@ -296,7 +268,6 @@ export default function DashboardPage() {
 
                         if (hubsData) {
                             setHasHubs(hubsData.length > 0)
-                            cacheData('hubs', hubsData).catch(() => {})
                         }
                     }
                 }
@@ -406,7 +377,7 @@ export default function DashboardPage() {
                 if (newOrder.was_out_of_range && !oldOrder?.was_out_of_range) {
                     toast({
                         title: "⚠️ Suspicious Delivery",
-                        description: `Order #${newOrder.order_number || newOrder.id?.slice(0, 8)} was delivered ${newOrder.delivery_distance_meters ? Math.round(newOrder.delivery_distance_meters) + 'm' : 'far'} from destination`,
+                        description: `Order #${newOrder.order_number || newOrder.id?.slice(0, 8)} was delivered ${newOrder.delivery_distance_meters ? Math.round(newOrder.delivery_distance_meters * 3.281) + ' ft' : 'far'} from destination`,
                         type: "error"
                     })
                     // Refresh orders to update the alert banner
@@ -509,9 +480,12 @@ export default function DashboardPage() {
                 {/* 1. HEADER & CONTROLS */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <div className="space-y-2">
-                        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                            {isToday ? getGreeting() : "Report View"}, {userName.split(' ')[0]} <Sparkles className="h-6 w-6 text-amber-500 animate-pulse drop-shadow-sm" />
-                        </h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                {isToday ? getGreeting() : "Report View"}, {userName.split(' ')[0]} <Sparkles className="h-6 w-6 text-amber-500 animate-pulse drop-shadow-sm" />
+                            </h1>
+                            <NotificationBell userId={userId} />
+                        </div>
                         <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
                             {isToday ? "Live Operations Overview" :
                                 isRange ? `Period Report: ${format(dateRange?.from!, 'MMM d')} - ${format(dateRange?.to!, 'MMM d, yyyy')}` :
