@@ -8,7 +8,20 @@
       "Bash(npx tsc --noEmit)",
       "Bash(git push origin claude/xenodochial-ardinghelli)",
       "Bash(xargs grep -l \"serviceWorker\\\\|sw.js\\\\|manifest.json\")",
-      "Bash(git add -A)"
+      "Bash(node -e \":*)",
+      "Bash(wc -l \"D:\\\\Mine\\\\Jobs\\\\UpWork\\\\dmeprousa\\\\Route Application\\\\raute-app\\\\.claude\\\\worktrees\\\\gallant-hertz/supabase/migrations\"/*.sql)",
+      "Bash(grep -n \"ALTER TABLE.*ADD COLUMN\\\\|CREATE TABLE\" \"D:\\\\Mine\\\\Jobs\\\\UpWork\\\\dmeprousa\\\\Route Application\\\\raute-app\\\\.claude\\\\worktrees\\\\gallant-hertz/supabase\"/*.sql)",
+      "Bash(grep -l \"useEffect\" components/*.tsx)",
+      "Bash(grep -h \"^CREATE TABLE\\\\|^ALTER TABLE.*ADD COLUMN\" supabase/*.sql)",
+      "Bash(find components -name \"*.tsx\" -exec wc -l {} +)",
+      "Bash(grep -rh \"FROM\\\\s\\\\|INTO\\\\s\" lib/*.ts app/api/**/*.ts)",
+      "Bash(find app -name \"page.tsx\" -exec wc -l {} +)",
+      "Bash(done)",
+      "Bash(grep -r \"useState\" components/*.tsx app/**/*.tsx --include=\"*.tsx\")",
+      "mcp__9854fed4-f77a-4c5a-9ee0-4549ad408fb1__apply_migration",
+      "mcp__9854fed4-f77a-4c5a-9ee0-4549ad408fb1__list_projects",
+      "mcp__9854fed4-f77a-4c5a-9ee0-4549ad408fb1__get_advisors",
+      "mcp__9854fed4-f77a-4c5a-9ee0-4549ad408fb1__list_organizations"
     ]
   }
 }
