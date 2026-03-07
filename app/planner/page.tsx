@@ -28,6 +28,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { smartGeocode } from '@/lib/smart-geocoder'
 import { NotificationService } from '@/lib/notification-service'
 import { PullToRefresh } from '@/components/pull-to-refresh'
 import { useMediaQuery } from '@/hooks/use-media-query'
@@ -264,6 +265,8 @@ export default function PlannerPage() {
     const [orders, setOrders] = useState<Order[]>([])
     const [drivers, setDrivers] = useState<Driver[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [isRetryingGeocode, setIsRetryingGeocode] = useState(false)
+    const [companyId, setCompanyId] = useState<string | null>(null)
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null) // For Quick View Sheet
 
     // Offline driver assignment confirmation
@@ -409,6 +412,8 @@ export default function PlannerPage() {
             // Get User + Subscription Limit
             const { data: user } = await supabase.from('users').select('company_id, role, driver_limit').eq('id', userId).single()
             if (!user || user.role === 'driver') { router.replace('/orders'); return }
+
+            setCompanyId(user.company_id)
 
             // Set subscription limit
             const limit = user.driver_limit || 1
@@ -725,6 +730,67 @@ export default function PlannerPage() {
             alert(`Optimization Failed: ${msg} `)
         } finally {
             setIsLoading(false)
+        }
+    }
+
+    async function retryFailedGeocoding() {
+        if (!companyId) return
+        setIsRetryingGeocode(true)
+        try {
+            const { data: failedOrders } = await supabase
+                .from('orders')
+                .select('id, address, city, state, zip_code')
+                .eq('company_id', companyId)
+                .is('latitude', null)
+                .not('status', 'in', '("delivered","cancelled")')
+
+            if (!failedOrders?.length) {
+                toast({ title: "No orders need geocoding", type: "info" })
+                return
+            }
+
+            let fixed = 0
+            for (const order of failedOrders) {
+                try {
+                    const result = await smartGeocode(
+                        order.address || '', order.city || '', order.state || '', order.zip_code || ''
+                    )
+                    if (result) {
+                        const updates: Record<string, any> = {
+                            latitude: result.lat, longitude: result.lng,
+                            geocoding_confidence: result.confidence,
+                            geocoded_address: `${result.foundAddress} [${result.strategy}]`,
+                            geocoding_attempted_at: new Date().toISOString()
+                        }
+                        if (result.correctedAddress) {
+                            updates.address = result.correctedAddress
+                        }
+                        const { error: planGeoErr } = await supabase.from('orders').update(updates).eq('id', order.id)
+                        if (planGeoErr) console.error(`Planner geocode save failed for order ${order.id}:`, planGeoErr.message)
+                        else fixed++
+                    } else {
+                        const { error: planFailErr } = await supabase.from('orders').update({
+                            geocoding_confidence: 'failed',
+                            geocoding_attempted_at: new Date().toISOString(),
+                            geocoded_address: 'All geocoding strategies failed'
+                        }).eq('id', order.id)
+                        if (planFailErr) console.error(`Planner geocode failure mark failed:`, planFailErr.message)
+                    }
+                } catch {
+                    // Continue with next order
+                }
+            }
+
+            toast({
+                title: fixed > 0 ? `Fixed ${fixed}/${failedOrders.length} orders` : "Could not fix addresses",
+                description: fixed > 0 ? "GPS coordinates updated" : "Addresses may need manual correction",
+                type: fixed > 0 ? "success" : "error"
+            })
+            fetchData()
+        } catch (error: any) {
+            toast({ title: "Retry failed", description: error.message, type: "error" })
+        } finally {
+            setIsRetryingGeocode(false)
         }
     }
 

@@ -1,13 +1,5 @@
-import OpenAI from "openai";
 import { read, utils } from "xlsx";
-
-// Initialize xAI Grok client (OpenAI-compatible API)
-const apiKey = process.env.NEXT_PUBLIC_XAI_API_KEY || "";
-const client = new OpenAI({
-  apiKey,
-  baseURL: "https://api.x.ai/v1",
-  dangerouslyAllowBrowser: true, // Required for client-side usage in Next.js
-});
+import { authenticatedFetch } from './authenticated-fetch';
 
 export interface ParsedOrder {
   customer_name: string;
@@ -75,112 +67,14 @@ export async function fileToContentPart(
 // Keep backward compatibility for any code importing the old name
 export const fileToGenerativePart = fileToContentPart;
 
-const SYSTEM_PROMPT = `
-You are an AI assistant for a delivery logistics app.
-Your task is to extract delivery order details from the provided input (text or image).
-The input might be a chat message, an email, a screenshot of a list, or a spreadsheet row.
-
-IMPORTANT: Your goal is to extract as many valid orders as possible.
-It is common for some details (like Customer Name, Phone, or Notes) to be missing. This is ACCEPTABLE.
-- ALways extract the Address.
-- If other fields are present, extract them.
-- If a field is MISSING in the input, explicitly return an empty string "" (do not hallucinate).
-- Treat each address found as a separate order.
-
-Extract the orders and return them as a JSON OBJECT with a key "orders" containing an ARRAY of objects.
-Example: { "orders": [ { "customer_name": "John", "address": "123 Main St", "priority_level": "normal", "time_window_start": "09:00", "time_window_end": "12:00" } ] }
-
-Fields to extract for each order:
-- customer_name (string): Name of the recipient. If missing, use "".
-- address (string): Full street address.
-- city (string)
-- state (string)
-- zip_code (string)
-- phone (string)
-- customer_email (string): Customer's email address. Look for columns named "customer_email", "email", "customer email". If missing, use "".
-- order_number (string)
-- delivery_date (string): YYYY-MM-DD.
-- notes (string)
-- weight_lbs (number|null): Package weight in kilograms. Look for columns named "weight_lbs", "weight", "weight (lbs)". If missing, use null.
-- priority_level (string): 'normal', 'high', or 'critical'. Infer from keywords:
-    - 'Critical', 'Emergency', 'Life Threatening' -> 'critical'
-    - 'High', 'Urgent', 'ASAP', 'Rush' -> 'high'
-    - Otherwise 'normal'.
-- time_window_start (string): HH:MM (24h format). Start of delivery window. Empty if none.
-- time_window_end (string): HH:MM (24h format). End of delivery window. Empty if none.
-    - Examples:
-    - "Deliver by 5pm" -> start: "", end: "17:00"
-    - "Window 9am - 1pm" -> start: "09:00", end: "13:00"
-    - "After 14:00" -> start: "14:00", end: ""
-    - "At 10:30" -> start: "10:15", end: "10:45" (approx window)
-
-If a field is missing, use "".
-RETURN ONLY THE RAW JSON.
-`;
-
-const MAX_RETRIES = 2;
-const TIMEOUT_MS = 120_000; // 2 minutes — reasoning models can be slow on large inputs
-
-async function callGrokWithRetry(
-  contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
-  attempt = 1
-): Promise<string> {
-  try {
-    const completionPromise = client.chat.completions.create({
-      model: "grok-4-1-fast-reasoning",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: contentParts },
-      ],
-      temperature: 0.1,
-    });
-
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("TIMEOUT")), TIMEOUT_MS)
-    );
-
-    const completion = await Promise.race([completionPromise, timeoutPromise]);
-    const textResponse = completion.choices[0]?.message?.content || "";
-
-    if (!textResponse) {
-      throw new Error("The AI returned an empty response. Please try a different image.");
-    }
-
-    return textResponse;
-  } catch (error: any) {
-    const isRetryable =
-      error.message === "TIMEOUT" ||
-      error.code === "ERR_HTTP2_PROTOCOL_ERROR" ||
-      error.status === 429 ||
-      error.status === 502 ||
-      error.status === 503 ||
-      error.message?.includes("ERR_HTTP2") ||
-      error.message?.includes("ECONNRESET") ||
-      error.message?.includes("fetch failed");
-
-    if (isRetryable && attempt <= MAX_RETRIES) {
-      const delay = attempt * 3000; // 3s, 6s backoff
-      await new Promise(r => setTimeout(r, delay));
-      return callGrokWithRetry(contentParts, attempt + 1);
-    }
-
-    if (error.message === "TIMEOUT") {
-      throw new Error("Request timed out. The AI model took too long to respond. Please try again or use a smaller image.");
-    }
-
-    throw error;
-  }
-}
-
+/**
+ * Parse orders from text or files using xAI/Grok via server-side proxy.
+ * API key stays on the server — never exposed to the browser.
+ */
 export async function parseOrderAI(input: string | File | File[]): Promise<ParsedOrder[]> {
-  if (!apiKey) {
-    console.error("xAI API Key is missing");
-    throw new Error("Configuration Error: xAI API Key is missing. Please check your .env settings.");
-  }
-
   try {
-    // Build the user message content parts
-    const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+    // Build the content parts
+    const contentParts: any[] = [];
     const dateContext = `Current Date: ${new Date().toISOString().split('T')[0]}`;
 
     if (typeof input === 'string') {
@@ -202,29 +96,18 @@ export async function parseOrderAI(input: string | File | File[]): Promise<Parse
       contentParts.push(part);
     }
 
-    const textResponse = await callGrokWithRetry(contentParts);
+    const response = await authenticatedFetch('/api/ai/parse-orders', {
+      method: 'POST',
+      body: JSON.stringify({ contentParts }),
+    });
 
-    // Clean markdown code fences if present
-    const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-
-    let parsed;
-    try {
-      parsed = JSON.parse(cleanJson);
-    } catch (e) {
-      throw new Error("Failed to parse AI response. The model returned malformed data.");
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Server error: ${response.status}`);
     }
 
-    let orders: ParsedOrder[] = [];
-
-    // Normalize output
-    if (parsed.orders && Array.isArray(parsed.orders)) {
-      orders = parsed.orders;
-    } else if (Array.isArray(parsed)) {
-      orders = parsed;
-    } else if (parsed && typeof parsed === 'object') {
-      // Single object case
-      orders = [parsed] as ParsedOrder[];
-    }
+    const data = await response.json();
+    const orders: ParsedOrder[] = data.orders || [];
 
     if (orders.length === 0) {
       throw new Error("Processing complete, but no valid orders were found. Ensure the image text is legible.");
@@ -233,8 +116,7 @@ export async function parseOrderAI(input: string | File | File[]): Promise<Parse
     return orders;
 
   } catch (error: any) {
-    console.error("Grok AI Error:", error);
-    // Propagate the specific error message
+    console.error("AI Parse Error:", error);
     throw new Error(error.message || "An unexpected error occurred during AI processing.");
   }
 }

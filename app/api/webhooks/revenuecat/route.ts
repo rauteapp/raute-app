@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit } from '@/lib/api-rate-limit'
 
 export const dynamic = "force-dynamic"
 
@@ -13,6 +14,10 @@ export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
     try {
+        // Rate limit: 50 requests per 60 seconds
+        const rateLimited = checkRateLimit(request, { windowSeconds: 60, maxRequests: 50 })
+        if (rateLimited) return rateLimited
+
         // Verify webhook authorization token
         const authHeader = request.headers.get('authorization')
         const expectedToken = process.env.REVENUECAT_WEBHOOK_AUTH_TOKEN

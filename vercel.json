@@ -8,6 +8,15 @@
                     "value": "max-age=63072000; includeSubDomains; preload"
                 }
             ]
+        },
+        {
+            "source": "/.well-known/apple-app-site-association",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                }
+            ]
         }
     ]
 }

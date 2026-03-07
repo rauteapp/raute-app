@@ -9,6 +9,7 @@ import { NetworkStatusBanner } from "@/components/network-status-banner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AuthListener } from "@/components/auth-listener";
 import { StatusBarManager } from "@/components/status-bar-manager";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -54,12 +55,14 @@ export default function RootLayout({
           <ToastProvider>
             <AuthListener />
             <AuthCheck>
-              <div className="min-h-screen flex flex-col pt-safe px-safe">
-                <main className="flex-1 pb-32 mb-10 safe-area-pb">
-                  {children}
-                </main>
-                <MobileNav />
-              </div>
+              <ErrorBoundary>
+                <div className="min-h-screen flex flex-col pt-safe px-safe">
+                  <main className="flex-1 pb-32 mb-10 safe-area-pb">
+                    {children}
+                  </main>
+                  <MobileNav />
+                </div>
+              </ErrorBoundary>
             </AuthCheck>
           </ToastProvider>
         </ThemeProvider>

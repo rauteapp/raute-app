@@ -147,10 +147,11 @@ export const supabaseAdmin = supabaseServiceRoleKey
         }
     })
     : (() => {
-        // Warn loudly if service role key is missing — admin operations will fail with RLS
+        // Log error on server-side if service role key is missing — prevents silent RLS bypass
         if (typeof window === 'undefined') {
-            console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not set! Admin operations will use anon client and may fail due to RLS.')
+            console.error('SUPABASE_SERVICE_ROLE_KEY is not set! Admin operations will fail.')
         }
+        // Return anon client as fallback for client-side imports (unused there)
         return supabase
     })()
 

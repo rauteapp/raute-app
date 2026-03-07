@@ -1028,7 +1028,13 @@ export default function ClientOrderDetails() {
                                                 if (data) finalSignatureUrl = supabase.storage.from('proofs').getPublicUrl(filename).data.publicUrl
                                             }
                                             let proofUrl = proofImages[0]?.image_url || order.proof_url
-                                            if (finalSignatureUrl) await supabase.from('orders').update({ signature_url: finalSignatureUrl }).eq('id', orderId)
+                                            if (finalSignatureUrl) {
+                                                const { error: sigErr } = await supabase.from('orders').update({ signature_url: finalSignatureUrl }).eq('id', orderId)
+                                                if (sigErr) {
+                                                    toast({ title: "Failed to save signature", description: sigErr.message, type: "error" })
+                                                    return
+                                                }
+                                            }
                                             await updateOrderStatus('delivered', proofUrl)
                                         } catch (err: any) {
                                             toast({ title: "Error", description: err.message, type: "error" })
@@ -1138,14 +1144,23 @@ export default function ClientOrderDetails() {
                                     setIsUpdating(true)
 
                                     // Clear proof data from DB
-                                    await supabase.from('orders').update({
+                                    const { error: clearErr } = await supabase.from('orders').update({
                                         proof_url: null,
                                         signature_url: null
                                     }).eq('id', orderId)
 
+                                    if (clearErr) {
+                                        toast({ title: "Failed to clear proof data", description: clearErr.message, type: "error" })
+                                        return
+                                    }
+
                                     // Delete proof images from proof_images table
                                     if (proofImages.length > 0) {
-                                        await supabase.from('proof_images').delete().eq('order_id', orderId)
+                                        const { error: deleteErr } = await supabase.from('proof_images').delete().eq('order_id', orderId)
+                                        if (deleteErr) {
+                                            console.error('Failed to delete proof images:', deleteErr.message)
+                                            // Continue — proof data already cleared, status update is more important
+                                        }
                                         setProofImages([])
                                     }
 
@@ -1153,6 +1168,8 @@ export default function ClientOrderDetails() {
 
                                     // Update local state
                                     setOrder(prev => prev ? { ...prev, proof_url: null, signature_url: null } : prev)
+                                } catch (err: any) {
+                                    toast({ title: "Undo failed", description: err.message, type: "error" })
                                 } finally {
                                     setIsUpdating(false)
                                     setIsUndoDialogOpen(false)

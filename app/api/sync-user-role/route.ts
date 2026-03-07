@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser, getSupabaseAdmin } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/api-rate-limit'
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
     try {
+        // Rate limit: 10 requests per 60 seconds
+        const rateLimited = checkRateLimit(request, { windowSeconds: 60, maxRequests: 10 })
+        if (rateLimited) return rateLimited
+
         // 1. Verify the request is authenticated
         const authUser = await getAuthenticatedUser(request)
         if (!authUser) {
