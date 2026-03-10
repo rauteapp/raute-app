@@ -192,7 +192,7 @@ export function HeroSection() {
                             className="pt-4 flex items-center justify-center lg:justify-start gap-6 text-sm font-medium text-slate-500 dark:text-slate-500"
                         >
                             <span className="flex items-center gap-1.5"><CheckCircle2 size={16} className="text-green-500" /> No credit card needed</span>
-                            <span className="flex items-center gap-1.5"><CheckCircle2 size={16} className="text-green-500" /> First driver free forever</span>
+                            <span className="flex items-center gap-1.5"><CheckCircle2 size={16} className="text-green-500" /> 7-day free trial</span>
                         </motion.div>
                     </div>
 

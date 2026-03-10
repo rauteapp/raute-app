@@ -6,7 +6,6 @@ import { Capacitor } from '@capacitor/core';
 export const PushService = {
     async init() {
         if (!Capacitor.isNativePlatform()) {
-            console.log("Push notifications not supported on web");
             return;
         }
 
@@ -18,7 +17,7 @@ export const PushService = {
         }
 
         if (permStatus.receive !== 'granted') {
-            console.error('User denied permissions!');
+            console.error('User denied push notification permissions');
             return;
         }
 
@@ -30,28 +29,50 @@ export const PushService = {
 
     addListeners() {
         PushNotifications.addListener('registration', async (token) => {
-            console.log('Push registration success, token: ' + token.value);
-            // Save token to Supabase for the current user
+            console.log('Push registration success');
+            // Save token to push_tokens table for ALL user roles (managers, drivers, dispatchers)
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                // Find driver profile linked to this user
-                const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user.id).single();
+                // Remove old tokens for this user, then insert the new one
+                await supabase
+                    .from('push_tokens')
+                    .delete()
+                    .eq('user_id', user.id);
+
+                const { error } = await supabase
+                    .from('push_tokens')
+                    .insert({
+                        user_id: user.id,
+                        token: token.value,
+                        platform: Capacitor.getPlatform(),
+                        updated_at: new Date().toISOString(),
+                    });
+
+                if (error) {
+                    console.error('Failed to save push token:', error.message);
+                }
+
+                // Also update drivers.push_token for backwards compatibility
+                const { data: driver } = await supabase
+                    .from('drivers')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .single();
 
                 if (driver) {
-                    await supabase.from('drivers').update({
-                        push_token: token.value,
-                        platform: Capacitor.getPlatform()
-                    }).eq('id', driver.id);
+                    await supabase
+                        .from('drivers')
+                        .update({ push_token: token.value, platform: Capacitor.getPlatform() })
+                        .eq('id', driver.id);
                 }
             }
         });
 
         PushNotifications.addListener('registrationError', (error) => {
-            console.error('Error on registration: ' + JSON.stringify(error));
+            console.error('Push registration error:', JSON.stringify(error));
         });
 
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('Push received: ' + JSON.stringify(notification));
             toast({
                 title: notification.title || 'New Notification',
                 description: notification.body || 'You have a new update',
@@ -60,9 +81,7 @@ export const PushService = {
         });
 
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-            console.log('Push action performed: ' + JSON.stringify(notification));
-            // Navigate to specific screen if needed
-            // e.g. window.location.href = '/orders/' + notification.notification.data.orderId;
+            console.log('Push action performed:', JSON.stringify(notification));
         });
     }
 };

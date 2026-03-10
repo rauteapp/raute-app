@@ -66,6 +66,7 @@ export default function SubscribePage() {
     const [isRestoring, setRestoring] = useState(false)
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
     const [foundingMember, setFoundingMember] = useState<{ count: number; limit: number; active: boolean } | null>(null)
+    const [currentPlanId, setCurrentPlanId] = useState<string | null>(null)
     const { toast } = useToast()
     const isNative = Capacitor.isNativePlatform()
     const searchParams = useSearchParams()
@@ -79,7 +80,7 @@ export default function SubscribePage() {
         }
     }, [searchParams])
 
-    // Load founding member counter
+    // Load founding member counter + current subscription
     useEffect(() => {
         async function loadConfig() {
             const { data } = await supabase
@@ -89,6 +90,22 @@ export default function SubscribePage() {
                 .single()
             if (data?.value) {
                 setFoundingMember(data.value as any)
+            }
+
+            // Check if user already has an active subscription
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: sub } = await supabase
+                    .from('subscription_history')
+                    .select('plan_name')
+                    .eq('user_id', user.id)
+                    .eq('is_active', true)
+                    .limit(1)
+                    .single()
+                if (sub?.plan_name) {
+                    // Map plan_name to plan id (e.g. "Starter" -> "starter")
+                    setCurrentPlanId(sub.plan_name.toLowerCase())
+                }
             }
         }
         loadConfig()
@@ -209,7 +226,7 @@ export default function SubscribePage() {
             {/* Header */}
             <div className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-                    <Link href="/drivers" className="p-2 -ml-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
+                    <Link href="/dashboard" className="p-2 -ml-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
                         <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
                     </Link>
                     <h1 className="text-lg font-bold text-slate-900 dark:text-white">Choose a Plan</h1>
@@ -264,6 +281,7 @@ export default function SubscribePage() {
                     {plans.map((plan) => {
                         const Icon = plan.icon
                         const isCurrentPurchasing = isPurchasing === plan.id
+                        const isCurrentPlan = currentPlanId === plan.id
                         const showFoundingPrice = isFoundingActive
                         const displayPrice = showFoundingPrice
                             ? (billingCycle === 'annual' ? plan.annualFoundingPrice : plan.foundingPrice)
@@ -277,12 +295,18 @@ export default function SubscribePage() {
                             <div
                                 key={plan.id}
                                 className={`relative bg-white dark:bg-slate-900 rounded-2xl p-5 border-2 transition-all ${
-                                    plan.popular
-                                        ? 'border-blue-500 dark:border-blue-500 shadow-lg shadow-blue-500/10'
-                                        : 'border-slate-200 dark:border-slate-800'
+                                    isCurrentPlan
+                                        ? 'border-green-500 dark:border-green-500 shadow-lg shadow-green-500/10'
+                                        : plan.popular
+                                            ? 'border-blue-500 dark:border-blue-500 shadow-lg shadow-blue-500/10'
+                                            : 'border-slate-200 dark:border-slate-800'
                                 }`}
                             >
-                                {plan.popular && (
+                                {isCurrentPlan ? (
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                                        Current Plan
+                                    </div>
+                                ) : plan.popular && (
                                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
                                         Most Popular
                                     </div>
@@ -333,14 +357,18 @@ export default function SubscribePage() {
 
                                 <Button
                                     onClick={() => handlePurchase(plan)}
-                                    disabled={!!isPurchasing || isRestoring}
+                                    disabled={!!isPurchasing || isRestoring || isCurrentPlan}
                                     className={`w-full font-bold h-11 rounded-xl ${
-                                        plan.popular
-                                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20'
-                                            : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100'
+                                        isCurrentPlan
+                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 cursor-not-allowed'
+                                            : plan.popular
+                                                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20'
+                                                : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100'
                                     }`}
                                 >
-                                    {isCurrentPurchasing ? (
+                                    {isCurrentPlan ? (
+                                        <><Check className="mr-2" size={16} /> Current Plan</>
+                                    ) : isCurrentPurchasing ? (
                                         <><Loader2 className="animate-spin mr-2" size={16} /> Processing...</>
                                     ) : (
                                         `Choose ${plan.name}`

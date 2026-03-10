@@ -25,7 +25,7 @@ export function TrialFreezeOverlay() {
                         </Button>
                     </Link>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Plans start at $12.50/month (founding member price)
+                        Plans start at $24.99/month
                     </p>
                 </div>
             </div>

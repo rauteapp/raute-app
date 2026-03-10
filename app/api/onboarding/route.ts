@@ -52,14 +52,19 @@ export async function POST(request: NextRequest) {
         }
 
         // 3. Update User Profile
-        // Link to company and update details
+        // Link to company, set trial period, and initialize limits (critical for OAuth users)
+        const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
         const { error: userError } = await supabase
             .from('users')
             .update({
                 company_id: newCompanyId,
                 full_name: fullName,
                 phone: phone,
-                role: 'manager', // Enforce manager role for company creator
+                role: 'manager',
+                driver_limit: 5,
+                order_limit: 500,
+                trial_ends_at: trialEndsAt,
                 updated_at: new Date().toISOString()
             })
             .eq('id', user.id)

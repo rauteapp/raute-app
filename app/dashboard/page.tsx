@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/components/toast-provider"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
 import { PullToRefresh } from "@/components/pull-to-refresh"
+import { PushService } from "@/lib/push-service"
 
 export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true)
@@ -209,6 +210,9 @@ export default function DashboardPage() {
                     setUserRole(role)
                     setUserName(fullName)
                 }
+
+                // Initialize push notifications for all roles (managers, dispatchers, drivers)
+                PushService.init()
 
                 // 🔥 FETCH DASHBOARD DATA (For all management roles)
                 if (['manager', 'dispatcher', 'admin', 'company_admin'].includes(role)) {

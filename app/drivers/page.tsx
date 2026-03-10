@@ -65,8 +65,8 @@ export default function DriversPage() {
     const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false)
     const [manualLocation, setManualLocation] = useState<{ lat: number, lng: number, address: string } | null>(null)
 
-    // Subscription Limits (1 Free Driver Model)
-    const [maxDrivers, setMaxDrivers] = useState(1)
+    // Subscription Limits (trial = 5 drivers)
+    const [maxDrivers, setMaxDrivers] = useState(5)
     const [showUpgradeModal, setShowUpgradeModal] = useState(false)
     const [isPurchasing, setIsPurchasing] = useState(false)
 

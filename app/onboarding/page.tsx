@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Building2, Phone, User, Loader2, CheckCircle2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/toast-provider"
+import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 
 export default function OnboardingPage() {
     const router = useRouter()
@@ -160,25 +161,13 @@ export default function OnboardingPage() {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Phone Number</label>
-                            <div className="flex gap-2">
-                                <select
-                                    className="h-11 w-[100px] rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                                    defaultValue="+1"
-                                >
-                                    <option value="+1">🇺🇸 +1</option>
-                                    <option value="+20">🇪🇬 +20</option>
-                                    <option value="+44">🇬🇧 +44</option>
-                                    <option value="+966">🇸🇦 +966</option>
-                                    <option value="+971">🇦🇪 +971</option>
-                                </select>
-                                <Input
-                                    placeholder="(555) 000-0000"
-                                    className="flex-1 h-11"
-                                    type="tel"
-                                    value={formData.phone}
-                                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                />
-                            </div>
+                            <StyledPhoneInput
+                                name="phone"
+                                value={formData.phone}
+                                onChange={(value) => setFormData({ ...formData, phone: value || '' })}
+                                placeholder="Enter your phone number"
+                                className="h-11"
+                            />
                         </div>
 
                         <Button type="submit" className="w-full h-11 text-base bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20" disabled={isSaving}>
