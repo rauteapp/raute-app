@@ -40,6 +40,8 @@ import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 
+import { Capacitor } from "@capacitor/core"
+import { RevenueCatService } from "@/lib/revenuecat-service"
 import { useToast } from "@/components/toast-provider"
 import { geocodeAddress, reverseGeocode } from "@/lib/geocoding"
 import { PullToRefresh } from "@/components/pull-to-refresh"
@@ -65,6 +67,7 @@ export default function DriversPage() {
     // Subscription Limits (1 Free Driver Model)
     const [maxDrivers, setMaxDrivers] = useState(1)
     const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+    const [isPurchasing, setIsPurchasing] = useState(false)
 
     const [isPasswordOpen, setIsPasswordOpen] = useState(false)
     const [passDriver, setPassDriver] = useState<any>(null)
@@ -687,7 +690,55 @@ export default function DriversPage() {
                                             }
                                         </p>
                                     </div>
-                                    <Button className="w-full font-bold" onClick={() => toast({ title: "Redirecting to Payment...", description: "In-App Purchase flow starting...", type: "info" })}>
+                                    <Button
+                                        className="w-full font-bold"
+                                        disabled={isPurchasing}
+                                        onClick={async () => {
+                                            if (!Capacitor.isNativePlatform()) {
+                                                toast({ title: "Available on iOS", description: "Please use the Raute iOS app to manage your subscription.", type: "info" })
+                                                return
+                                            }
+
+                                            setIsPurchasing(true)
+                                            try {
+                                                const offerings = await RevenueCatService.getOfferings()
+                                                if (!offerings || !offerings.availablePackages?.length) {
+                                                    toast({ title: "Error", description: "No plans available. Please try again later.", type: "error" })
+                                                    return
+                                                }
+
+                                                // Pick the next tier based on current limit
+                                                const targetId = maxDrivers < 5 ? 'raute_starter_monthly'
+                                                    : maxDrivers < 15 ? 'raute_pro_monthly'
+                                                    : 'raute_pioneer_monthly'
+
+                                                const pkg = offerings.availablePackages.find(
+                                                    (p: any) => p.product?.identifier === targetId
+                                                )
+
+                                                if (!pkg) {
+                                                    toast({ title: "Error", description: "Plan not found. Please try again.", type: "error" })
+                                                    return
+                                                }
+
+                                                const result = await RevenueCatService.purchase(pkg)
+                                                if (result.success && result.newDriverLimit) {
+                                                    setMaxDrivers(result.newDriverLimit)
+                                                    setShowUpgradeModal(false)
+                                                    toast({
+                                                        title: "Upgrade Successful!",
+                                                        description: `You now have ${result.newDriverLimit} driver slots.`,
+                                                        type: "success"
+                                                    })
+                                                }
+                                            } catch (e) {
+                                                console.error('Purchase error:', e)
+                                            } finally {
+                                                setIsPurchasing(false)
+                                            }
+                                        }}
+                                    >
+                                        {isPurchasing && <Loader2 className="animate-spin mr-2" size={16} />}
                                         Upgrade Now
                                     </Button>
                                     <button
@@ -696,6 +747,22 @@ export default function DriversPage() {
                                             try {
                                                 toast({ title: "Restoring...", description: "Checking for existing subscriptions...", type: "info" })
 
+                                                // Try RevenueCat restore on native
+                                                if (Capacitor.isNativePlatform()) {
+                                                    const result = await RevenueCatService.restorePurchases()
+                                                    if (result.success && result.newDriverLimit && result.newDriverLimit > 1) {
+                                                        setMaxDrivers(result.newDriverLimit)
+                                                        setShowUpgradeModal(false)
+                                                        toast({
+                                                            title: "Restored!",
+                                                            description: `Your plan includes ${result.newDriverLimit} driver slots.`,
+                                                            type: "success"
+                                                        })
+                                                        return
+                                                    }
+                                                }
+
+                                                // Fallback: check DB directly
                                                 const userId = await getCurrentUserId()
                                                 if (!userId) return
 
@@ -705,11 +772,11 @@ export default function DriversPage() {
                                                     .eq('id', userId)
                                                     .single()
 
-                                                if (userProfile?.driver_limit) {
+                                                if (userProfile?.driver_limit && userProfile.driver_limit > 1) {
                                                     setMaxDrivers(userProfile.driver_limit)
                                                     setShowUpgradeModal(false)
                                                     toast({
-                                                        title: "Restored Successfully!",
+                                                        title: "Restored!",
                                                         description: `Your plan includes ${userProfile.driver_limit} driver slots.`,
                                                         type: "success"
                                                     })

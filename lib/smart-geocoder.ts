@@ -24,7 +24,7 @@ function stripUnitNumber(address: string): string {
  * Try geocoding with Google Maps API.
  */
 async function tryGoogle(query: string): Promise<{ lat: number; lng: number; confidence: 'exact' | 'approximate' | 'low'; foundAddress: string } | null> {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY
     if (!apiKey) return null
 
     try {

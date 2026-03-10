@@ -64,11 +64,14 @@ export async function POST(request: Request) {
         }
 
         // Map product ID to driver limit
+        // Matches App Store Connect subscription product IDs
         const driverLimitMap: Record<string, number> = {
-            'raute_5_drivers': 5,
-            'raute_10_drivers': 10,
-            'raute_15_drivers': 15,
-            'raute_20_drivers': 20
+            'raute_starter_monthly': 5,
+            'raute_starter_annual': 5,
+            'raute_pro_monthly': 15,
+            'raute_pro_annual': 15,
+            'raute_pioneer_monthly': 40,
+            'raute_pioneer_annual': 40
         }
 
         const newDriverLimit = driverLimitMap[productId] || 1

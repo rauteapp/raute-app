@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/toast-provider'
 import { restoreCodeVerifier, clearCodeVerifierBackup } from '@/lib/pkce-backup'
 import { capacitorStorage } from '@/lib/capacitor-storage'
+import { RevenueCatService } from '@/lib/revenuecat-service'
 
 const SESSION_BACKUP_KEY = 'raute-session-backup'
 
@@ -125,6 +126,11 @@ export function AuthListener() {
             if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
                 // Backup session on every auth event
                 await backupSession(session.access_token, session.refresh_token)
+
+                // Initialize RevenueCat after auth is confirmed
+                RevenueCatService.init().catch(err =>
+                    console.error('RevenueCat init failed:', err)
+                )
 
                 // Safety net: If SIGNED_IN fires while on login page (OAuth flow),
                 // redirect to dashboard. This catches cases where the PKCE exchange

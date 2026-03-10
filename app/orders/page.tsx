@@ -515,7 +515,7 @@ export default function OrdersPage() {
         if (!fullAddress.trim()) return null
 
         try {
-            const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+            const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY
             if (!apiKey) {
                 // Fallback silently if key is missing
                 throw new Error("Missing API Key");

@@ -5,7 +5,6 @@ import { Send, Loader2, Mail, Users, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/toast-provider'
 
 export function ContactForm() {
@@ -34,18 +33,22 @@ export function ContactForm() {
                 return
             }
 
-            // Insert into Database
-            const { error } = await supabase
-                .from('contact_submissions')
-                .insert({
+            // Save to DB + send email notification via API route
+            const response = await fetch('/api/contact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     name: formData.name,
                     email: formData.email,
-                    company_name: formData.company,
+                    company: formData.company,
                     message: formData.message,
-                    status: 'new'
-                })
+                }),
+            })
 
-            if (error) throw error
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}))
+                throw new Error(data.error || 'Failed to send')
+            }
 
             // Success
             toast({
