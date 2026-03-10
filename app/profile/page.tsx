@@ -488,11 +488,11 @@ export default function ProfilePage() {
                     {/* Subscription Card (managers only) */}
                     {userRole === 'manager' && subscriptionInfo && (
                         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 dark:border-slate-800/50 p-5">
-                            <div className="flex items-center gap-3 mb-4">
+                            <Link href="/subscribe" className="flex items-center gap-3 mb-4 group cursor-pointer active:scale-[0.98] transition-transform">
                                 <div className="h-10 w-10 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
                                     <CreditCard size={20} />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Subscription</p>
                                     <p className="text-base font-bold text-slate-900 dark:text-white">
                                         {subscriptionInfo.planName
@@ -503,7 +503,10 @@ export default function ProfilePage() {
                                         }
                                     </p>
                                 </div>
-                            </div>
+                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-3 py-1.5 rounded-lg group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
+                                    {subscriptionInfo.planName ? 'Manage' : 'Upgrade'}
+                                </span>
+                            </Link>
 
                             {/* Usage bars */}
                             <div className="space-y-3 mb-4">

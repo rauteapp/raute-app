@@ -30,6 +30,9 @@ export function MobileNav() {
     const [userRole, setUserRole] = useState<string | null>(null)
     const [userEmail, setUserEmail] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
+    const [planName, setPlanName] = useState<string | null>(null)
+    const [isTrialActive, setIsTrialActive] = useState(false)
+    const [trialDaysRemaining, setTrialDaysRemaining] = useState(0)
 
     // Security & Logout State
     const [changingPassword, setChangingPassword] = useState(false)
@@ -141,6 +144,39 @@ export function MobileNav() {
                             localStorage.setItem('raute_user_role', userProfile.role)
                         }
                         setLoading(false)
+
+                        // Fetch subscription info for managers
+                        if (userProfile.role === 'manager') {
+                            // Get trial info
+                            const { data: userData } = await supabase
+                                .from('users')
+                                .select('trial_ends_at')
+                                .eq('id', userId)
+                                .single()
+                            // Get active subscription
+                            const { data: sub } = await supabase
+                                .from('subscription_history')
+                                .select('tier_name')
+                                .eq('user_id', userId)
+                                .eq('is_active', true)
+                                .maybeSingle()
+
+                            if (mounted) {
+                                if (sub?.tier_name) {
+                                    // Extract friendly name from tier_name (e.g. "raute_starter_monthly" → "Starter")
+                                    const name = sub.tier_name.replace(/^(raute_|stripe_)/, '').replace(/_(monthly|annual)$/, '')
+                                    setPlanName(name.charAt(0).toUpperCase() + name.slice(1))
+                                } else if (userData?.trial_ends_at) {
+                                    const trialEnd = new Date(userData.trial_ends_at)
+                                    const now = new Date()
+                                    const days = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                                    if (days > 0) {
+                                        setIsTrialActive(true)
+                                        setTrialDaysRemaining(days)
+                                    }
+                                }
+                            }
+                        }
                     } else if (retries > 0) {
                         // Retry if profile not found yet (race condition on signup/signin)
                         setTimeout(() => fetchRole(userId, retries - 1), 500)
@@ -680,28 +716,34 @@ export function MobileNav() {
 
                             <div className="flex flex-col gap-6 max-w-lg mx-auto pb-12">
 
-                                {/* Promotional Banner */}
-                                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border border-slate-700/50 p-6 text-white shadow-lg shadow-black/20">
-                                    {/* Decorative elements */}
-                                    <Sparkles className="absolute top-4 right-5 text-blue-400/60 w-5 h-5 animate-pulse" />
-                                    <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/20 rounded-full blur-2xl" />
+                                {/* Subscription Banner */}
+                                <Link href="/subscribe" onClick={() => setIsMenuOpen(false)} className="block">
+                                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border border-slate-700/50 p-6 text-white shadow-lg shadow-black/20 active:scale-[0.98] transition-transform">
+                                        {/* Decorative elements */}
+                                        <Sparkles className="absolute top-4 right-5 text-blue-400/60 w-5 h-5 animate-pulse" />
+                                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/20 rounded-full blur-2xl" />
 
-                                    <div className="flex flex-col items-start gap-4 relative z-10">
-                                        <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
-                                            <Crown className="h-3 w-3" />
-                                            PREMIUM
-                                        </div>
-                                        <div className="w-full flex items-center justify-between gap-4">
-                                            <h3 className="text-lg font-bold leading-tight">
-                                                Upgrade to Plus <br />
-                                                <span className="text-white/70 text-sm font-medium">Unlock all premium features</span>
-                                            </h3>
-                                            <button className="flex-shrink-0 bg-white hover:bg-slate-100 text-slate-900 font-bold px-5 py-2.5 rounded-full text-sm transition-transform active:scale-95 shadow-md">
-                                                Upgrade
-                                            </button>
+                                        <div className="flex flex-col items-start gap-4 relative z-10">
+                                            <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
+                                                <Crown className="h-3 w-3" />
+                                                {planName ? planName.toUpperCase() + ' PLAN' : 'PREMIUM'}
+                                            </div>
+                                            <div className="w-full flex items-center justify-between gap-4">
+                                                <h3 className="text-lg font-bold leading-tight">
+                                                    {planName
+                                                        ? <>{planName} Plan<br /><span className="text-white/70 text-sm font-medium">Manage your subscription</span></>
+                                                        : isTrialActive
+                                                            ? <>Free Trial<br /><span className="text-white/70 text-sm font-medium">{trialDaysRemaining} day{trialDaysRemaining === 1 ? '' : 's'} remaining</span></>
+                                                            : <>Upgrade to Pro<br /><span className="text-white/70 text-sm font-medium">Unlock all premium features</span></>
+                                                    }
+                                                </h3>
+                                                <span className="flex-shrink-0 bg-white hover:bg-slate-100 text-slate-900 font-bold px-5 py-2.5 rounded-full text-sm shadow-md">
+                                                    {planName ? 'Manage' : 'Upgrade'}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                </Link>
 
                                 {/* Account Section */}
                                 <div className="flex flex-col gap-2">
@@ -714,11 +756,30 @@ export function MobileNav() {
                                             hasDivider
                                             copyable={true}
                                         />
-                                        <IOSListItem
-                                            icon={Crown}
-                                            label="Plan"
-                                            value="Free"
-                                        />
+                                        <div className="relative">
+                                            <Link
+                                                href="/subscribe"
+                                                onClick={() => setIsMenuOpen(false)}
+                                                className="flex items-center px-4 py-3.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100 dark:active:bg-slate-800 touch-manipulation"
+                                            >
+                                                <div className="text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg mr-4 shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+                                                    <Crown size={18} strokeWidth={2} />
+                                                </div>
+                                                <div className="flex-1 flex items-center justify-between min-w-0 pr-1">
+                                                    <span className="text-[15px] font-medium text-slate-800 dark:text-slate-200">Plan</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[15px] text-slate-500 dark:text-slate-400">
+                                                            {planName
+                                                                ? planName
+                                                                : isTrialActive
+                                                                    ? `Trial · ${trialDaysRemaining}d`
+                                                                    : 'Free'}
+                                                        </span>
+                                                        <ChevronRight size={18} className="text-slate-400/70" />
+                                                    </div>
+                                                </div>
+                                            </Link>
+                                        </div>
                                     </div>
                                 </div>
 
