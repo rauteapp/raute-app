@@ -83,28 +83,34 @@ export default function SubscribePage() {
     // Load founding member counter + current subscription
     useEffect(() => {
         async function loadConfig() {
-            const { data } = await supabase
+            // First ensure we have a valid session before making DB queries
+            const { data: { user } } = await supabase.auth.getUser()
+
+            // Fetch founding member config (public read allowed)
+            const { data, error: configError } = await supabase
                 .from('app_config')
                 .select('value')
                 .eq('key', 'founding_members')
                 .single()
-            if (data?.value) {
+            if (!configError && data?.value) {
                 setFoundingMember(data.value as any)
             }
 
             // Check if user already has an active subscription
-            const { data: { user } } = await supabase.auth.getUser()
             if (user) {
                 const { data: sub } = await supabase
                     .from('subscription_history')
-                    .select('plan_name')
+                    .select('tier_name')
                     .eq('user_id', user.id)
                     .eq('is_active', true)
                     .limit(1)
-                    .single()
-                if (sub?.plan_name) {
-                    // Map plan_name to plan id (e.g. "Starter" -> "starter")
-                    setCurrentPlanId(sub.plan_name.toLowerCase())
+                    .maybeSingle()
+                if (sub?.tier_name) {
+                    // Map tier_name to plan id (e.g. "raute_starter_monthly" -> "starter")
+                    const name = sub.tier_name
+                        .replace(/^(raute_|stripe_)/, '')
+                        .replace(/_(monthly|annual)$/, '')
+                    setCurrentPlanId(name.toLowerCase())
                 }
             }
         }
