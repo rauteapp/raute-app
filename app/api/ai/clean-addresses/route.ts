@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import { applyRateLimit } from '@/lib/rate-limit'
 
 // Server-side only — API key never exposed to browser
 const xaiClient = new OpenAI({
@@ -51,6 +52,9 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+    const rateLimited = applyRateLimit(request, 'ai')
+    if (rateLimited) return rateLimited
+
     try {
         const user = await authenticateRequest(request)
         if (!user) {

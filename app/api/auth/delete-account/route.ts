@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedUser, getSupabaseAdmin } from '@/lib/api-auth'
+import { applyRateLimit } from '@/lib/rate-limit'
 
 export async function DELETE(req: Request) {
+    const rateLimited = applyRateLimit(req, 'deleteAccount')
+    if (rateLimited) return rateLimited
+
     try {
         // 1. Verify the request is authenticated
         const authUser = await getAuthenticatedUser(req)

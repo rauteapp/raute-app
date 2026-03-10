@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { getStripePlans } from '@/lib/stripe-plans'
+import { applyRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
+    const rateLimited = applyRateLimit(request, 'checkout')
+    if (rateLimited) return rateLimited
+
     try {
         const stripeKey = process.env.STRIPE_SECRET_KEY
         if (!stripeKey) {

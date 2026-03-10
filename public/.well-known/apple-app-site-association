@@ -1,0 +1,25 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "6758427273.io.raute.app",
+        "paths": [
+          "/auth/callback",
+          "/auth/callback/*",
+          "/verify-email",
+          "/verify-email/*",
+          "/update-password",
+          "/update-password/*",
+          "/forgot-password",
+          "/forgot-password/*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "6758427273.io.raute.app"
+    ]
+  }
+}
