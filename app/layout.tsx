@@ -10,6 +10,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AuthListener } from "@/components/auth-listener";
 import { StatusBarManager } from "@/components/status-bar-manager";
 import { TrialGate } from "@/components/trial-gate";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -55,6 +56,7 @@ export default function RootLayout({
           <ToastProvider>
             <AuthListener />
             <AuthCheck>
+              <ErrorBoundary>
               <TrialGate>
                 <div className="min-h-screen flex flex-col pt-safe px-safe">
                   <main className="flex-1 pb-32 mb-10 safe-area-pb">
@@ -63,6 +65,7 @@ export default function RootLayout({
                   <MobileNav />
                 </div>
               </TrialGate>
+              </ErrorBoundary>
             </AuthCheck>
           </ToastProvider>
         </ThemeProvider>

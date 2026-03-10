@@ -19,7 +19,6 @@ async function checkEmailVerified(email: string): Promise<boolean> {
             { check_email: email.trim().toLowerCase() }
         )
         if (error) {
-            console.warn('check_email_verification RPC error:', error.message)
             return false
         }
         return !!data

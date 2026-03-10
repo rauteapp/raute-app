@@ -30,7 +30,6 @@ export async function waitForSession(
             // getUser() makes a direct API call to Supabase (bypasses navigator.locks)
             // and if successful, proves the user is authenticated.
             if (!isNative && timeoutCount >= 2) {
-                console.log('⏳ waitForSession: getSession blocked by locks, trying getUser() fallback...')
                 try {
                     const { data: userData, error: userError } = await Promise.race([
                         supabase.auth.getUser(),
@@ -40,9 +39,6 @@ export async function waitForSession(
                     ])
 
                     if (!userError && userData.user) {
-                        console.log('✅ waitForSession: user verified via getUser()', {
-                            userId: userData.user.id.substring(0, 8)
-                        })
                         // Build a minimal session-like object from the user data.
                         // The actual session tokens are in cookies — Supabase middleware
                         // handles them. We just need to confirm the user is authenticated.
@@ -82,8 +78,6 @@ export async function waitForSession(
                 if (error.message.includes('string did not match') ||
                     error.message.includes('pattern') ||
                     error.message.includes('Invalid')) {
-                    console.warn('⚠️ Session validation error - clearing corrupted data')
-
                     // Clear corrupted session
                     try {
                         await supabase.auth.signOut({ scope: 'local' })
@@ -107,17 +101,12 @@ export async function waitForSession(
                     return null
                 }
 
-                console.log('✅ waitForSession: session found', {
-                    userId: data.session.user.id.substring(0, 8),
-                    attempt: attempt + 1
-                })
                 return data.session
             }
 
             if (attempt < maxRetries) {
                 // Use shorter delay for first few attempts
                 const currentDelay = attempt < 3 ? 300 : delayMs
-                console.log(`⏳ waitForSession: no session yet (attempt ${attempt + 1}/${maxRetries + 1})`)
                 await new Promise(resolve => setTimeout(resolve, currentDelay))
             }
         } catch (err: any) {
@@ -129,7 +118,6 @@ export async function waitForSession(
 
             if (isLockTimeout) {
                 timeoutCount++
-                console.log(`⏳ Lock busy / getSession timeout (count: ${timeoutCount}), retrying...`)
             }
 
             // On exception, wait a bit and try again (unless it's the last attempt)
@@ -140,6 +128,5 @@ export async function waitForSession(
         }
     }
 
-    console.warn('⚠️ waitForSession: no session after all retries')
     return null
 }

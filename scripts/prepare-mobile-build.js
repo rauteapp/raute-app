@@ -8,6 +8,7 @@ const tempDir = path.join(os.tmpdir(), 'raute-api-backup');
 const routesToBackup = [
     { src: path.join(process.cwd(), 'app', 'api'), name: 'api' },
     { src: path.join(process.cwd(), 'app', 'auth'), name: 'auth' },
+    { src: path.join(process.cwd(), 'app', 'track'), name: 'track' },  // Dynamic route — web-only (customer tracking)
     { src: path.join(process.cwd(), 'middleware.ts'), name: 'middleware.ts' }
 ];
 

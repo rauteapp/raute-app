@@ -1,5 +1,5 @@
 import { read, utils } from "xlsx";
-import { supabase } from "./supabase";
+import { authenticatedFetch } from './authenticated-fetch';
 
 export interface ParsedOrder {
   customer_name: string;
@@ -8,12 +8,14 @@ export interface ParsedOrder {
   state: string;
   zip_code: string;
   phone: string;
+  customer_email: string;
   order_number: string;
   delivery_date: string;
   notes: string;
   priority_level?: 'normal' | 'high' | 'critical';
   time_window_start?: string;
   time_window_end?: string;
+  weight_lbs?: number | null;
 }
 
 /**
@@ -66,12 +68,12 @@ export async function fileToContentPart(
 export const fileToGenerativePart = fileToContentPart;
 
 /**
- * Parse orders using server-side AI API route.
- * The XAI API key is never exposed to the browser.
+ * Parse orders from text or files using xAI/Grok via server-side proxy.
+ * API key stays on the server — never exposed to the browser.
  */
 export async function parseOrderAI(input: string | File | File[]): Promise<ParsedOrder[]> {
   try {
-    // Build the content parts on the client (file reading only)
+    // Build the content parts
     const contentParts: any[] = [];
     const dateContext = `Current Date: ${new Date().toISOString().split('T')[0]}`;
 
@@ -92,27 +94,14 @@ export async function parseOrderAI(input: string | File | File[]): Promise<Parse
       contentParts.push(part);
     }
 
-    // Get auth token for the API call
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
-    if (!token) {
-      throw new Error("You must be logged in to use AI parsing.");
-    }
-
-    // Call server-side API route
-    const response = await fetch('/api/ai/parse-orders', {
+    const response = await authenticatedFetch('/api/ai/parse-orders', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
       body: JSON.stringify({ contentParts }),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `AI request failed (${response.status})`);
+      throw new Error(errorData.error || `Server error: ${response.status}`);
     }
 
     const data = await response.json();

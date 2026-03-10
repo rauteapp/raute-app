@@ -7,6 +7,39 @@ import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
 
+/**
+ * Validate that a redirect URL is safe (relative path or raute.io domain only).
+ * Returns the URL if valid, or the fallback otherwise.
+ */
+function validateRedirectUrl(url: string, fallback: string = '/dashboard'): string {
+  // Allow relative URLs (must start with /)
+  if (url.startsWith('/') && !url.startsWith('//')) {
+    return url
+  }
+
+  // Allow raute.io domain
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname === 'raute.io' || parsed.hostname.endsWith('.raute.io')) {
+      return url
+    }
+  } catch {
+    // Invalid URL — use fallback
+  }
+
+  return fallback
+}
+
+/**
+ * Sanitize a URL parameter for safe display.
+ * Strips HTML tags and limits length to prevent abuse.
+ */
+function sanitizeDisplayParam(value: string, maxLength: number = 200): string {
+  return String(value)
+    .replace(/[<>"'&]/g, '') // Strip characters that could break out of HTML context
+    .slice(0, maxLength)
+}
+
 export default function AuthCallback() {
   const router = useRouter()
   const hasRedirected = useRef(false)
@@ -25,7 +58,7 @@ export default function AuthCallback() {
       // Check email verification
       if (!emailConfirmedAt) {
         hasRedirected.current = true
-        window.location.href = '/verify-email'
+        window.location.href = validateRedirectUrl('/verify-email', '/verify-email')
         return
       }
 
@@ -53,7 +86,6 @@ export default function AuthCallback() {
         if (result && 'data' in result) {
           const { data: userProfile } = result
           if (!userProfile || !userProfile.role || !userProfile.company_id) {
-            console.warn('⚠️ User has no complete profile, redirecting to login')
             window.location.href = '/login?message=verified'
             return
           }
@@ -82,7 +114,6 @@ export default function AuthCallback() {
           await syncRoleAndRedirect(data.session.user.id, data.session.user.email_confirmed_at)
           return true
         }
-        console.warn('Code exchange failed:', error?.message)
         return false
       } catch {
         return false
@@ -102,7 +133,6 @@ export default function AuthCallback() {
     let deepLinkListener: { remove: () => void } | null = null
     if (isNative) {
       App.addListener('appUrlOpen', async (event) => {
-        console.log('🔗 Deep link received:', event.url)
         const handled = await exchangeCode(event.url)
         if (!handled && !hasRedirected.current) {
           // Couldn't exchange — check if already has session (e.g. magic link flow)
@@ -129,16 +159,18 @@ export default function AuthCallback() {
           // Detect expired/invalid email verification links
           if (oauthError === 'access_denied' && decodedDesc.toLowerCase().includes('expired')) {
             hasRedirected.current = true
-            setExpiredLinkError(decodedDesc)
+            setExpiredLinkError(sanitizeDisplayParam(decodedDesc))
             setShowExpiredLink(true)
             return
           }
 
-          setStatus(`Sign in failed: ${decodedDesc || oauthError}`)
+          setStatus(`Sign in failed: ${sanitizeDisplayParam(decodedDesc || oauthError)}`)
           setTimeout(() => {
             if (!hasRedirected.current) {
               hasRedirected.current = true
-              window.location.href = `/login?error=${oauthError}`
+              // Sanitize URL params to prevent XSS / open redirect
+              const safeError = encodeURIComponent(String(oauthError).slice(0, 100))
+              window.location.href = validateRedirectUrl(`/login?error=${safeError}`, '/login')
             }
           }, 5000)
           return
@@ -176,13 +208,11 @@ export default function AuthCallback() {
           if (!isNative && !hasRedirected.current) {
             const { data: sessionData } = await supabase.auth.getSession()
             if (sessionData.session) {
-              console.log('✅ Code exchange failed but session exists (handled by onAuthStateChange)')
               await syncRoleAndRedirect(sessionData.session.user.id, sessionData.session.user.email_confirmed_at)
               return
             }
 
             // No session — likely mobile-originated PKCE without verifier
-            console.warn('Code exchange failed (likely missing PKCE verifier from mobile signup):', code)
             setShowAppRedirect(true)
             hasRedirected.current = true
             return
@@ -198,18 +228,29 @@ export default function AuthCallback() {
     handleUrlTokens()
 
     // === APPROACH 4: Polling fallback ===
+    // Use 3s interval (not 1s) and timeout-wrapped getSession() to avoid
+    // flooding navigator.locks and causing contention on the dashboard page.
     const pollInterval = setInterval(async () => {
       if (hasRedirected.current) {
         clearInterval(pollInterval)
         return
       }
 
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        clearInterval(pollInterval)
-        await syncRoleAndRedirect(data.session.user.id, data.session.user.email_confirmed_at)
+      try {
+        const { data } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null } }), 3000)
+          ),
+        ])
+        if (data.session) {
+          clearInterval(pollInterval)
+          await syncRoleAndRedirect(data.session.user.id, data.session.user.email_confirmed_at)
+        }
+      } catch {
+        // getSession timed out or threw — next poll will retry
       }
-    }, 1000)
+    }, 3000)
 
     // === TIMEOUT: Give up after 15 seconds ===
     const timeout = setTimeout(() => {

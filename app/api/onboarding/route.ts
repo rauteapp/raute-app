@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { checkRateLimit } from '@/lib/api-rate-limit'
+
+export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest) {
     try {
+        // Rate limit: 5 requests per 60 seconds
+        const rateLimited = checkRateLimit(request, { windowSeconds: 60, maxRequests: 5 })
+        if (rateLimited) return rateLimited
+
         const cookieStore = await cookies()
 
         const supabase = createServerClient(
@@ -35,7 +42,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Company Name is required' }, { status: 400 })
         }
 
-        // P1-SEC-5: Prevent re-onboarding — if user already has a company, block
+        if (String(companyName).length > 100) {
+            return NextResponse.json({ error: 'Company name must be under 100 characters' }, { status: 400 })
+        }
+
+        // Prevent re-onboarding — if user already has a company, block
         const { data: existingProfile } = await supabase
             .from('users')
             .select('company_id, role')

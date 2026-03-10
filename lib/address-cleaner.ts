@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { authenticatedFetch } from './authenticated-fetch';
 
 export interface AddressInput {
   address: string;
@@ -14,8 +14,8 @@ export interface CleanedAddress extends AddressInput {
 }
 
 /**
- * Clean addresses using server-side AI API route.
- * The XAI API key is never exposed to the browser.
+ * Clean addresses using xAI/Grok via server-side proxy.
+ * API key stays on the server — never exposed to the browser.
  */
 export async function cleanAddressesWithAI(
   addresses: AddressInput[]
@@ -23,43 +23,44 @@ export async function cleanAddressesWithAI(
   if (!addresses.length) return [];
 
   try {
-    // Get auth token
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
-    if (!token) {
-      console.warn("⚠️ Not authenticated — skipping AI address cleaning");
-      return addresses.map((a) => ({
-        ...a,
-        original_address: a.address,
-        was_corrected: false,
-        correction_notes: "",
-      }));
-    }
-
-    const response = await fetch('/api/ai/clean-addresses', {
+    const response = await authenticatedFetch('/api/ai/clean-address', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
       body: JSON.stringify({ addresses }),
     });
 
     if (!response.ok) {
-      throw new Error(`Address cleaning failed (${response.status})`);
+      console.warn('AI address cleaning failed:', response.status);
+      return addresses.map((a) => ({
+        ...a,
+        original_address: a.address,
+        was_corrected: false,
+        correction_notes: '',
+      }));
     }
 
     const data = await response.json();
-    return data.addresses;
+    const results: CleanedAddress[] = data.addresses || [];
+
+    // Validate array length matches input
+    if (results.length !== addresses.length) {
+      console.warn('AI returned mismatched count, falling back to originals');
+      return addresses.map((a) => ({
+        ...a,
+        original_address: a.address,
+        was_corrected: false,
+        correction_notes: '',
+      }));
+    }
+
+    return results;
 
   } catch (error) {
-    console.error("❌ AI address cleaning failed:", error);
+    console.error('AI address cleaning failed:', error);
     return addresses.map((a) => ({
       ...a,
       original_address: a.address,
       was_corrected: false,
-      correction_notes: "",
+      correction_notes: '',
     }));
   }
 }

@@ -9,23 +9,33 @@ export function MobileAuthWrapper({
     mobileChildren: React.ReactNode
 }) {
     const [isMobile, setIsMobile] = useState(false)
+    const [isNativeApp, setIsNativeApp] = useState(false)
 
     useEffect(() => {
-        // Detect if running in Capacitor (mobile app)
-        const checkMobile = async () => {
-            if (typeof window !== 'undefined' && (window as any).Capacitor) {
-                // Check if it's actually native platform (iOS/Android) not just web with Capacitor injected
-                const isNative = (window as any).Capacitor.isNativePlatform?.() ||
-                    (window as any).Capacitor.getPlatform?.() !== 'web';
+        // 1. Check if running in Capacitor native app
+        if (typeof window !== 'undefined' && (window as any).Capacitor) {
+            const isNative = (window as any).Capacitor.isNativePlatform?.() ||
+                (window as any).Capacitor.getPlatform?.() !== 'web';
 
-                if (isNative) {
-                    setIsMobile(true)
-                }
+            if (isNative) {
+                setIsMobile(true)
+                setIsNativeApp(true)
+                return
             }
         }
-        checkMobile()
+
+        // 2. Also check viewport width for responsive mobile web
+        const checkViewport = () => {
+            if (typeof window !== 'undefined') {
+                setIsMobile(window.innerWidth < 1024)
+            }
+        }
+        checkViewport()
+
+        window.addEventListener('resize', checkViewport)
+        return () => window.removeEventListener('resize', checkViewport)
     }, [])
 
-    // Show mobile version for Capacitor, web version otherwise
+    // Show mobile version for Capacitor native OR small viewports
     return isMobile ? <>{mobileChildren}</> : <>{children}</>
 }

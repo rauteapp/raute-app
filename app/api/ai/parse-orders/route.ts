@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAuthenticatedUser } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/api-rate-limit'
 import OpenAI from 'openai'
-import { applyRateLimit } from '@/lib/rate-limit'
 
-// Server-side only — API key never exposed to browser
-const xaiClient = new OpenAI({
-    apiKey: process.env.XAI_API_KEY || '',
-    baseURL: 'https://api.x.ai/v1',
-})
+/**
+ * POST /api/ai/parse-orders
+ *
+ * Server-side proxy for xAI/Grok order parsing.
+ * Keeps XAI_API_KEY private (no NEXT_PUBLIC_ prefix).
+ *
+ * Body: { contentParts: OpenAI content parts array }
+ * Returns: { orders: ParsedOrder[] }
+ */
 
 const SYSTEM_PROMPT = `
 You are an AI assistant for a delivery logistics app.
@@ -53,30 +57,81 @@ RETURN ONLY THE RAW JSON.
 const MAX_RETRIES = 2
 const TIMEOUT_MS = 120_000
 
-async function authenticateRequest(request: NextRequest) {
-    const authHeader = request.headers.get('authorization')
-    const cookieToken = request.cookies.get('sb-access-token')?.value
+export async function POST(request: NextRequest) {
+    // Rate limit: 10 req/60s per IP
+    const rateLimited = checkRateLimit(request, { windowSeconds: 60, maxRequests: 10 })
+    if (rateLimited) return rateLimited
 
-    const token = authHeader?.replace('Bearer ', '') || cookieToken
+    try {
+        const authUser = await getAuthenticatedUser(request)
+        if (!authUser) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
 
-    if (!token) return null
+        const apiKey = process.env.XAI_API_KEY
+        if (!apiKey) {
+            return NextResponse.json(
+                { error: 'xAI API key not configured on server' },
+                { status: 500 }
+            )
+        }
 
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+        const { contentParts } = await request.json()
 
-    const { data: { user }, error } = await supabase.auth.getUser(token)
-    if (error || !user) return null
-    return user
+        if (!contentParts || !Array.isArray(contentParts) || contentParts.length === 0) {
+            return NextResponse.json(
+                { error: 'Missing or empty contentParts array' },
+                { status: 400 }
+            )
+        }
+
+        const client = new OpenAI({
+            apiKey,
+            baseURL: 'https://api.x.ai/v1',
+        })
+
+        const textResponse = await callWithRetry(client, contentParts)
+
+        // Clean markdown code fences if present
+        const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim()
+
+        let parsed
+        try {
+            parsed = JSON.parse(cleanJson)
+        } catch {
+            return NextResponse.json(
+                { error: 'Failed to parse AI response' },
+                { status: 502 }
+            )
+        }
+
+        // Normalize output
+        let orders = []
+        if (parsed.orders && Array.isArray(parsed.orders)) {
+            orders = parsed.orders
+        } else if (Array.isArray(parsed)) {
+            orders = parsed
+        } else if (parsed && typeof parsed === 'object') {
+            orders = [parsed]
+        }
+
+        return NextResponse.json({ orders })
+    } catch (err) {
+        console.error('AI parse-orders error:', err)
+        return NextResponse.json(
+            { error: err instanceof Error ? err.message : 'Internal server error' },
+            { status: 500 }
+        )
+    }
 }
 
-async function callGrokWithRetry(
+async function callWithRetry(
+    client: OpenAI,
     contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
     attempt = 1
 ): Promise<string> {
     try {
-        const completionPromise = xaiClient.chat.completions.create({
+        const completionPromise = client.chat.completions.create({
             model: 'grok-4-1-fast-reasoning',
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
@@ -90,13 +145,13 @@ async function callGrokWithRetry(
         )
 
         const completion = await Promise.race([completionPromise, timeoutPromise])
-        const textResponse = completion.choices[0]?.message?.content || ''
+        const text = completion.choices[0]?.message?.content || ''
 
-        if (!textResponse) {
-            throw new Error('The AI returned an empty response. Please try a different image.')
+        if (!text) {
+            throw new Error('The AI returned an empty response.')
         }
 
-        return textResponse
+        return text
     } catch (error: any) {
         const isRetryable =
             error.message === 'TIMEOUT' ||
@@ -109,7 +164,7 @@ async function callGrokWithRetry(
         if (isRetryable && attempt <= MAX_RETRIES) {
             const delay = attempt * 3000
             await new Promise(r => setTimeout(r, delay))
-            return callGrokWithRetry(contentParts, attempt + 1)
+            return callWithRetry(client, contentParts, attempt + 1)
         }
 
         if (error.message === 'TIMEOUT') {
@@ -117,57 +172,5 @@ async function callGrokWithRetry(
         }
 
         throw error
-    }
-}
-
-export async function POST(request: NextRequest) {
-    const rateLimited = applyRateLimit(request, 'ai')
-    if (rateLimited) return rateLimited
-
-    try {
-        // Authenticate
-        const user = await authenticateRequest(request)
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
-        if (!process.env.XAI_API_KEY) {
-            return NextResponse.json({ error: 'AI service not configured' }, { status: 500 })
-        }
-
-        const body = await request.json()
-        const { contentParts } = body
-
-        if (!contentParts || !Array.isArray(contentParts)) {
-            return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-        }
-
-        const textResponse = await callGrokWithRetry(contentParts)
-
-        // Parse and validate
-        const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim()
-        let parsed
-        try {
-            parsed = JSON.parse(cleanJson)
-        } catch {
-            return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
-        }
-
-        let orders = []
-        if (parsed.orders && Array.isArray(parsed.orders)) {
-            orders = parsed.orders
-        } else if (Array.isArray(parsed)) {
-            orders = parsed
-        } else if (parsed && typeof parsed === 'object') {
-            orders = [parsed]
-        }
-
-        return NextResponse.json({ orders })
-    } catch (error: any) {
-        console.error('AI parse error:', error.message)
-        return NextResponse.json(
-            { error: error.message || 'An unexpected error occurred' },
-            { status: 500 }
-        )
     }
 }

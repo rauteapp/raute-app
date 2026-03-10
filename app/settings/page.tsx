@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet"
-import { Plus, MapPin, Building2, Trash2, ArrowLeft, Save, Search } from "lucide-react"
+import { Plus, MapPin, Building2, Trash2, ArrowLeft, Save, Search, Settings2, Weight, MapPinned, Mail } from "lucide-react"
 import LocationPicker from "@/components/location-picker"
 import { useToast } from "@/components/toast-provider"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PullToRefresh } from "@/components/pull-to-refresh"
+import type { CompanySettings } from "@/lib/supabase"
 
 interface Hub {
     id: string
@@ -21,6 +22,12 @@ interface Hub {
     longitude: number
 }
 
+const DEFAULT_SETTINGS: Omit<CompanySettings, 'id' | 'company_id' | 'created_at' | 'updated_at'> = {
+    weight_tracking_enabled: false,
+    customer_tracking_enabled: true,
+    customer_email_notifications: false,
+}
+
 export default function SettingsPage() {
     const router = useRouter()
     const { toast } = useToast()
@@ -28,6 +35,9 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [isAddOpen, setIsAddOpen] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [companyId, setCompanyId] = useState<string | null>(null)
+    const [featureSettings, setFeatureSettings] = useState(DEFAULT_SETTINGS)
+    const [savingFeatures, setSavingFeatures] = useState(false)
 
     // Form State
     const [newHubName, setNewHubName] = useState("")
@@ -67,6 +77,8 @@ export default function SettingsPage() {
             }
 
             if (userProfile && userProfile.company_id) {
+                setCompanyId(userProfile.company_id)
+
                 const { data, error } = await supabase
                     .from('hubs')
                     .select('*')
@@ -75,6 +87,21 @@ export default function SettingsPage() {
 
                 if (error) throw error
                 setHubs(data || [])
+
+                // Fetch company settings
+                const { data: settingsData } = await supabase
+                    .from('company_settings')
+                    .select('*')
+                    .eq('company_id', userProfile.company_id)
+                    .single()
+
+                if (settingsData) {
+                    setFeatureSettings({
+                        weight_tracking_enabled: settingsData.weight_tracking_enabled,
+                        customer_tracking_enabled: settingsData.customer_tracking_enabled,
+                        customer_email_notifications: settingsData.customer_email_notifications,
+                    })
+                }
             }
         } catch (error) {
             toast({ title: "Failed to load settings", type: "error" })
@@ -135,6 +162,29 @@ export default function SettingsPage() {
             toast({ title: "Warehouse deleted", type: "success" })
         } catch (error) {
             toast({ title: "Failed to delete", type: "error" }) // Fixed toast type to "error"
+        }
+    }
+
+    async function handleToggleFeature(key: keyof typeof featureSettings) {
+        if (!companyId) return
+        const updated = { ...featureSettings, [key]: !featureSettings[key] }
+        setFeatureSettings(updated)
+        try {
+            setSavingFeatures(true)
+            const { error } = await supabase
+                .from('company_settings')
+                .upsert(
+                    { company_id: companyId, ...updated },
+                    { onConflict: 'company_id' }
+                )
+            if (error) throw error
+            toast({ title: "Setting updated", type: "success" })
+        } catch (error) {
+            // Revert on failure
+            setFeatureSettings(featureSettings)
+            toast({ title: "Failed to update setting", type: "error" })
+        } finally {
+            setSavingFeatures(false)
         }
     }
 
@@ -328,6 +378,88 @@ export default function SettingsPage() {
                                 ))}
                             </div>
                         )}
+                    </div>
+
+                    {/* Features Section */}
+                    <div className="space-y-5">
+                        <div className="flex items-center bg-white dark:bg-slate-900 p-2 pl-4 rounded-[28px] border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-[16px] flex items-center justify-center shadow-inner shadow-emerald-400/20">
+                                    <Settings2 size={20} strokeWidth={2.5} />
+                                </div>
+                                <h2 className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight">Features</h2>
+                            </div>
+                        </div>
+
+                        <div className="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] rounded-[32px] overflow-hidden">
+                            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500 opacity-20" />
+
+                            {/* Weight Tracking */}
+                            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800/60">
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                    <div className="h-11 w-11 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-[16px] shadow-sm flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700/60">
+                                        <Weight size={20} className="text-emerald-600 dark:text-emerald-400 opacity-90" strokeWidth={2} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-[15px] font-bold text-slate-900 dark:text-white tracking-tight">Enable Weight Tracking</h3>
+                                        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Track order weight and vehicle capacity limits</p>
+                                    </div>
+                                </div>
+                                <button
+                                    role="switch"
+                                    aria-checked={featureSettings.weight_tracking_enabled}
+                                    disabled={savingFeatures}
+                                    onClick={() => handleToggleFeature('weight_tracking_enabled')}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${featureSettings.weight_tracking_enabled ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                >
+                                    <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${featureSettings.weight_tracking_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
+
+                            {/* Customer Tracking */}
+                            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800/60">
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                    <div className="h-11 w-11 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-[16px] shadow-sm flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700/60">
+                                        <MapPinned size={20} className="text-blue-600 dark:text-blue-400 opacity-90" strokeWidth={2} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-[15px] font-bold text-slate-900 dark:text-white tracking-tight">Customer Tracking</h3>
+                                        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Generate tracking links for customers to follow their deliveries</p>
+                                    </div>
+                                </div>
+                                <button
+                                    role="switch"
+                                    aria-checked={featureSettings.customer_tracking_enabled}
+                                    disabled={savingFeatures}
+                                    onClick={() => handleToggleFeature('customer_tracking_enabled')}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${featureSettings.customer_tracking_enabled ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                >
+                                    <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${featureSettings.customer_tracking_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
+
+                            {/* Email Notifications */}
+                            <div className="flex items-center justify-between p-5">
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                    <div className="h-11 w-11 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-[16px] shadow-sm flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700/60">
+                                        <Mail size={20} className="text-violet-600 dark:text-violet-400 opacity-90" strokeWidth={2} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-[15px] font-bold text-slate-900 dark:text-white tracking-tight">Email Notifications</h3>
+                                        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Send email updates to customers when delivery status changes</p>
+                                    </div>
+                                </div>
+                                <button
+                                    role="switch"
+                                    aria-checked={featureSettings.customer_email_notifications}
+                                    disabled={savingFeatures}
+                                    onClick={() => handleToggleFeature('customer_email_notifications')}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${featureSettings.customer_email_notifications ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                >
+                                    <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${featureSettings.customer_email_notifications ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </main>
             </div>

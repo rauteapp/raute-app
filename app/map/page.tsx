@@ -30,6 +30,7 @@ const InteractiveMap = dynamic(
 export default function MapPage() {
     const { theme } = useTheme()
     const searchParams = useSearchParams()
+    const isMountedRef = useRef(true)
 
     // Data State
     const [orders, setOrders] = useState<Order[]>([])
@@ -49,11 +50,21 @@ export default function MapPage() {
 
     // Initial Load & Subscription
     useEffect(() => {
+        isMountedRef.current = true
+
         // Get User Location
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
-                (position) => setUserLocation([position.coords.latitude, position.coords.longitude]),
-                () => setUserLocation([30.0444, 31.2357]) // Default Cairo
+                (position) => {
+                    if (isMountedRef.current) {
+                        setUserLocation([position.coords.latitude, position.coords.longitude])
+                    }
+                },
+                () => {
+                    if (isMountedRef.current) {
+                        setUserLocation([30.0444, 31.2357]) // Default Cairo
+                    }
+                }
             )
         } else {
             setUserLocation([30.0444, 31.2357])
@@ -61,12 +72,16 @@ export default function MapPage() {
 
         // Timeout protection: don't let loading spin forever
         const timeoutId = setTimeout(() => {
-            setIsLoading(false)
+            if (isMountedRef.current) setIsLoading(false)
         }, 5000) // 5 seconds max
 
         fetchData().finally(() => {
             clearTimeout(timeoutId)
         })
+
+        return () => {
+            isMountedRef.current = false
+        }
     }, [])
 
     // Track last Realtime event for fallback polling
@@ -87,6 +102,7 @@ export default function MapPage() {
                 table: 'orders',
                 filter: companyFilter
             }, () => {
+                if (!isMountedRef.current) return
                 lastRealtimeEventRef.current = Date.now()
                 fetchData()
             })
@@ -100,6 +116,7 @@ export default function MapPage() {
                 table: 'drivers',
                 filter: companyFilter
             }, (payload) => {
+                if (!isMountedRef.current) return
                 lastRealtimeEventRef.current = Date.now()
                 if (payload.new && (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT')) {
                     const newDriver = payload.new as Driver
@@ -118,14 +135,14 @@ export default function MapPage() {
         const REALTIME_STALE_THRESHOLD = 30_000
 
         const pollIntervalId = setInterval(async () => {
+            if (!isMountedRef.current) return
             const timeSinceLastEvent = Date.now() - lastRealtimeEventRef.current
             if (timeSinceLastEvent > REALTIME_STALE_THRESHOLD) {
-                console.log('⏳ Realtime stale, fallback polling drivers...')
                 const { data } = await supabase
                     .from('drivers')
                     .select('*')
                     .eq('company_id', companyId)
-                if (data) {
+                if (data && isMountedRef.current) {
                     setDrivers(data.map(d => ({ ...d, is_online: isDriverOnline(d) })))
                 }
             }
@@ -160,6 +177,8 @@ export default function MapPage() {
                 return
             }
 
+            if (!isMountedRef.current) return
+
             const { data: userProfile } = await supabase
                 .from('users')
                 .select('company_id, role')
@@ -167,9 +186,10 @@ export default function MapPage() {
                 .maybeSingle()
 
             if (!userProfile) {
-                console.log('❌ Map: No user profile found!')
                 return
             }
+
+            if (!isMountedRef.current) return
 
             setUserRole(userProfile.role)
             setCompanyId(userProfile.company_id)
@@ -182,7 +202,7 @@ export default function MapPage() {
                     .eq('user_id', currentUserId)
                     .maybeSingle()
 
-                if (driverData) {
+                if (driverData && isMountedRef.current) {
                     setSelectedDriverIds(new Set([driverData.id]))
                     setDrivers([driverData])
 
@@ -190,7 +210,7 @@ export default function MapPage() {
                         .from('orders')
                         .select('*')
                         .eq('driver_id', driverData.id)
-                    setOrders(data || [])
+                    if (isMountedRef.current) setOrders(data || [])
                 }
             } else {
                 // Manager: See all active + today's delivered
@@ -203,6 +223,8 @@ export default function MapPage() {
                     .from('drivers')
                     .select('*')
                     .eq('company_id', userProfile.company_id)
+
+                if (!isMountedRef.current) return
 
                 // Filter: Hide delivered orders unless scheduled for TODAY
                 const now = new Date()

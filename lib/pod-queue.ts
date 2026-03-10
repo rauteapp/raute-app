@@ -18,7 +18,6 @@ export class PODOfflineQueue {
         const response = await fetch(imageDataUrl)
         const blob = await response.blob()
         await addPODToQueue(orderId, blob)
-        console.log(`📦 POD queued for order ${orderId}`)
     }
 
     /**
@@ -35,8 +34,6 @@ export class PODOfflineQueue {
     static async processQueue(supabase: any): Promise<{ success: number, failed: number }> {
         const queue = await getPODQueue()
         if (queue.length === 0) return { success: 0, failed: 0 }
-
-        console.log(`📤 Processing ${queue.length} queued PODs...`)
 
         let successCount = 0
         let failedCount = 0
@@ -66,7 +63,6 @@ export class PODOfflineQueue {
                     })
                     .eq('id', pod.orderId)
 
-                console.log(`✅ POD uploaded for order ${pod.orderId}`)
                 await removePODFromQueue(pod.orderId)
                 successCount++
 

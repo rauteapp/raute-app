@@ -12,7 +12,10 @@
           "/update-password",
           "/update-password/*",
           "/forgot-password",
-          "/forgot-password/*"
+          "/forgot-password/*",
+          "/orders/*",
+          "/dashboard",
+          "/map"
         ]
       }
     ]

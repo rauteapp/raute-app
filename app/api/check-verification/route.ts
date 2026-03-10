@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/api-rate-limit'
+
+export const dynamic = "force-dynamic"
 
 /**
  * Check if an email has been verified in Supabase Auth.
@@ -10,10 +13,20 @@ import { getSupabaseAdmin } from '@/lib/api-auth'
  */
 export async function POST(request: NextRequest) {
     try {
+        // Rate limit: 10 requests per 60 seconds
+        const rateLimited = checkRateLimit(request, { windowSeconds: 60, maxRequests: 10 })
+        if (rateLimited) return rateLimited
+
         const { email } = await request.json()
 
         if (!email || typeof email !== 'string') {
             return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email.trim())) {
+            return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -143,7 +143,6 @@ export function MobileNav() {
                         setLoading(false)
                     } else if (retries > 0) {
                         // Retry if profile not found yet (race condition on signup/signin)
-                        console.warn(`Role not found, retrying... (${retries} left)`)
                         setTimeout(() => fetchRole(userId, retries - 1), 500)
                     } else {
                         // Final failure
@@ -165,7 +164,6 @@ export function MobileNav() {
         // Safety timeout: if role fetch takes too long, give up and show UI
         timeoutId = setTimeout(() => {
             if (mounted && loading) {
-                console.warn('Role fetch timed out after 5s, showing UI with fallback')
                 // Don't set a fallback role - let the UI decide based on available data
                 // Setting a default role can show wrong navigation to managers
                 setLoading(false)
@@ -192,7 +190,6 @@ export function MobileNav() {
                 }
             } catch {
                 // getSession timed out or threw — try getUser() as fallback
-                console.log('⏳ MobileNav: getSession blocked, trying getUser() fallback...')
                 try {
                     const { data: userData } = await supabase.auth.getUser()
                     if (userData.user) {
@@ -217,7 +214,6 @@ export function MobileNav() {
                 // OPTIMIZATION 2: Check localStorage cache
                 const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null
                 if (cachedRole) {
-                    console.log('✅ Using cached role:', cachedRole)
                     setUserRole(cachedRole)
                     setLoading(false)
                     clearTimeout(timeoutId)

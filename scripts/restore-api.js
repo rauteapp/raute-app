@@ -8,6 +8,7 @@ const tempDir = path.join(os.tmpdir(), 'raute-api-backup');
 const routesToRestore = [
     { dest: path.join(process.cwd(), 'app', 'api'), name: 'api' },
     { dest: path.join(process.cwd(), 'app', 'auth'), name: 'auth' },
+    { dest: path.join(process.cwd(), 'app', 'track'), name: 'track' },
     { dest: path.join(process.cwd(), 'middleware.ts'), name: 'middleware.ts' }
 ];
 

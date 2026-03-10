@@ -8,6 +8,11 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    GoogleAuth: {
+      scopes: ['profile', 'email'],
+      serverClientId: '825364238291-kl4rcgm7oqh58l28lilbtujvkr245bjp.apps.googleusercontent.com',
+      forceCodeForRefreshToken: true,
+    },
     StatusBar: {
       overlaysWebView: true,
       style: 'LIGHT', // Dark text on light background (default)
@@ -22,6 +27,9 @@ const config: CapacitorConfig = {
     Keyboard: {
       resize: 'body',
       resizeOnFullScreen: true,
+    },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
     },
   },
   // Deep linking for OAuth redirects

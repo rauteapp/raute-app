@@ -27,7 +27,6 @@ function createSupabaseClient() {
     }
 
     if (isNativePlatform) {
-        console.log('🔧 Creating Supabase client for NATIVE platform')
         // Native platform (iOS/Android) — use standard client with Capacitor storage
         // This avoids the cookie-based auth flow that createBrowserClient uses
         const client = createClient(supabaseUrl, supabaseAnonKey, {
@@ -75,7 +74,6 @@ function createSupabaseClient() {
         return client
     }
 
-    console.log('🔧 Creating Supabase client for WEB platform')
     // Web browser — use SSR-compatible browser client (cookie-based)
     // IMPORTANT: Do NOT use capacitorStorage here — createBrowserClient
     // uses cookies for session storage, which the middleware reads via createServerClient.
@@ -84,33 +82,90 @@ function createSupabaseClient() {
     // Without this, createBrowserClient sets session cookies (no maxAge) via document.cookie,
     // which get cleared when the browser closes — even if the middleware sets maxAge on the
     // server side, the client overwrites them without it.
-    return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    const client = createBrowserClient(supabaseUrl, supabaseAnonKey, {
         cookieOptions: {
             maxAge: 365 * 24 * 60 * 60, // 1 year — let Supabase Auth control session validity
             path: '/',
             sameSite: 'lax' as const,
         }
     })
+
+    // CRITICAL: Monkey-patch _acquireLock on web to prevent navigator.locks hangs.
+    //
+    // Supabase's GoTrueClient uses navigator.locks (Web Locks API) to coordinate
+    // token refreshes across browser tabs. However, when a token refresh is in
+    // progress, ALL subsequent getSession() calls queue behind the lock and can
+    // hang for 10+ seconds or indefinitely. This causes:
+    // - Dashboard "Connection Timeout" errors
+    // - Endless skeleton loaders
+    // - "Lock busy / getSession timeout" cascades
+    //
+    // Fix: Use a 4-second timeout on navigator.locks. If the lock can't be
+    // acquired within 4s (e.g. another tab is refreshing), proceed without it.
+    // The risk of concurrent token refresh is low and recoverable (server rejects
+    // stale refresh tokens gracefully — user just needs to refresh the page).
+    const webAuth = client.auth as any
+    const originalAcquireLock = webAuth._acquireLock?.bind(webAuth)
+    let lockTimeoutCount = 0
+    if (originalAcquireLock) {
+        webAuth._acquireLock = async function (acquireTimeout: number, fn: () => Promise<any>) {
+            if (typeof navigator !== 'undefined' && navigator.locks) {
+                try {
+                    const lockName = 'sb-' + supabaseUrl.split('//')[1]?.split('.')[0] + '-auth-token'
+                    return await Promise.race([
+                        navigator.locks.request(lockName, { mode: 'exclusive' }, async () => fn()),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error('lock-timeout')), 4000)
+                        ),
+                    ])
+                } catch (err: any) {
+                    if (err?.message === 'lock-timeout') {
+                        lockTimeoutCount++
+                        if (lockTimeoutCount <= 2) {
+                            }
+                        return await fn()
+                    }
+                    throw err
+                }
+            }
+            return await fn()
+        }
+    }
+
+    return client
 }
 
 export const supabase = createSupabaseClient()
 
 // Create Admin Client (Server-side only, uses Service Role Key)
 // ⚠️ NEVER expose this client or the Service Role Key to the browser
-export const supabaseAdmin = supabaseServiceRoleKey
-    ? createClient(supabaseUrl, supabaseServiceRoleKey, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
+// Uses lazy initialization to avoid throwing at module-level during static builds
+let _supabaseAdmin: ReturnType<typeof createClient> | null = null
+
+export const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient>, {
+    get(_, prop) {
+        if (prop === 'then' || prop === Symbol.toPrimitive || prop === Symbol.toStringTag) {
+            return undefined
         }
-    })
-    : (() => {
-        // Warn loudly if service role key is missing — admin operations will fail with RLS
-        if (typeof window === 'undefined') {
-            console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not set! Admin operations will use anon client and may fail due to RLS.')
+        // Client-side: never allow admin client usage
+        if (typeof window !== 'undefined') {
+            throw new Error('supabaseAdmin is not available on the client side.')
         }
-        return supabase
-    })()
+        // Server-side: lazily create the real client on first use
+        if (!_supabaseAdmin) {
+            if (!supabaseServiceRoleKey) {
+                throw new Error(
+                    'SUPABASE_SERVICE_ROLE_KEY is not set! Cannot create supabaseAdmin client. ' +
+                    'Admin operations require the service role key to bypass RLS safely.'
+                )
+            }
+            _supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+                auth: { autoRefreshToken: false, persistSession: false }
+            })
+        }
+        return (_supabaseAdmin as any)[prop]
+    }
+})
 
 // Database Types (for TypeScript)
 export type Company = {
@@ -152,6 +207,10 @@ export type Driver = {
     current_lat?: number | null
     current_lng?: number | null
     last_location_update?: string | null
+    max_orders?: number | null
+    vehicle_capacity_lbs?: number | null
+    shift_start?: string | null  // HH:MM:SS
+    shift_end?: string | null    // HH:MM:SS
     created_at: string
     updated_at: string
     email?: string // Added for UI display
@@ -217,6 +276,19 @@ export type Order = {
     cancellation_note?: string | null
     cancelled_by?: string | null
     cancelled_at?: string | null
+    weight_lbs?: number | null
+    customer_email?: string | null
+    tracking_token?: string | null
+}
+
+export type CompanySettings = {
+    id: string
+    company_id: string
+    weight_tracking_enabled: boolean
+    customer_tracking_enabled: boolean
+    customer_email_notifications: boolean
+    created_at: string
+    updated_at: string
 }
 
 export type ProofImage = {

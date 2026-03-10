@@ -23,7 +23,10 @@ export async function middleware(request: NextRequest) {
         return request.nextUrl.pathname === route || request.nextUrl.pathname === `${route}/`
     })
 
-    if (isPublicRoute) {
+    // Allow public tracking pages: /track/{token}
+    const isTrackingRoute = request.nextUrl.pathname.startsWith('/track/')
+
+    if (isPublicRoute || isTrackingRoute) {
         return NextResponse.next({ request: { headers: request.headers } })
     }
 
@@ -69,6 +72,6 @@ export const config = {
          * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
          * - api routes (protected separately)
          */
-        '/((?!_next/static|_next/image|favicon.ico|api|privacy|terms|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        '/((?!_next/static|_next/image|favicon.ico|api|privacy|terms|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|ico|xml|txt)$).*)',
     ],
 }

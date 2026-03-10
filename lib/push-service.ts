@@ -27,30 +27,23 @@ export const PushService = {
         this.addListeners();
     },
 
-    addListeners() {
-        PushNotifications.addListener('registration', async (token) => {
+    _listeners: [] as Array<{ remove: () => void }>,
+
+    async addListeners() {
+        // Remove any existing listeners first to prevent duplicates
+        await this.removeListeners();
+
+        const regListener = await PushNotifications.addListener('registration', async (token) => {
             console.log('Push registration success');
             // Save token to push_tokens table for ALL user roles (managers, drivers, dispatchers)
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                // Remove old tokens for this user, then insert the new one
-                await supabase
-                    .from('push_tokens')
-                    .delete()
-                    .eq('user_id', user.id);
-
-                const { error } = await supabase
-                    .from('push_tokens')
-                    .insert({
-                        user_id: user.id,
-                        token: token.value,
-                        platform: Capacitor.getPlatform(),
-                        updated_at: new Date().toISOString(),
-                    });
-
-                if (error) {
-                    console.error('Failed to save push token:', error.message);
-                }
+                await supabase.from('push_tokens').upsert({
+                    user_id: user.id,
+                    token: token.value,
+                    platform: Capacitor.getPlatform(),
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id,token' });
 
                 // Also update drivers.push_token for backwards compatibility
                 const { data: driver } = await supabase
@@ -68,11 +61,12 @@ export const PushService = {
             }
         });
 
-        PushNotifications.addListener('registrationError', (error) => {
+        const errListener = await PushNotifications.addListener('registrationError', (error) => {
             console.error('Push registration error:', JSON.stringify(error));
         });
 
-        PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        const recvListener = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+            console.log('Push received:', JSON.stringify(notification));
             toast({
                 title: notification.title || 'New Notification',
                 description: notification.body || 'You have a new update',
@@ -80,8 +74,22 @@ export const PushService = {
             });
         });
 
-        PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+        const actionListener = await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
             console.log('Push action performed:', JSON.stringify(notification));
+            // Navigate based on notification data
+            const data = notification.notification.data;
+            if (data?.route) {
+                window.location.href = data.route;
+            }
         });
+
+        this._listeners = [regListener, errListener, recvListener, actionListener];
+    },
+
+    async removeListeners() {
+        for (const listener of this._listeners) {
+            listener.remove();
+        }
+        this._listeners = [];
     }
 };

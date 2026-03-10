@@ -18,18 +18,25 @@ const colors = {
     magenta: '\x1b[35m',
 };
 
-// Required environment variables
+// Required environment variables (public — exposed to browser)
 const REQUIRED_VARS = [
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+];
+
+// Server-side only keys (private — never exposed to browser)
+const SERVER_VARS = [
     'XAI_API_KEY',
-    'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY',
+    'GOOGLE_MAPS_API_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'FIREBASE_PROJECT_ID',
 ];
 
 // Optional but recommended variables
 const OPTIONAL_VARS = [
     'NEXT_PUBLIC_REVENUECAT_API_KEY',
-    'SUPABASE_SERVICE_ROLE_KEY',
+    'FIREBASE_CLIENT_EMAIL',
+    'FIREBASE_PRIVATE_KEY',
 ];
 
 console.log(`\n${colors.blue}🔍 Verifying Environment Variables...${colors.reset}\n`);
@@ -75,6 +82,20 @@ REQUIRED_VARS.forEach(varName => {
         hasWarnings = true;
     } else if (value.startsWith('"') || value.startsWith("'")) {
         console.log(`  ${colors.yellow}⚠️  ${varName}: Remove quotes from value${colors.reset}`);
+        hasWarnings = true;
+    } else {
+        const preview = value.length > 40 ? value.substring(0, 40) + '...' : value;
+        console.log(`  ${colors.green}✅ ${varName}: ${preview}${colors.reset}`);
+    }
+});
+
+// Check server-side variables
+console.log(`\n${colors.magenta}📋 Server-Side Variables (private):${colors.reset}`);
+SERVER_VARS.forEach(varName => {
+    const value = envVars[varName];
+
+    if (!value) {
+        console.log(`  ${colors.yellow}⚠️  ${varName}: Not set (needed for server features)${colors.reset}`);
         hasWarnings = true;
     } else {
         const preview = value.length > 40 ? value.substring(0, 40) + '...' : value;

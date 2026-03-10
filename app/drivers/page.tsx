@@ -21,7 +21,9 @@ import {
     ShieldCheck,
     ShieldAlert,
     Loader2,
-    MoreHorizontal
+    MoreHorizontal,
+    Mail,
+    Send
 } from "lucide-react"
 import {
     Sheet,
@@ -59,7 +61,7 @@ export default function DriversPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [isAddDriverOpen, setIsAddDriverOpen] = useState(false)
     const [editingDriver, setEditingDriver] = useState<any | null>(null)
-    const [deletingDriver, setDeleteingDriver] = useState<any | null>(null)
+    const [deletingDriver, setDeletingDriver] = useState<any | null>(null)
     const [isDeleting, setIsDeleting] = useState(false)
     const [locationMode, setLocationMode] = useState<'address' | 'map' | 'hub'>('hub')
     const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false)
@@ -87,7 +89,11 @@ export default function DriversPage() {
         name: '',
         email: '',
         password: '',
-        vehicleType: ''
+        vehicleType: '',
+        maxOrders: '',
+        vehicleCapacityKg: '',
+        shiftStart: '',
+        shiftEnd: ''
     })
     const [isCreatingDriver, setIsCreatingDriver] = useState(false)
     const [isGeocoding, setIsGeocoding] = useState(false)
@@ -154,7 +160,7 @@ export default function DriversPage() {
     // Reset form when dialog closes
     useEffect(() => {
         if (!isAddDriverOpen) {
-            setDriverForm({ name: '', email: '', password: '', vehicleType: '' })
+            setDriverForm({ name: '', email: '', password: '', vehicleType: '', maxOrders: '', vehicleCapacityKg: '', shiftStart: '', shiftEnd: '' })
             setPhoneValue(undefined)
             setDefaultStartLoc(null)
             setSelectedHubId('')
@@ -337,21 +343,21 @@ export default function DriversPage() {
     }
 
     async function handleCreateDriver(formData: FormData) {
-        console.log('🚀 handleCreateDriver called')
         setIsCreatingDriver(true)
 
         try {
             const name = formData.get('name') as string
             const email = formData.get('email') as string
-            const password = formData.get('password') as string
+            const password = crypto.randomUUID() + 'Aa1!' // Random password (driver will set their own via email)
             const phone = phoneValue
             const vehicleType = formData.get('vehicle_type') as string
-
-            console.log('📝 Form data:', { name, email, phone, vehicleType })
+            const maxOrdersRaw = formData.get('max_orders') as string
+            const vehicleCapacityKgRaw = formData.get('vehicle_capacity_lbs') as string
+            const shiftStartRaw = formData.get('shift_start') as string
+            const shiftEndRaw = formData.get('shift_end') as string
 
             // 🛑 ENFORCE DRIVER LIMIT
             if (drivers.length >= maxDrivers) {
-                console.log('⚠️ Driver limit reached:', drivers.length, '/', maxDrivers)
                 setIsAddDriverOpen(false)
                 setShowUpgradeModal(true)
                 return
@@ -393,7 +399,6 @@ export default function DriversPage() {
             // Auto-Geocode if missing
             if ((!finalDefaultStartLat || !finalDefaultStartLng) && defaultStartAddress) {
                 try {
-                    console.log('🌍 Auto-geocoding address:', defaultStartAddress)
                     const coords = await geocodeAddress(defaultStartAddress)
                     if (coords) {
                         finalDefaultStartLat = coords.lat
@@ -403,9 +408,6 @@ export default function DriversPage() {
                     console.error('Auto-geocode failed:', err)
                 }
             }
-
-            console.log('📍 Location data:', { defaultStartAddress, finalDefaultStartLat, finalDefaultStartLng })
-            console.log('🔄 Calling RPC create_driver_account...')
 
             // RPC Call (Now enhanced to create Auth User directly)
             const { data: result, error } = await supabase.rpc('create_driver_account', {
@@ -421,20 +423,41 @@ export default function DriversPage() {
                 default_start_lng: finalDefaultStartLng
             })
 
-            console.log('📦 RPC Response:', { result, error })
-
             if (error || (result && result.success === false)) {
                 console.error('❌ Driver creation failed:', error?.message || result?.error)
                 toast({ title: "Failed", description: error?.message || result?.error || 'Unknown error', type: "error" })
                 return
             }
 
-            console.log('✅ Driver created successfully!')
-            toast({ title: '✅ Driver created!', description: `${name} has been added to your team. Share the login credentials securely.`, type: 'success' })
+            // Update capacity and shift fields on the newly created driver
+            const driverId = result?.driver_id
+            if (driverId && (maxOrdersRaw || vehicleCapacityKgRaw || shiftStartRaw || shiftEndRaw)) {
+                await supabase
+                    .from('drivers')
+                    .update({
+                        max_orders: maxOrdersRaw ? parseInt(maxOrdersRaw, 10) : null,
+                        vehicle_capacity_lbs: vehicleCapacityKgRaw ? parseFloat(vehicleCapacityKgRaw) : null,
+                        shift_start: shiftStartRaw ? shiftStartRaw + ':00' : null,
+                        shift_end: shiftEndRaw ? shiftEndRaw + ':00' : null
+                    })
+                    .eq('id', driverId)
+            }
+
+            // Send account setup email to the driver
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/update-password`,
+            })
+
+            if (resetError) {
+                console.error('Failed to send setup email:', resetError)
+                toast({ title: '✅ Driver created!', description: `${name} has been added to your team. Setup email failed — you can resend it from the driver's card.`, type: 'success' })
+            } else {
+                toast({ title: '✅ Driver created!', description: `${name} has been added to your team. A setup email has been sent to set their password.`, type: 'success' })
+            }
 
             // Reset form state
             setIsAddDriverOpen(false)
-            setDriverForm({ name: '', email: '', password: '', vehicleType: '' })
+            setDriverForm({ name: '', email: '', password: '', vehicleType: '', maxOrders: '', vehicleCapacityKg: '', shiftStart: '', shiftEnd: '' })
             setPhoneValue(undefined)
             setDefaultStartLoc(null)
             setSelectedHubId("")
@@ -449,29 +472,29 @@ export default function DriversPage() {
         }
     }
 
-    async function handleUpdatePassword(formData: FormData) {
-        if (!passDriver) return
+    async function handleResendSetupEmail(driver?: any) {
+        const target = driver || passDriver
+        if (!target) return
         setIsUpdatePassLoading(true)
 
         try {
-            const newPassword = formData.get('new_password') as string
-
-            if (!passDriver.user_id) {
-                toast({ title: "Configuration Error", description: "This driver is not linked to a user account properly.", type: "error" })
+            if (!target.user_id) {
+                toast({ title: "Configuration Error", description: "This account is not linked to a user properly.", type: "error" })
                 return
             }
 
-            const { error } = await supabase.auth.updateUser({ password: newPassword })
-            // Note: This updates the *current* user. Admin updating another user requires Admin API or Edge Function.
-            // Since we are using client-side auth, we can't update another user's password directly unless we are that user.
-            // For now, let's assume this is a placeholder or requires backend implementation.
-            // A common workaround is deleting the user and recreating, or using a server-side route.
+            const { error } = await supabase.auth.resetPasswordForEmail(target.email || '', {
+                redirectTo: window.location.origin + '/update-password'
+            })
 
-            // For this fix, we will just alert that this requires Admin API context or Edge Function.
-            toast({ title: "Feature Restricted", description: "Password update for other users requires Admin Privileges.", type: "error" })
+            if (!error) {
+                toast({ title: "Setup email sent!", description: `${target.name} will receive an email at ${target.email} to set their password.`, type: "success" })
+            } else {
+                toast({ title: "Failed to send setup email", description: error.message, type: "error" })
+            }
 
         } catch (error) {
-            toast({ title: "Failed to update password.", type: "error" })
+            toast({ title: "Failed to send setup email.", type: "error" })
         } finally {
             setIsUpdatePassLoading(false)
             setIsPasswordOpen(false)
@@ -486,6 +509,14 @@ export default function DriversPage() {
         const phone = editPhoneValue
         const vehicleType = formData.get('vehicle_type') as string
         const status = formData.get('status') as string
+        const maxOrdersRaw = formData.get('max_orders') as string
+        const vehicleCapacityKgRaw = formData.get('vehicle_capacity_lbs') as string
+        const shiftStartRaw = formData.get('shift_start') as string
+        const shiftEndRaw = formData.get('shift_end') as string
+        const maxOrders = maxOrdersRaw ? parseInt(maxOrdersRaw, 10) : null
+        const vehicleCapacityKg = vehicleCapacityKgRaw ? parseFloat(vehicleCapacityKgRaw) : null
+        const shiftStart = shiftStartRaw ? shiftStartRaw + ':00' : null
+        const shiftEnd = shiftEndRaw ? shiftEndRaw + ':00' : null
         const newPassword = formData.get('new_password') as string
         const defaultStartAddress = formData.get('default_start_address') as string
         const startHubId = formData.get('start_hub_id') as string
@@ -522,7 +553,6 @@ export default function DriversPage() {
         // Auto-Geocode Fallback for Edit
         if ((!finalLat || !finalLng) && finalStartAddress) {
             try {
-                console.log('🌍 (Edit) Auto-geocoding address:', finalStartAddress)
                 const coords = await geocodeAddress(finalStartAddress)
                 if (coords) {
                     finalLat = coords.lat
@@ -540,17 +570,16 @@ export default function DriversPage() {
             if (value !== null) customValues[field.id] = value
         })
 
-        // Update password if provided
-        if (newPassword && newPassword.length >= 6 && editingDriver.user_id) {
-            const { error: passwordError } = await supabase.auth.updateUser({
-                password: newPassword
+        // Send setup email if requested — lets the driver set/reset their own password
+        if (newPassword && newPassword.length >= 1 && editingDriver.user_id && editingDriver.email) {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(editingDriver.email, {
+                redirectTo: window.location.origin + '/update-password'
             })
 
-            if (passwordError) {
-                toast({ title: 'Failed to update password', description: passwordError.message, type: 'error' })
-                // Continue with other updates even if password fails
+            if (resetError) {
+                toast({ title: 'Failed to send setup email', description: resetError.message, type: 'error' })
             } else {
-                toast({ title: '🔒 Password updated successfully', type: 'success' })
+                toast({ title: 'Setup email sent!', description: `${editingDriver.name} will receive an email to set their password.`, type: 'success' })
             }
         }
 
@@ -576,7 +605,11 @@ export default function DriversPage() {
                 use_manual_start: useManualStart,
                 starting_point_lat: manualLat ? parseFloat(manualLat.toString()) : null,
                 starting_point_lng: manualLng ? parseFloat(manualLng.toString()) : null,
-                starting_point_address: manualAddress
+                starting_point_address: manualAddress,
+                max_orders: maxOrders,
+                vehicle_capacity_lbs: vehicleCapacityKg,
+                shift_start: shiftStart,
+                shift_end: shiftEnd
             })
             .eq('id', editingDriver.id)
 
@@ -595,17 +628,16 @@ export default function DriversPage() {
         setIsDeleting(true)
 
         try {
-            // Delete from drivers table (Cascade should handle user, but we might want to delete user explicitly if needed)
-            const { error } = await supabase
-                .from('drivers')
-                .delete()
-                .eq('id', deletingDriver.id)
+            // Use RPC to properly delete from drivers + public.users + auth.users
+            const { error, data } = await supabase.rpc('delete_user_by_admin', {
+                target_user_id: deletingDriver.user_id
+            })
 
             if (error) throw error
+            if (data && !data.success) throw new Error(data.error || 'Failed to delete driver')
 
-            // Optionally delete from public.users / auth.users via RPC if strict cleanup is needed
-
-            setDeleteingDriver(null)
+            toast({ title: 'Driver deleted successfully', type: 'success' })
+            setDeletingDriver(null)
             fetchDrivers()
         } catch (error: any) {
             toast({ title: 'Error deleting driver', description: error.message, type: 'error' })
@@ -746,18 +778,11 @@ export default function DriversPage() {
                                     />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="password">Password <span className="text-red-500">*</span></Label>
-                                    <PasswordInput
-                                        id="password"
-                                        name="password"
-                                        value={driverForm.password}
-                                        onChange={(e) => setDriverForm(prev => ({ ...prev, password: e.target.value }))}
-                                        placeholder="Create a password"
-                                        required
-                                        minLength={6}
-                                        className="h-11 bg-muted/30 border-input/50 focus-within:bg-background transition-all"
-                                    />
+                                <div className="space-y-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                                    <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                                        <Mail size={14} />
+                                        An email will be sent to the driver to set their own password.
+                                    </p>
                                 </div>
 
                                 <div className="space-y-2">
@@ -773,6 +798,74 @@ export default function DriversPage() {
                                             className="pl-9 h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
                                         />
                                     </div>
+                                </div>
+
+                                {/* Vehicle Capacity */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        <Truck size={14} />
+                                        Vehicle Capacity
+                                    </h4>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="max_orders">Max Orders</Label>
+                                        <Input
+                                            id="max_orders"
+                                            name="max_orders"
+                                            type="number"
+                                            min="1"
+                                            value={driverForm.maxOrders}
+                                            onChange={(e) => setDriverForm(prev => ({ ...prev, maxOrders: e.target.value }))}
+                                            placeholder="e.g., 25 (leave blank for unlimited)"
+                                            className="h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="vehicle_capacity_lbs">Vehicle Capacity (kg)</Label>
+                                        <Input
+                                            id="vehicle_capacity_lbs"
+                                            name="vehicle_capacity_lbs"
+                                            type="number"
+                                            min="0"
+                                            step="any"
+                                            value={driverForm.vehicleCapacityKg}
+                                            onChange={(e) => setDriverForm(prev => ({ ...prev, vehicleCapacityKg: e.target.value }))}
+                                            placeholder="e.g., 100 (leave blank for no limit)"
+                                            className="h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Shift Hours */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        <Clock size={14} />
+                                        Shift Hours
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="shift_start">Shift Start</Label>
+                                            <Input
+                                                id="shift_start"
+                                                name="shift_start"
+                                                type="time"
+                                                value={driverForm.shiftStart}
+                                                onChange={(e) => setDriverForm(prev => ({ ...prev, shiftStart: e.target.value }))}
+                                                className="h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="shift_end">Shift End</Label>
+                                            <Input
+                                                id="shift_end"
+                                                name="shift_end"
+                                                type="time"
+                                                value={driverForm.shiftEnd}
+                                                onChange={(e) => setDriverForm(prev => ({ ...prev, shiftEnd: e.target.value }))}
+                                                className="h-11 bg-muted/30 border-input/50 focus:bg-background transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">Leave blank for no shift restrictions</p>
                                 </div>
 
                                 {/* Location Selection */}
@@ -1046,6 +1139,14 @@ export default function DriversPage() {
                                         </button>
 
                                         <button
+                                            onClick={() => handleResendSetupEmail(driver)}
+                                            className="h-11 w-11 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200/50 dark:border-blue-900/50"
+                                            title="Resend Setup Email"
+                                        >
+                                            <Send size={18} strokeWidth={2} />
+                                        </button>
+
+                                        <button
                                             onClick={() => setEditingDriver(driver)}
                                             className="h-11 w-11 flex items-center justify-center rounded-full bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200/50 dark:border-slate-700/50"
                                             title="Edit Driver"
@@ -1055,7 +1156,7 @@ export default function DriversPage() {
 
                                         <button
                                             className="h-11 w-11 flex items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors border border-rose-100/50 dark:border-rose-900/50"
-                                            onClick={() => setDeleteingDriver(driver)}
+                                            onClick={() => setDeletingDriver(driver)}
                                             title="Delete Driver"
                                         >
                                             <Trash2 size={18} strokeWidth={2} />
@@ -1100,6 +1201,62 @@ export default function DriversPage() {
                                     <Input name="vehicle_type" defaultValue={editingDriver.vehicle_type || ''} />
                                 </div>
 
+                                {/* Vehicle Capacity */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        <Truck size={14} />
+                                        Vehicle Capacity
+                                    </h4>
+                                    <div className="space-y-2">
+                                        <Label>Max Orders</Label>
+                                        <Input
+                                            name="max_orders"
+                                            type="number"
+                                            min="1"
+                                            defaultValue={editingDriver.max_orders ?? ''}
+                                            placeholder="e.g., 25 (leave blank for unlimited)"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Vehicle Capacity (kg)</Label>
+                                        <Input
+                                            name="vehicle_capacity_lbs"
+                                            type="number"
+                                            min="0"
+                                            step="any"
+                                            defaultValue={editingDriver.vehicle_capacity_lbs ?? ''}
+                                            placeholder="e.g., 100 (leave blank for no limit)"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Shift Hours */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        <Clock size={14} />
+                                        Shift Hours
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-2">
+                                            <Label>Shift Start</Label>
+                                            <Input
+                                                name="shift_start"
+                                                type="time"
+                                                defaultValue={editingDriver.shift_start ? editingDriver.shift_start.substring(0, 5) : ''}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Shift End</Label>
+                                            <Input
+                                                name="shift_end"
+                                                type="time"
+                                                defaultValue={editingDriver.shift_end ? editingDriver.shift_end.substring(0, 5) : ''}
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">Leave blank for no shift restrictions</p>
+                                </div>
+
                                 <div className="space-y-2">
                                     <Label>Account Status</Label>
                                     <select
@@ -1132,18 +1289,24 @@ export default function DriversPage() {
                                     </div>
                                 )}
 
-                                {/* Password Update Section */}
+                                {/* Password Setup Section */}
                                 <div className="space-y-4 pt-4 border-t border-border">
-                                    <h4 className="font-semibold text-sm">Security</h4>
+                                    <h4 className="font-semibold text-sm">Account Setup</h4>
                                     <div className="space-y-2">
-                                        <Label>New Password (optional)</Label>
-                                        <Input
-                                            name="new_password"
-                                            type="password"
-                                            placeholder="Leave empty to keep current password"
-                                            minLength={6}
-                                        />
-                                        <p className="text-[11px] text-muted-foreground">Minimum 6 characters. Leave blank to keep existing password.</p>
+                                        <p className="text-[12px] text-muted-foreground">
+                                            Send a setup email so this driver can set or reset their own password.
+                                        </p>
+                                        <input type="hidden" name="new_password" value="" />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleResendSetupEmail(editingDriver)}
+                                            disabled={isUpdatePassLoading}
+                                        >
+                                            <Send size={14} className="mr-2" />
+                                            {isUpdatePassLoading ? 'Sending...' : 'Send Setup Email'}
+                                        </Button>
                                     </div>
                                 </div>
 
@@ -1311,24 +1474,26 @@ export default function DriversPage() {
                 <Dialog open={isPasswordOpen} onOpenChange={setIsPasswordOpen}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Update Password</DialogTitle>
+                            <DialogTitle>Resend Setup Email</DialogTitle>
                         </DialogHeader>
-                        <form action={handleUpdatePassword} className="space-y-4 py-4">
-                            <div className="space-y-2">
-                                <Label>New Password</Label>
-                                <PasswordInput name="new_password" required minLength={6} placeholder="Enter new password" />
-                            </div>
+                        <div className="py-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                Send a new account setup email to <strong>{passDriver?.email}</strong>.
+                                They will receive a link to set their password.
+                            </p>
                             <DialogFooter>
-                                <Button type="submit" disabled={isUpdatePassLoading}>
-                                    {isUpdatePassLoading ? 'Updating...' : 'Update Password'}
+                                <Button variant="outline" onClick={() => setIsPasswordOpen(false)}>Cancel</Button>
+                                <Button onClick={() => handleResendSetupEmail()} disabled={isUpdatePassLoading}>
+                                    <Send size={16} className="mr-2" />
+                                    {isUpdatePassLoading ? 'Sending...' : 'Send Setup Email'}
                                 </Button>
                             </DialogFooter>
-                        </form>
+                        </div>
                     </DialogContent>
                 </Dialog>
 
                 {/* Delete Confirmation */}
-                <Dialog open={!!deletingDriver} onOpenChange={(open) => !open && setDeleteingDriver(null)}>
+                <Dialog open={!!deletingDriver} onOpenChange={(open) => !open && setDeletingDriver(null)}>
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>Delete Driver?</DialogTitle>
@@ -1337,7 +1502,7 @@ export default function DriversPage() {
                             <p>Are you sure you want to delete <strong>{deletingDriver?.name}</strong>? This action cannot be undone.</p>
                         </div>
                         <DialogFooter className="gap-2 sm:gap-0">
-                            <Button variant="outline" onClick={() => setDeleteingDriver(null)}>Cancel</Button>
+                            <Button variant="outline" onClick={() => setDeletingDriver(null)}>Cancel</Button>
                             <Button variant="destructive" onClick={handleDeleteDriver} disabled={isDeleting}>
                                 {isDeleting ? 'Deleting...' : 'Delete Driver'}
                             </Button>

@@ -84,7 +84,6 @@ export default function ProfilePage() {
                 // Don't redirect here — AuthCheck already handles auth redirects.
                 // Redirecting here causes a race condition where both AuthCheck and
                 // this page compete to redirect, potentially causing navigation loops.
-                console.warn('⚠️ Profile: no user found, waiting for AuthCheck to handle redirect')
                 return
             }
 
@@ -105,23 +104,19 @@ export default function ProfilePage() {
 
             // FALLBACK: If direct query failed, use server-side API
             if (!profileData) {
-                console.warn('⚠️ Trying fallback API for profile...')
                 try {
                     const res = await authenticatedFetch('/api/user-profile')
                     if (res.ok) {
                         const apiData = await res.json()
                         if (apiData.success && apiData.user) {
                             profileData = apiData.user
-                            console.log('✅ Fallback API succeeded:', apiData.user.role)
                         }
                     }
                 } catch (apiErr) {
-                    console.warn('⚠️ Fallback API also failed:', apiErr)
                 }
             }
 
             if (profileData) {
-                console.log('✅ Profile loaded:', { role: profileData.role, company_id: profileData.company_id })
                 setUserRole(profileData.role)
                 setFullName(profileData.full_name || '')
                 setProfileImage(profileData.profile_image)

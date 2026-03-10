@@ -53,6 +53,12 @@
 				<string>io.raute.app</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.825364238291-e8volfitrt9rnjmcm2bqfbkcac82frur</string>
+			</array>
+		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Raute needs camera access to allow drivers to capture clear photos of delivered packages as proof of delivery. This helps ensure accountability and customer satisfaction.</string>

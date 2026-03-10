@@ -19,6 +19,7 @@ const STORAGE_KEY = 'offline_queue';
 class OfflineManager {
     private queue: OfflineAction[] = [];
     private isOnline: boolean = true;
+    private networkListenerHandle: { remove: () => void } | null = null;
 
     constructor() {
         this.init();
@@ -28,7 +29,7 @@ class OfflineManager {
         const status = await Network.getStatus();
         this.isOnline = status.connected;
 
-        Network.addListener('networkStatusChange', status => {
+        this.networkListenerHandle = await Network.addListener('networkStatusChange', status => {
             this.isOnline = status.connected;
             if (this.isOnline) {
                 this.processQueue();
@@ -36,6 +37,13 @@ class OfflineManager {
         });
 
         this.loadQueue();
+    }
+
+    public async destroy() {
+        if (this.networkListenerHandle) {
+            this.networkListenerHandle.remove();
+            this.networkListenerHandle = null;
+        }
     }
 
     private async loadQueue() {
@@ -104,7 +112,7 @@ class OfflineManager {
                 const reg = await navigator.serviceWorker.ready;
                 await (reg as any).sync.register('offline-queue-sync');
             } catch (err) {
-                console.warn('Background sync registration failed:', err);
+                // Background sync registration failed
             }
         }
     }
@@ -125,7 +133,6 @@ class OfflineManager {
                         if (current && new Date(current.updated_at).getTime() > action.timestamp) {
                             // Server has newer data
                             if (['delivered', 'cancelled'].includes(current.status)) {
-                                console.warn(`Conflict: order ${orderId} already ${current.status} — skipping queued update`);
                                 toast({
                                     title: 'Sync Conflict',
                                     description: `Order was already marked as ${current.status}`,

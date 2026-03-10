@@ -17,8 +17,6 @@ export async function cleanupOrphanedSessions() {
     }
 
     try {
-        console.log('🧹 Checking for orphaned session data...')
-        
         // IMPORTANT: Do NOT delete the active session keys!
         // The active key is: sb-ysqcovxkqviufagguvue-auth-token (and .0, .1, etc.)
         // These are used by capacitorStorage and deleting them will log the user out.
@@ -36,12 +34,10 @@ export async function cleanupOrphanedSessions() {
             if (value) {
                 await Preferences.remove({ key })
                 removedCount++
-                console.log(`  ✓ Removed deprecated: ${key}`)
             }
         }
 
         if (removedCount > 0) {
-            console.log(`✅ Cleaned up ${removedCount} deprecated session keys`)
         }
     } catch (error) {
         console.error('❌ Session cleanup failed:', error)
@@ -64,12 +60,10 @@ export function isSessionCorrupted(session: unknown): boolean {
         // Only check for structural corruption, NOT expiry
         // Supabase auto-refreshes expired tokens — don't kill them
         if (!sess.access_token || typeof sess.access_token !== 'string') {
-            console.warn('⚠️ Invalid access_token format')
             return true
         }
 
         if (!sess.user || !sess.user.id) {
-            console.warn('⚠️ Missing user data')
             return true
         }
 
