@@ -35,6 +35,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Company Name is required' }, { status: 400 })
         }
 
+        // P1-SEC-5: Prevent re-onboarding — if user already has a company, block
+        const { data: existingProfile } = await supabase
+            .from('users')
+            .select('company_id, role')
+            .eq('id', user.id)
+            .single()
+
+        if (existingProfile?.company_id) {
+            return NextResponse.json({ error: 'Account already onboarded' }, { status: 409 })
+        }
+
         // 2. Create Company
         // We generate ID here to avoid RLS select issues (user can't see company yet)
         const newCompanyId = crypto.randomUUID()

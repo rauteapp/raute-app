@@ -593,14 +593,28 @@ export default function PlannerPage() {
             setOrders(result.orders)
 
             // Save to Database (Batch Update)
-            const updates = result.orders.map(o => ({
-                ...o, // KEEP ALL EXISTING DATA (company_id, customer_name, etc.)
-                driver_id: o.driver_id,
-                status: o.driver_id ? 'assigned' : 'pending',
-                route_index: o.route_index || null,
-            }))
+            // Only update routing fields — never overwrite delivered/cancelled orders
+            const routingUpdates = result.orders
+                .filter(o => o.status !== 'delivered' && o.status !== 'cancelled')
+                .map(o => ({
+                    id: o.id,
+                    driver_id: o.driver_id,
+                    status: o.driver_id ? 'assigned' : 'pending',
+                    route_index: o.route_index || null,
+                    updated_at: new Date().toISOString(),
+                }))
 
-            const { error } = await supabase.from('orders').upsert(updates)
+            // Use individual updates instead of upsert to avoid overwriting other fields
+            const updatePromises = routingUpdates.map(u =>
+                supabase.from('orders').update({
+                    driver_id: u.driver_id,
+                    status: u.status,
+                    route_index: u.route_index,
+                    updated_at: u.updated_at,
+                }).eq('id', u.id)
+            )
+            const results = await Promise.all(updatePromises)
+            const error = results.find(r => r.error)?.error
 
             if (error) {
                 throw error

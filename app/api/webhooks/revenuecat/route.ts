@@ -125,27 +125,9 @@ export async function POST(request: Request) {
                 revenue_cat_subscription_id: payload.event?.subscriber_attributes?.['$revenuecat_id']
             })
 
-            // Increment founding member counter on initial purchase
+            // Atomic founding member increment (race-safe)
             if (eventType === 'INITIAL_PURCHASE') {
-                const { data: config } = await supabaseAdmin
-                    .from('app_config')
-                    .select('value')
-                    .eq('key', 'founding_members')
-                    .single()
-
-                if (config?.value?.active && config.value.count < config.value.limit) {
-                    await supabaseAdmin
-                        .from('app_config')
-                        .update({
-                            value: {
-                                ...config.value,
-                                count: config.value.count + 1,
-                                active: (config.value.count + 1) < config.value.limit
-                            },
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('key', 'founding_members')
-                }
+                await supabaseAdmin.rpc('increment_founding_member')
             }
 
             console.log(`Subscription activated: User ${userId} → ${limits.drivers} drivers, ${limits.orders} orders/mo`)

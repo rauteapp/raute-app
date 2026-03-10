@@ -35,7 +35,18 @@ export async function POST(request: Request) {
             { auth: { autoRefreshToken: false, persistSession: false } }
         )
 
-        console.log(`Stripe Webhook: ${event.type}`)
+        console.log(`Stripe Webhook: ${event.type}`, { eventId: event.id })
+
+        // Idempotency check — skip if already processed
+        const { data: existingEvent } = await supabaseAdmin
+            .from('stripe_webhook_log')
+            .select('event_id')
+            .eq('event_id', event.id)
+            .single()
+
+        if (existingEvent) {
+            return NextResponse.json({ received: true, status: 'duplicate' })
+        }
 
         switch (event.type) {
             // New subscription created (checkout completed)
@@ -80,28 +91,15 @@ export async function POST(request: Request) {
                     revenue_cat_subscription_id: session.subscription as string,
                 })
 
-                // Increment founding member counter
+                // Atomic founding member increment (race-safe)
                 if (isFoundingMember) {
-                    const { data: config } = await supabaseAdmin
-                        .from('app_config')
-                        .select('value')
-                        .eq('key', 'founding_members')
-                        .single()
-
-                    if (config?.value?.active && config.value.count < config.value.limit) {
-                        await supabaseAdmin
-                            .from('app_config')
-                            .update({
-                                value: {
-                                    ...config.value,
-                                    count: config.value.count + 1,
-                                    active: (config.value.count + 1) < config.value.limit
-                                },
-                                updated_at: new Date().toISOString()
-                            })
-                            .eq('key', 'founding_members')
-                    }
+                    await supabaseAdmin.rpc('increment_founding_member')
                 }
+
+                // Log for idempotency
+                await supabaseAdmin.from('stripe_webhook_log').insert({
+                    event_id: event.id, event_type: event.type, user_id: userId, status: 'processed'
+                })
 
                 console.log(`Stripe: Subscription activated for ${userId} → ${driverLimit} drivers`)
                 break
@@ -131,6 +129,9 @@ export async function POST(request: Request) {
                         .eq('id', userId)
                 }
 
+                await supabaseAdmin.from('stripe_webhook_log').insert({
+                    event_id: event.id, event_type: event.type, user_id: userId, status: 'processed'
+                })
                 console.log(`Stripe: Invoice paid for ${userId}`)
                 break
             }
@@ -156,6 +157,9 @@ export async function POST(request: Request) {
                     .eq('user_id', userId)
                     .eq('is_active', true)
 
+                await supabaseAdmin.from('stripe_webhook_log').insert({
+                    event_id: event.id, event_type: event.type, user_id: userId, status: 'processed'
+                })
                 console.log(`Stripe: Subscription ended for ${userId}`)
                 break
             }
@@ -207,6 +211,9 @@ export async function POST(request: Request) {
                         .eq('user_id', userId)
                         .eq('is_active', true)
 
+                    await supabaseAdmin.from('stripe_webhook_log').insert({
+                        event_id: event.id, event_type: event.type, user_id: userId, status: 'processed'
+                    })
                     console.log(`Stripe: Plan updated for ${userId} → ${limits.drivers} drivers`)
                 }
                 break

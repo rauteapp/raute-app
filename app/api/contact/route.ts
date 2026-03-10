@@ -19,6 +19,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
+        // P1-SEC-4: Sanitize inputs to prevent HTML injection in email
+        const sanitize = (str: string) => str.replace(/[<>&"']/g, (c) => ({
+            '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;'
+        }[c] || c))
+        const safeName = sanitize(name)
+        const safeEmail = sanitize(email)
+        const safeCompany = company ? sanitize(company) : 'Not provided'
+        const safeMessage = sanitize(message)
+
         // Save to database
         const { error: dbError } = await supabase
             .from('contact_submissions')
@@ -48,30 +57,30 @@ export async function POST(request: NextRequest) {
                     body: JSON.stringify({
                         from: 'Raute <noreply@raute.io>',
                         to: ['support@raute.io'],
-                        subject: `New Contact Form: ${name}`,
+                        subject: `New Contact Form: ${safeName}`,
                         html: `
                             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                                 <h2 style="color: #2563eb;">New Contact Form Submission</h2>
                                 <table style="width: 100%; border-collapse: collapse;">
                                     <tr>
                                         <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">Name</td>
-                                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${name}</td>
+                                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${safeName}</td>
                                     </tr>
                                     <tr>
                                         <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">Email</td>
-                                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><a href="mailto:${email}">${email}</a></td>
+                                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><a href="mailto:${safeEmail}">${safeEmail}</a></td>
                                     </tr>
                                     <tr>
                                         <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">Company</td>
-                                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${company || 'Not provided'}</td>
+                                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${safeCompany}</td>
                                     </tr>
                                 </table>
                                 <div style="margin-top: 16px; padding: 16px; background: #f8fafc; border-radius: 8px;">
                                     <p style="font-weight: bold; margin: 0 0 8px;">Message:</p>
-                                    <p style="margin: 0; white-space: pre-wrap;">${message}</p>
+                                    <p style="margin: 0; white-space: pre-wrap;">${safeMessage}</p>
                                 </div>
                                 <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
-                                    Reply directly to this email to respond to ${name} at ${email}
+                                    Reply directly to this email to respond to ${safeName} at ${safeEmail}
                                 </p>
                             </div>
                         `,

@@ -430,7 +430,7 @@ export default function DriversPage() {
             }
 
             console.log('✅ Driver created successfully!')
-            toast({ title: '✅ Driver created!', description: `Password: ${password}`, type: 'success' })
+            toast({ title: '✅ Driver created!', description: `${name} has been added to your team. Share the login credentials securely.`, type: 'success' })
 
             // Reset form state
             setIsAddDriverOpen(false)
