@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -670,7 +671,7 @@ export default function DriversPage() {
                         <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
                             <DialogContent>
                                 <DialogHeader>
-                                    <DialogTitle>🚧 Driver Limit Reached</DialogTitle>
+                                    <DialogTitle>Driver Limit Reached</DialogTitle>
                                 </DialogHeader>
                                 <div className="py-4 space-y-4 text-center">
                                     <div className="h-20 w-20 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -680,116 +681,21 @@ export default function DriversPage() {
                                         You have reached the limit of <b>{maxDrivers} driver{maxDrivers === 1 ? '' : 's'}</b> for your current plan.
                                     </p>
                                     <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                                        <p className="font-bold text-lg mb-1">
-                                            {maxDrivers === 1 ? 'Upgrade to Pro' : 'Unlock More Drivers'}
-                                        </p>
+                                        <p className="font-bold text-lg mb-1">Upgrade Your Plan</p>
                                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                                            {maxDrivers === 1
-                                                ? <><b>Unlock 5 driver slots</b> for <b>$20/month</b>.</>
-                                                : <>Add <b>5 more slots</b> ({maxDrivers} → {maxDrivers + 5}) for <b>$20/month</b>.</>
+                                            {maxDrivers <= 5
+                                                ? <>Upgrade to <b>Pro</b> for up to <b>15 drivers</b> starting at <b>$30/mo</b>.</>
+                                                : maxDrivers <= 15
+                                                    ? <>Upgrade to <b>Pioneer</b> for up to <b>40 drivers</b> starting at <b>$50/mo</b>.</>
+                                                    : <>Contact us for a custom <b>Enterprise</b> plan.</>
                                             }
                                         </p>
                                     </div>
-                                    <Button
-                                        className="w-full font-bold"
-                                        disabled={isPurchasing}
-                                        onClick={async () => {
-                                            if (!Capacitor.isNativePlatform()) {
-                                                toast({ title: "Available on iOS", description: "Please use the Raute iOS app to manage your subscription.", type: "info" })
-                                                return
-                                            }
-
-                                            setIsPurchasing(true)
-                                            try {
-                                                const offerings = await RevenueCatService.getOfferings()
-                                                if (!offerings || !offerings.availablePackages?.length) {
-                                                    toast({ title: "Error", description: "No plans available. Please try again later.", type: "error" })
-                                                    return
-                                                }
-
-                                                // Pick the next tier based on current limit
-                                                const targetId = maxDrivers < 5 ? 'raute_starter_monthly'
-                                                    : maxDrivers < 15 ? 'raute_pro_monthly'
-                                                    : 'raute_pioneer_monthly'
-
-                                                const pkg = offerings.availablePackages.find(
-                                                    (p: any) => p.product?.identifier === targetId
-                                                )
-
-                                                if (!pkg) {
-                                                    toast({ title: "Error", description: "Plan not found. Please try again.", type: "error" })
-                                                    return
-                                                }
-
-                                                const result = await RevenueCatService.purchase(pkg)
-                                                if (result.success && result.newDriverLimit) {
-                                                    setMaxDrivers(result.newDriverLimit)
-                                                    setShowUpgradeModal(false)
-                                                    toast({
-                                                        title: "Upgrade Successful!",
-                                                        description: `You now have ${result.newDriverLimit} driver slots.`,
-                                                        type: "success"
-                                                    })
-                                                }
-                                            } catch (e) {
-                                                console.error('Purchase error:', e)
-                                            } finally {
-                                                setIsPurchasing(false)
-                                            }
-                                        }}
-                                    >
-                                        {isPurchasing && <Loader2 className="animate-spin mr-2" size={16} />}
-                                        Upgrade Now
-                                    </Button>
-                                    <button
-                                        className="text-xs text-muted-foreground hover:text-foreground underline mt-4"
-                                        onClick={async () => {
-                                            try {
-                                                toast({ title: "Restoring...", description: "Checking for existing subscriptions...", type: "info" })
-
-                                                // Try RevenueCat restore on native
-                                                if (Capacitor.isNativePlatform()) {
-                                                    const result = await RevenueCatService.restorePurchases()
-                                                    if (result.success && result.newDriverLimit && result.newDriverLimit > 1) {
-                                                        setMaxDrivers(result.newDriverLimit)
-                                                        setShowUpgradeModal(false)
-                                                        toast({
-                                                            title: "Restored!",
-                                                            description: `Your plan includes ${result.newDriverLimit} driver slots.`,
-                                                            type: "success"
-                                                        })
-                                                        return
-                                                    }
-                                                }
-
-                                                // Fallback: check DB directly
-                                                const userId = await getCurrentUserId()
-                                                if (!userId) return
-
-                                                const { data: userProfile } = await supabase
-                                                    .from('users')
-                                                    .select('driver_limit')
-                                                    .eq('id', userId)
-                                                    .single()
-
-                                                if (userProfile?.driver_limit && userProfile.driver_limit > 1) {
-                                                    setMaxDrivers(userProfile.driver_limit)
-                                                    setShowUpgradeModal(false)
-                                                    toast({
-                                                        title: "Restored!",
-                                                        description: `Your plan includes ${userProfile.driver_limit} driver slots.`,
-                                                        type: "success"
-                                                    })
-                                                } else {
-                                                    toast({ title: "No purchases found", description: "You are on the free tier.", type: "info" })
-                                                }
-                                            } catch (e) {
-                                                toast({ title: "Restore failed", type: "error" })
-                                            }
-                                        }}
-                                    >
-                                        Restore Purchases
-                                    </button>
+                                    <Link href="/subscribe">
+                                        <Button className="w-full font-bold">
+                                            View Plans
+                                        </Button>
+                                    </Link>
                                 </div>
                             </DialogContent>
                         </Dialog>

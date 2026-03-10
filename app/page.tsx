@@ -7,6 +7,7 @@ import { HeroSection } from '@/components/landing/hero-section'
 import { FeaturesGrid } from '@/components/landing/features-grid'
 import { PricingSection } from '@/components/landing/pricing-section'
 import { ContactForm } from '@/components/landing/contact-form'
+import { DownloadSection } from '@/components/landing/download-section'
 import { Footer } from '@/components/landing/footer'
 import { HowItWorks } from '@/components/landing/how-it-works'
 
@@ -68,7 +69,10 @@ export default function LandingPage() {
         {/* 4. Pricing Plans */}
         <PricingSection />
 
-        {/* 5. Contact Form */}
+        {/* 5. Download App */}
+        <DownloadSection />
+
+        {/* 6. Contact Form */}
         <ContactForm />
       </main>
 

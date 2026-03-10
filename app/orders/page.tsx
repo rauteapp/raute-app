@@ -26,6 +26,7 @@ import { DriverSetupGuide } from "@/components/driver-setup-guide"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 import { isValidPhoneNumber } from "react-phone-number-input"
 import { DriverActivityHistory } from "@/components/driver-activity-history"
+import { checkOrderLimit } from "@/lib/order-limit"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { format, subDays, startOfMonth, endOfMonth, startOfDay, endOfDay, isToday } from "date-fns"
 import { DateRange } from "react-day-picker"
@@ -599,11 +600,31 @@ export default function OrdersPage() {
                 }
 
                 if (!targetCompanyId) throw new Error("Company ID Not Found")
-                console.log('🏢 Using company_id:', targetCompanyId)
+
+                // Check order limit before bulk import
+                const orderCheck = await checkOrderLimit(targetCompanyId)
+                if (!orderCheck.allowed) {
+                    toast({
+                        title: "Order Limit Reached",
+                        description: `You've used ${orderCheck.used}/${orderCheck.limit} orders this month. Upgrade your plan for more.`,
+                        type: "error"
+                    })
+                    setIsParsing(false)
+                    return
+                }
+                let trimmedResults = results
+                if (results.length > orderCheck.remaining) {
+                    toast({
+                        title: "Order Limit Warning",
+                        description: `You have ${orderCheck.remaining} orders remaining this month but are trying to import ${results.length}. Only the first ${orderCheck.remaining} will be saved.`,
+                        type: "info"
+                    })
+                    trimmedResults = results.slice(0, orderCheck.remaining)
+                }
 
                 // Map all results to database objects
                 // First, build order objects without geocoding (instant)
-                const newOrders: any[] = results.map((result, i) => {
+                const newOrders: any[] = trimmedResults.map((result, i) => {
                     const generatedId = `ORD-${Date.now().toString().slice(-6)}-${i + 1}`
                     return {
                         company_id: targetCompanyId,
@@ -881,6 +902,18 @@ export default function OrdersPage() {
 
             if (!userProfile) {
                 toast({ title: "Profile Error", description: "Could not find your company profile.", type: "error" })
+                return
+            }
+
+            // Check order limit before creating
+            const orderCheck = await checkOrderLimit(userProfile.company_id)
+            if (!orderCheck.allowed) {
+                toast({
+                    title: "Order Limit Reached",
+                    description: `You've used ${orderCheck.used}/${orderCheck.limit} orders this month. Upgrade your plan for more.`,
+                    type: "error"
+                })
+                setIsSubmitting(false)
                 return
             }
 

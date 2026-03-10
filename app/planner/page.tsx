@@ -789,18 +789,8 @@ export default function PlannerPage() {
         if (targetId.startsWith('driver-')) {
             newDriverId = targetId.replace('driver-', '')
 
-            // 🛑 SUBSCRIPTION ENFORCEMENT: Block dispatch to drivers beyond limit
-            if (newDriverId) {
-                const driverIndex = drivers.findIndex(d => d.id === newDriverId)
-                if (driverIndex >= driverLimit) {
-                    toast({
-                        title: "Subscription Limit Reached",
-                        description: `You can only assign orders to your first ${driverLimit} driver${driverLimit === 1 ? '' : 's'}. Upgrade to unlock more slots.`,
-                        type: "error"
-                    })
-                    return // Block the assignment
-                }
-            }
+            // Driver limit is enforced at the DB level when adding drivers.
+            // All existing drivers are valid for order assignment.
         } else if (targetId === 'unassigned-zone') {
             newDriverId = null
         } else {

@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { supabase, type CustomField } from "@/lib/supabase"
 import { isDriverOnline } from "@/lib/driver-status"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet"
-import { User, Mail, Lock, LogOut, Save, Truck, Building2, Camera, Edit2, Upload, X, Info, AlertTriangle } from "lucide-react"
+import { User, Mail, Lock, LogOut, Save, Truck, Building2, Camera, Edit2, Upload, X, Info, AlertTriangle, CreditCard, Crown, Users, Package } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -43,6 +44,18 @@ export default function ProfilePage() {
     // Custom Fields
     const [customFields, setCustomFields] = useState<CustomField[]>([])
     const [customValues, setCustomValues] = useState<Record<string, any>>({})
+
+    // Subscription Info (managers only)
+    const [subscriptionInfo, setSubscriptionInfo] = useState<{
+        planName: string | null
+        driverLimit: number
+        orderLimit: number
+        trialEndsAt: string | null
+        isTrialActive: boolean
+        daysRemaining: number
+        driversUsed: number
+        ordersUsedThisMonth: number
+    } | null>(null)
 
     // Password Change
     const [newPassword, setNewPassword] = useState('')
@@ -80,7 +93,7 @@ export default function ProfilePage() {
 
             const { data: userProfile, error: profileError } = await supabase
                 .from('users')
-                .select('full_name, role, company_id, profile_image, email')
+                .select('full_name, role, company_id, profile_image, email, driver_limit, order_limit, trial_ends_at')
                 .eq('id', currentUserId)
                 .single()
 
@@ -134,6 +147,64 @@ export default function ProfilePage() {
                             .order('display_order', { ascending: true })
                             .then(({ data }) => { setCustomFields(data || []) })
                     )
+
+                    // 3. Subscription info (managers only)
+                    if (profileData.role === 'manager') {
+                        promises.push(
+                            (async () => {
+                                // Get active subscription
+                                const { data: activeSub } = await supabase
+                                    .from('subscription_history')
+                                    .select('tier_name')
+                                    .eq('user_id', currentUserId)
+                                    .eq('is_active', true)
+                                    .limit(1)
+                                    .single()
+
+                                // Count active drivers
+                                const { count: driversCount } = await supabase
+                                    .from('drivers')
+                                    .select('id', { count: 'exact', head: true })
+                                    .eq('company_id', profileData.company_id)
+                                    .eq('status', 'active')
+
+                                // Count orders this month
+                                const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+                                const { count: ordersCount } = await supabase
+                                    .from('orders')
+                                    .select('id', { count: 'exact', head: true })
+                                    .eq('company_id', profileData.company_id)
+                                    .gte('created_at', monthStart)
+
+                                const trialEndsAt = profileData.trial_ends_at ? new Date(profileData.trial_ends_at) : null
+                                const now = new Date()
+                                const isTrialActive = trialEndsAt ? now < trialEndsAt && !activeSub : false
+                                const daysRemaining = trialEndsAt
+                                    ? Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+                                    : 0
+
+                                // Format plan name
+                                let planName = null
+                                if (activeSub?.tier_name) {
+                                    const name = activeSub.tier_name
+                                        .replace('raute_', '').replace('stripe_', '')
+                                        .replace('_monthly', '').replace('_annual', '')
+                                    planName = name.charAt(0).toUpperCase() + name.slice(1)
+                                }
+
+                                setSubscriptionInfo({
+                                    planName,
+                                    driverLimit: profileData.driver_limit || 5,
+                                    orderLimit: profileData.order_limit || 500,
+                                    trialEndsAt: profileData.trial_ends_at,
+                                    isTrialActive,
+                                    daysRemaining,
+                                    driversUsed: driversCount || 0,
+                                    ordersUsedThisMonth: ordersCount || 0,
+                                })
+                            })()
+                        )
+                    }
                 }
 
                 // 3. Driver Data
@@ -418,7 +489,69 @@ export default function ProfilePage() {
 
                 {/* Content Container */}
                 <div className="max-w-lg mx-auto px-4 pb-32 space-y-4 relative z-10">
-                    {/* Company Card Removed */}
+
+                    {/* Subscription Card (managers only) */}
+                    {userRole === 'manager' && subscriptionInfo && (
+                        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 dark:border-slate-800/50 p-5">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="h-10 w-10 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
+                                    <CreditCard size={20} />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Subscription</p>
+                                    <p className="text-base font-bold text-slate-900 dark:text-white">
+                                        {subscriptionInfo.planName
+                                            ? <span className="flex items-center gap-1.5"><Crown size={14} className="text-amber-500" />{subscriptionInfo.planName} Plan</span>
+                                            : subscriptionInfo.isTrialActive
+                                                ? `Free Trial — ${subscriptionInfo.daysRemaining} day${subscriptionInfo.daysRemaining === 1 ? '' : 's'} left`
+                                                : 'No Active Plan'
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Usage bars */}
+                            <div className="space-y-3 mb-4">
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-slate-500 flex items-center gap-1"><Users size={12} /> Drivers</span>
+                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{subscriptionInfo.driversUsed} / {subscriptionInfo.driverLimit}</span>
+                                    </div>
+                                    <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all ${subscriptionInfo.driversUsed >= subscriptionInfo.driverLimit ? 'bg-red-500' : 'bg-blue-500'}`}
+                                            style={{ width: `${Math.min(100, (subscriptionInfo.driversUsed / subscriptionInfo.driverLimit) * 100)}%` }}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-slate-500 flex items-center gap-1"><Package size={12} /> Orders this month</span>
+                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{subscriptionInfo.ordersUsedThisMonth} / {subscriptionInfo.orderLimit}</span>
+                                    </div>
+                                    <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all ${subscriptionInfo.ordersUsedThisMonth >= subscriptionInfo.orderLimit ? 'bg-red-500' : 'bg-green-500'}`}
+                                            style={{ width: `${Math.min(100, (subscriptionInfo.ordersUsedThisMonth / subscriptionInfo.orderLimit) * 100)}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <Link href="/subscribe">
+                                <Button variant="outline" className="w-full h-11 rounded-xl border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-semibold">
+                                    {subscriptionInfo.planName ? 'Manage Plan' : 'View Plans'}
+                                </Button>
+                            </Link>
+                        </div>
+                    )}
+
+                    {/* Driver/Dispatcher subscription note */}
+                    {(userRole === 'driver' || userRole === 'dispatcher') && (
+                        <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                            <p className="text-xs text-slate-500 text-center">Your company's subscription is managed by your account administrator.</p>
+                        </div>
+                    )}
 
                     {/* Driver Custom Fields Card */}
                     {userRole === 'driver' && customFields.length > 0 && (

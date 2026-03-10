@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Loader2, ArrowLeft, Crown, Zap, Rocket, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/toast-provider'
 import { Capacitor } from '@capacitor/core'
 import { RevenueCatService } from '@/lib/revenuecat-service'
+import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 const plans = [
     {
@@ -55,7 +57,7 @@ const plans = [
         orders: '10,000',
         support: 'Dedicated Support',
         color: 'purple',
-        popular: false,
+        popular: true,
     },
 ]
 
@@ -63,19 +65,40 @@ export default function SubscribePage() {
     const [isPurchasing, setPurchasing] = useState<string | null>(null)
     const [isRestoring, setRestoring] = useState(false)
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
+    const [foundingMember, setFoundingMember] = useState<{ count: number; limit: number; active: boolean } | null>(null)
     const { toast } = useToast()
     const isNative = Capacitor.isNativePlatform()
+    const searchParams = useSearchParams()
 
-    const handlePurchase = async (plan: typeof plans[0]) => {
-        if (!isNative) {
-            toast({
-                title: 'Available on iOS',
-                description: 'Please use the Raute iOS app to subscribe.',
-                type: 'info',
-            })
-            return
+    // Check for Stripe redirect result
+    useEffect(() => {
+        if (searchParams.get('success') === 'true') {
+            toast({ title: 'Subscription Activated!', description: 'Welcome to Raute! Your account has been upgraded.', type: 'success' })
+        } else if (searchParams.get('canceled') === 'true') {
+            toast({ title: 'Checkout Cancelled', description: 'No changes were made to your account.', type: 'info' })
         }
+    }, [searchParams])
 
+    // Load founding member counter
+    useEffect(() => {
+        async function loadConfig() {
+            const { data } = await supabase
+                .from('app_config')
+                .select('value')
+                .eq('key', 'founding_members')
+                .single()
+            if (data?.value) {
+                setFoundingMember(data.value as any)
+            }
+        }
+        loadConfig()
+    }, [])
+
+    const isFoundingActive = foundingMember?.active && (foundingMember.count < foundingMember.limit)
+    const spotsRemaining = foundingMember ? foundingMember.limit - foundingMember.count : 100
+
+    // iOS: RevenueCat purchase
+    const handleNativePurchase = async (plan: typeof plans[0]) => {
         setPurchasing(plan.id)
         try {
             const offerings = await RevenueCatService.getOfferings()
@@ -85,7 +108,6 @@ export default function SubscribePage() {
             }
 
             const targetProductId = billingCycle === 'annual' ? plan.annualProductId : plan.monthlyProductId
-
             const pkg = offerings.availablePackages.find(
                 (p: any) => p.product?.identifier === targetProductId
             )
@@ -102,7 +124,6 @@ export default function SubscribePage() {
                     description: `You're now on the ${plan.name} plan with ${plan.drivers} driver slots.`,
                     type: 'success',
                 })
-                // The useTrialStatus hook will auto-detect via realtime and remove freeze
             }
         } catch (e) {
             console.error('Purchase error:', e)
@@ -112,13 +133,54 @@ export default function SubscribePage() {
         }
     }
 
+    // Web: Stripe Checkout
+    const handleWebPurchase = async (plan: typeof plans[0]) => {
+        setPurchasing(plan.id)
+        try {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session?.access_token) {
+                toast({ title: 'Please log in', description: 'You need to be logged in to subscribe.', type: 'error' })
+                return
+            }
+
+            const res = await fetch('/api/stripe/checkout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ planId: plan.id, billingCycle }),
+            })
+
+            const data = await res.json()
+
+            if (!res.ok) {
+                toast({ title: 'Error', description: data.error || 'Failed to start checkout.', type: 'error' })
+                return
+            }
+
+            if (data.url) {
+                window.location.href = data.url
+            }
+        } catch (e) {
+            console.error('Checkout error:', e)
+            toast({ title: 'Checkout Failed', description: 'Something went wrong. Please try again.', type: 'error' })
+        } finally {
+            setPurchasing(null)
+        }
+    }
+
+    const handlePurchase = async (plan: typeof plans[0]) => {
+        if (isNative) {
+            await handleNativePurchase(plan)
+        } else {
+            await handleWebPurchase(plan)
+        }
+    }
+
     const handleRestore = async () => {
         if (!isNative) {
-            toast({
-                title: 'Available on iOS',
-                description: 'Please use the Raute iOS app to restore purchases.',
-                type: 'info',
-            })
+            toast({ title: 'Restore', description: 'Web subscriptions are managed through Stripe. If you have an active subscription, your account should update automatically.', type: 'info' })
             return
         }
 
@@ -156,11 +218,22 @@ export default function SubscribePage() {
 
             <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
                 {/* Founding Member Banner */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-center text-white shadow-lg shadow-blue-500/20">
-                    <p className="text-xs font-bold uppercase tracking-wide mb-1 text-blue-100">Founding Member Deal</p>
-                    <p className="text-xl font-extrabold">50% off for 12 months</p>
-                    <p className="text-blue-100 text-sm mt-1">First 100 users get half price on any plan</p>
-                </div>
+                {isFoundingActive && (
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-center text-white shadow-lg shadow-blue-500/20">
+                        <p className="text-xs font-bold uppercase tracking-wide mb-1 text-blue-100">Founding Member Deal</p>
+                        <p className="text-xl font-extrabold">50% off for 12 months</p>
+                        <p className="text-blue-100 text-sm mt-1">
+                            <span className="font-bold text-white">{spotsRemaining}</span> of {foundingMember?.limit} spots remaining
+                        </p>
+                    </div>
+                )}
+
+                {/* Regular pricing notice when founding is over */}
+                {foundingMember && !isFoundingActive && (
+                    <div className="bg-slate-100 dark:bg-slate-900 rounded-2xl p-4 text-center border border-slate-200 dark:border-slate-800">
+                        <p className="text-sm text-slate-600 dark:text-slate-400">Founding member offer has ended. Subscribe at regular pricing below.</p>
+                    </div>
+                )}
 
                 {/* Billing Cycle Toggle */}
                 <div className="flex items-center justify-center gap-1 bg-white dark:bg-slate-900 rounded-full p-1 border border-slate-200 dark:border-slate-800 max-w-xs mx-auto">
@@ -191,8 +264,13 @@ export default function SubscribePage() {
                     {plans.map((plan) => {
                         const Icon = plan.icon
                         const isCurrentPurchasing = isPurchasing === plan.id
-                        const displayPrice = billingCycle === 'annual' ? plan.annualFoundingPrice : plan.foundingPrice
-                        const originalPrice = billingCycle === 'annual' ? plan.annualPrice : plan.price
+                        const showFoundingPrice = isFoundingActive
+                        const displayPrice = showFoundingPrice
+                            ? (billingCycle === 'annual' ? plan.annualFoundingPrice : plan.foundingPrice)
+                            : (billingCycle === 'annual' ? plan.annualPrice : plan.price)
+                        const originalPrice = showFoundingPrice
+                            ? (billingCycle === 'annual' ? plan.annualPrice : plan.price)
+                            : null
                         const period = billingCycle === 'annual' ? '/year' : '/month'
 
                         return (
@@ -228,7 +306,9 @@ export default function SubscribePage() {
                                     </div>
                                     <div className="text-right">
                                         <div className="flex items-baseline gap-1.5">
-                                            <span className="text-sm text-slate-400 line-through">{originalPrice}</span>
+                                            {originalPrice && (
+                                                <span className="text-sm text-slate-400 line-through">{originalPrice}</span>
+                                            )}
                                             <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{displayPrice}</span>
                                         </div>
                                         <span className="text-xs text-slate-500">{period}</span>

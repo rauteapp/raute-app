@@ -66,6 +66,7 @@
     "react-phone-number-input": "^3.4.14",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^3.6.0",
+    "stripe": "^20.4.1",
     "tailwind-merge": "^3.4.0",
     "xlsx": "^0.18.5"
   },

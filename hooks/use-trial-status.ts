@@ -81,7 +81,6 @@ export function useTrialStatus(): TrialStatus {
                 .limit(1)
 
             const hasSubscription = (subData && subData.length > 0) || false
-            const hasPaidLimit = managerDriverLimit > 5
 
             const trialEndsAt = managerTrialEndsAt ? new Date(managerTrialEndsAt) : null
             const now = new Date()
@@ -92,11 +91,11 @@ export function useTrialStatus(): TrialStatus {
 
             setStatus({
                 isLoading: false,
-                isFrozen: isTrialExpired && !hasSubscription && !hasPaidLimit,
-                isTrialActive: !isTrialExpired && !hasSubscription && !hasPaidLimit,
+                isFrozen: isTrialExpired && !hasSubscription,
+                isTrialActive: !isTrialExpired && !hasSubscription,
                 daysRemaining,
                 trialEndsAt,
-                hasSubscription: hasSubscription || hasPaidLimit,
+                hasSubscription,
             })
 
             // Subscribe to realtime changes on manager's row (unfreeze on purchase)

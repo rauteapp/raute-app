@@ -1,10 +1,22 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 export function PricingSection() {
+    const [foundingMember, setFoundingMember] = useState<{ count: number; limit: number; active: boolean } | null>(null)
+
+    useEffect(() => {
+        supabase.from('app_config').select('value').eq('key', 'founding_members').single()
+            .then(({ data }) => { if (data?.value) setFoundingMember(data.value as any) })
+    }, [])
+
+    const isFoundingActive = foundingMember?.active && (foundingMember.count < foundingMember.limit)
+    const spotsRemaining = foundingMember ? foundingMember.limit - foundingMember.count : 100
+
     return (
         <section id="pricing" className="py-24 bg-white dark:bg-slate-950 relative overflow-hidden">
             {/* Background blobs */}
@@ -18,18 +30,22 @@ export function PricingSection() {
                         Transparent plans for every stage
                     </h3>
                     <p className="text-lg text-slate-600 dark:text-slate-400">
-                        Start for free with 1 driver. Upgrade as you grow. No hidden fees.
+                        Start with a 7-day free trial. Upgrade as you grow. No hidden fees.
                     </p>
                 </div>
 
                 {/* Founding Member Banner */}
-                <div className="max-w-2xl mx-auto mb-12">
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-center text-white shadow-lg shadow-blue-500/20">
-                        <p className="text-sm font-bold uppercase tracking-wide mb-1">Founding Member Deal</p>
-                        <p className="text-xl font-extrabold mb-1">50% off for 12 months</p>
-                        <p className="text-blue-100 text-sm">First 100 users get half price on any plan for a full year</p>
+                {isFoundingActive && (
+                    <div className="max-w-2xl mx-auto mb-12">
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-center text-white shadow-lg shadow-blue-500/20">
+                            <p className="text-sm font-bold uppercase tracking-wide mb-1">Founding Member Deal</p>
+                            <p className="text-xl font-extrabold mb-1">50% off for 12 months</p>
+                            <p className="text-blue-100 text-sm">
+                                <span className="font-bold text-white">{spotsRemaining}</span> of {foundingMember?.limit} spots remaining
+                            </p>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 items-start">
 
@@ -37,12 +53,21 @@ export function PricingSection() {
                     <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-blue-300 transition-colors">
                         <div className="text-center mb-6 pt-2">
                             <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Starter</h4>
-                            <div className="flex items-center justify-center gap-2 mb-1">
-                                <span className="text-lg text-slate-400 line-through">$24.99</span>
-                                <span className="text-4xl font-extrabold text-slate-900 dark:text-white">$12.50</span>
-                            </div>
-                            <span className="text-sm text-slate-500">per month</span>
-                            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Founding member price</p>
+                            {isFoundingActive ? (
+                                <>
+                                    <div className="flex items-center justify-center gap-2 mb-1">
+                                        <span className="text-lg text-slate-400 line-through">$24.99</span>
+                                        <span className="text-4xl font-extrabold text-slate-900 dark:text-white">$12.50</span>
+                                    </div>
+                                    <span className="text-sm text-slate-500">per month</span>
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Founding member price</p>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-4xl font-extrabold text-slate-900 dark:text-white">$24.99</span>
+                                    <p className="text-sm text-slate-500">per month</p>
+                                </>
+                            )}
                         </div>
                         <ul className="space-y-3 mb-8">
                             <li className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
@@ -58,9 +83,9 @@ export function PricingSection() {
                                 <Check size={18} className="text-green-500 shrink-0" /> Email Support
                             </li>
                         </ul>
-                        <Link href="/login?view=signup">
+                        <Link href="/signup">
                             <Button variant="outline" className="w-full rounded-full h-11 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold">
-                                Get Started
+                                Start Free Trial
                             </Button>
                         </Link>
                     </div>
@@ -72,12 +97,21 @@ export function PricingSection() {
                         </div>
                         <div className="text-center mb-6 pt-4">
                             <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Pro</h4>
-                            <div className="flex items-center justify-center gap-2 mb-1">
-                                <span className="text-lg text-slate-400 line-through">$59.99</span>
-                                <span className="text-4xl font-extrabold text-blue-600 dark:text-blue-400">$30</span>
-                            </div>
-                            <span className="text-sm text-slate-500">per month</span>
-                            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Founding member price</p>
+                            {isFoundingActive ? (
+                                <>
+                                    <div className="flex items-center justify-center gap-2 mb-1">
+                                        <span className="text-lg text-slate-400 line-through">$59.99</span>
+                                        <span className="text-4xl font-extrabold text-blue-600 dark:text-blue-400">$30</span>
+                                    </div>
+                                    <span className="text-sm text-slate-500">per month</span>
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Founding member price</p>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-4xl font-extrabold text-blue-600 dark:text-blue-400">$59.99</span>
+                                    <p className="text-sm text-slate-500">per month</p>
+                                </>
+                            )}
                         </div>
                         <ul className="space-y-3 mb-8">
                             <li className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
@@ -93,9 +127,9 @@ export function PricingSection() {
                                 <Check size={18} className="text-green-500 shrink-0" /> Priority Email Support
                             </li>
                         </ul>
-                        <Link href="/login?view=signup">
+                        <Link href="/signup">
                             <Button className="w-full rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 shadow-lg shadow-blue-500/20">
-                                Choose Pro
+                                Start Free Trial
                             </Button>
                         </Link>
                     </div>
@@ -104,12 +138,21 @@ export function PricingSection() {
                     <div className="relative bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-purple-300 transition-colors">
                         <div className="text-center mb-6 pt-2">
                             <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Pioneer</h4>
-                            <div className="flex items-center justify-center gap-2 mb-1">
-                                <span className="text-lg text-slate-400 line-through">$99.99</span>
-                                <span className="text-4xl font-extrabold text-slate-900 dark:text-white">$50</span>
-                            </div>
-                            <span className="text-sm text-slate-500">per month</span>
-                            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Founding member price</p>
+                            {isFoundingActive ? (
+                                <>
+                                    <div className="flex items-center justify-center gap-2 mb-1">
+                                        <span className="text-lg text-slate-400 line-through">$99.99</span>
+                                        <span className="text-4xl font-extrabold text-slate-900 dark:text-white">$50</span>
+                                    </div>
+                                    <span className="text-sm text-slate-500">per month</span>
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Founding member price</p>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-4xl font-extrabold text-slate-900 dark:text-white">$99.99</span>
+                                    <p className="text-sm text-slate-500">per month</p>
+                                </>
+                            )}
                         </div>
                         <ul className="space-y-3 mb-8">
                             <li className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
@@ -125,9 +168,9 @@ export function PricingSection() {
                                 <Check size={18} className="text-green-500 shrink-0" /> Dedicated Support
                             </li>
                         </ul>
-                        <Link href="/login?view=signup">
+                        <Link href="/signup">
                             <Button className="w-full rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 font-bold h-11">
-                                Choose Pioneer
+                                Start Free Trial
                             </Button>
                         </Link>
                     </div>
@@ -164,7 +207,7 @@ export function PricingSection() {
                 {/* Feature comparison note */}
                 <div className="text-center mt-12">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        All plans include: Route Optimization, Real-time GPS Tracking, AI Order Parsing,
+                        All plans include a 7-day free trial. Route Optimization, Real-time GPS Tracking, AI Order Parsing,
                         AI Address Cleaning, Proof of Delivery, Push Notifications, Drag &amp; Drop Planner, and Offline Mode.
                     </p>
                 </div>
