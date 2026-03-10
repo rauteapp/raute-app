@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, CheckCircle2, Play, Truck } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Play, Truck, LayoutDashboard, Map, Users, Package } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -226,14 +226,19 @@ export function HeroSection() {
                                         <span className="font-bold text-slate-900 dark:text-white hidden sm:block">Raute</span>
                                     </div>
                                     <div className="space-y-1 px-2">
-                                        {['Dashboard', 'Live Map', 'Drivers', 'Orders'].map((item, i) => (
+                                        {([
+                                            { name: 'Dashboard', icon: LayoutDashboard },
+                                            { name: 'Live Map', icon: Map },
+                                            { name: 'Drivers', icon: Users },
+                                            { name: 'Orders', icon: Package },
+                                        ] as const).map(({ name, icon: Icon }) => (
                                             <div
-                                                key={item}
-                                                onClick={() => setActiveTab(item)}
-                                                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${activeTab === item ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                                key={name}
+                                                onClick={() => setActiveTab(name)}
+                                                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${activeTab === name ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                                             >
-                                                <div className={`w-5 h-5 rounded ${activeTab === item ? 'bg-blue-200/50 dark:bg-blue-800/50' : 'bg-slate-200 dark:bg-slate-800'}`} />
-                                                <span className="hidden sm:block">{item}</span>
+                                                <Icon size={18} className={activeTab === name ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'} />
+                                                <span className="hidden sm:block">{name}</span>
                                             </div>
                                         ))}
                                     </div>
