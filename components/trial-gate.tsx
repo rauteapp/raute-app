@@ -6,7 +6,7 @@ import { TrialBanner } from '@/components/trial-banner'
 import { TrialFreezeOverlay } from '@/components/trial-freeze-overlay'
 
 // Pages where the freeze overlay should NOT appear
-const FREEZE_EXEMPT_ROUTES = ['/profile', '/login', '/signup', '/', '/privacy', '/terms', '/forgot-password', '/verify-email', '/auth']
+const FREEZE_EXEMPT_ROUTES = ['/profile', '/login', '/signup', '/', '/privacy', '/terms', '/forgot-password', '/verify-email', '/auth', '/subscribe']
 
 export function TrialGate({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()

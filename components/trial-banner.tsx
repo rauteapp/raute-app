@@ -22,7 +22,7 @@ export function TrialBanner({ daysRemaining }: TrialBannerProps) {
             <span>
                 {daysRemaining === 1 ? '1 day' : `${daysRemaining} days`} left in your free trial.
             </span>
-            <Link href="/drivers" className="underline font-semibold ml-1">
+            <Link href="/subscribe" className="underline font-semibold ml-1">
                 Subscribe now
             </Link>
         </div>

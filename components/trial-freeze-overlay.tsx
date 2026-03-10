@@ -19,9 +19,9 @@ export function TrialFreezeOverlay() {
                     Your data is safe and waiting for you.
                 </p>
                 <div className="space-y-3">
-                    <Link href="/drivers" className="block">
+                    <Link href="/subscribe" className="block">
                         <Button size="lg" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12">
-                            Subscribe to Continue
+                            View Plans & Subscribe
                         </Button>
                     </Link>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
