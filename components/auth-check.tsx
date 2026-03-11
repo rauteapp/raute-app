@@ -64,6 +64,7 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
 
     // Helper: redirect to login (with cooldown)
     const redirectToLogin = (reason?: string) => {
+        console.warn(`[AuthCheck] redirectToLogin called, reason=${reason}, mounted=${isMountedRef.current}, public=${isPublicRoute}, resolved=${resolvedRef.current}`)
         if (!isMountedRef.current || isPublicRoute || resolvedRef.current) return
         const now = Date.now()
         if (now - lastRedirectRef.current > 3000) {
@@ -109,22 +110,15 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
         const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform()
 
         // TIMEOUT: Force resolve after timeout
-        // Generous timeout: getSession() blocks on _initialize() which may be
-        // refreshing an expired token. That network call can take several seconds.
-        const maxTimeoutMs = 15000
+        // On web: 8s is enough. On native: 15s for Capacitor bridge delays.
+        const maxTimeoutMs = isNative ? 15000 : 8000
         const maxTimeout = setTimeout(async () => {
             if (resolvedRef.current) return
-            // CRITICAL: Don't blindly redirect to login on timeout!
-            // The timeout fires because getSession() is blocked waiting for
-            // _initialize() to finish a token refresh. The stored session is
-            // likely valid — Supabase is just slow to refresh the token.
-            //
-            // Check for stored auth data — cookies on web, Preferences on native.
-            if (!isPublicRoute) {
-                let hasStoredAuth = false
 
+            if (!isPublicRoute) {
                 if (isNative) {
-                    // On native, check Capacitor Preferences
+                    // On native, check Capacitor Preferences for stored session
+                    let hasStoredAuth = false
                     try {
                         const { capacitorStorage } = await import('@/lib/capacitor-storage')
                         const stored = await capacitorStorage.getItem('sb-raute-auth')
@@ -137,18 +131,32 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                     } catch {
                         hasStoredAuth = false
                     }
+
+                    if (hasStoredAuth) {
+                        finishLoading()
+                        return
+                    }
+                    redirectToLogin('timeout')
                 } else {
-                    // On web, check cookies
-                    hasStoredAuth = typeof document !== 'undefined' &&
-                        document.cookie.split(';').some(c => c.trim().startsWith('sb-') && c.includes('auth-token'))
+                    // On web: getSession() is stuck (navigator.locks deadlock).
+                    // Use getUser() as a direct API call to verify auth status.
+                    try {
+                        const { data: userData, error: userError } = await Promise.race([
+                            supabase.auth.getUser(),
+                            new Promise<never>((_, reject) =>
+                                setTimeout(() => reject(new Error('getUser timeout')), 5000)
+                            ),
+                        ])
+                        if (!userError && userData.user) {
+                            // User is authenticated — let them through
+                            finishLoading()
+                            return
+                        }
+                    } catch {
+                        // getUser also failed/timed out
+                    }
+                    redirectToLogin('timeout')
                 }
-
-                if (hasStoredAuth) {
-                    finishLoading()
-                    return
-                }
-
-                redirectToLogin('timeout')
             } else {
                 finishLoading()
             }
