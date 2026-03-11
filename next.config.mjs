@@ -15,7 +15,7 @@ const nextConfig = {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' blob: data: *.supabase.co maps.googleapis.com maps.gstatic.com *.tile.openstreetmap.org",
+      "img-src 'self' blob: data: https://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.tile.openstreetmap.org https://*.googleapis.com",
       "font-src 'self' data:",
       "connect-src 'self' *.supabase.co wss://*.supabase.co api.x.ai maps.googleapis.com nominatim.openstreetmap.org api.resend.com",
       "media-src 'self' blob:",
