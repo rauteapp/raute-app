@@ -241,26 +241,15 @@ export function MobileNav() {
             }
 
             if (userId) {
-                // OPTIMIZATION 1: Check metadata first
-                if (userMeta?.role) {
-                    setUserRole(userMeta.role)
-                    setLoading(false)
-                    clearTimeout(timeoutId)
-                    return
-                }
-
-                // OPTIMIZATION 2: Check localStorage cache
-                const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null
+                // OPTIMIZATION 1: Check metadata first for instant role display
+                const cachedRole = userMeta?.role || (typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null)
                 if (cachedRole) {
                     setUserRole(cachedRole)
                     setLoading(false)
                     clearTimeout(timeoutId)
-                    // Refresh role from DB in background (non-blocking)
-                    fetchRole(userId)
-                    return
                 }
 
-                // OPTIMIZATION 3: Only fetch from DB if no cached role
+                // Always fetch from DB to get subscription info (runs in background if role already set)
                 fetchRole(userId)
             } else {
                 // FALLBACK: Check for custom session (Driver Login)
