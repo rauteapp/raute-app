@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/toast-provider"
+import { useConfirm } from "@/hooks/use-confirm"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
 import { markIntentionalLogout } from "@/components/auth-check"
@@ -21,6 +22,7 @@ export default function ProfilePage() {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { toast } = useToast()
+    const confirm = useConfirm()
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -372,7 +374,8 @@ export default function ProfilePage() {
     }
 
     async function handleLogout() {
-        if (!confirm('Are you sure you want to logout?')) return
+        const ok = await confirm({ title: 'Log out', description: 'Are you sure you want to log out of your account?', confirmText: 'Log out' })
+        if (!ok) return
 
         try {
             markIntentionalLogout()

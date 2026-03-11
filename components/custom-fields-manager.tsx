@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type CustomField } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/components/toast-provider"
+import { useConfirm } from "@/hooks/use-confirm"
 
 interface CustomFieldsManagerProps {
     onFieldsChange?: () => void
@@ -13,6 +15,8 @@ interface CustomFieldsManagerProps {
 }
 
 export function CustomFieldsManager({ onFieldsChange, entityType = 'order' }: CustomFieldsManagerProps) {
+    const { toast } = useToast()
+    const confirm = useConfirm()
     const [customFields, setCustomFields] = useState<CustomField[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isAddFieldOpen, setIsAddFieldOpen] = useState(false)
@@ -86,12 +90,13 @@ export function CustomFieldsManager({ onFieldsChange, entityType = 'order' }: Cu
             onFieldsChange?.()
         } catch (error) {
             console.error('Error adding field:', error)
-            alert('Failed to add field')
+            toast({ title: 'Failed to add field', type: 'error' })
         }
     }
 
     async function handleDeleteField(fieldId: string) {
-        if (!confirm('Are you sure? This will remove this field from all orders.')) return
+        const ok = await confirm({ title: 'Delete custom field', description: 'Are you sure? This will remove this field from all orders.', variant: 'destructive' })
+        if (!ok) return
 
         try {
             const { error } = await supabase.from('custom_fields').delete().eq('id', fieldId)
@@ -100,7 +105,7 @@ export function CustomFieldsManager({ onFieldsChange, entityType = 'order' }: Cu
             onFieldsChange?.()
         } catch (error) {
             console.error('Error deleting field:', error)
-            alert('Failed to delete field')
+            toast({ title: 'Failed to delete field', type: 'error' })
         }
     }
 

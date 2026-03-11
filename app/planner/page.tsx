@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { MapPin, Truck, Sparkles, AlertCircle, AlertTriangle, Lock, Unlock, Clock, ExternalLink, CheckCircle2, User as UserIcon, Edit } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from "@/components/toast-provider"
+import { useConfirm } from "@/hooks/use-confirm"
 import { useTheme } from 'next-themes'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import {
@@ -258,6 +259,7 @@ function UnassignedArea({ children, count }: { children: React.ReactNode, count:
 export default function PlannerPage() {
     const router = useRouter()
     const { toast } = useToast()
+    const confirmDialog = useConfirm()
     const { theme } = useTheme()
     const isDesktop = useMediaQuery('(min-width: 768px)')
 
@@ -536,9 +538,8 @@ export default function PlannerPage() {
                     })
                 }
 
-                warningMsg += '\nAre you sure you want to proceed with optimization?'
-
-                if (!confirm(warningMsg)) {
+                const ok = await confirmDialog({ title: 'Pre-Optimization Warning', description: warningMsg, variant: 'warning', confirmText: 'Continue Optimization', cancelText: 'Cancel' })
+                if (!ok) {
                     setIsLoading(false)
                     return
                 }
@@ -745,7 +746,7 @@ export default function PlannerPage() {
             if (error?.details) msg += ` Details: ${error.details} `
             if (error?.hint) msg += ` Hint: ${error.hint} `
 
-            alert(`Optimization Failed: ${msg} `)
+            toast({ title: 'Optimization Failed', description: msg, type: 'error' })
         } finally {
             setIsLoading(false)
         }

@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { Plus, MapPin, Building2, Trash2, ArrowLeft, Save, Search, Settings2, Weight, MapPinned, Mail } from "lucide-react"
 import LocationPicker from "@/components/location-picker"
 import { useToast } from "@/components/toast-provider"
+import { useConfirm } from "@/hooks/use-confirm"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import type { CompanySettings } from "@/lib/supabase"
@@ -31,6 +32,7 @@ const DEFAULT_SETTINGS: Omit<CompanySettings, 'id' | 'company_id' | 'created_at'
 export default function SettingsPage() {
     const router = useRouter()
     const { toast } = useToast()
+    const confirm = useConfirm()
     const [hubs, setHubs] = useState<Hub[]>([])
     const [loading, setLoading] = useState(true)
     const [isAddOpen, setIsAddOpen] = useState(false)
@@ -154,7 +156,8 @@ export default function SettingsPage() {
     }
 
     async function handleDeleteHub(id: string) {
-        if (!confirm("Delete this warehouse?")) return
+        const ok = await confirm({ title: 'Delete warehouse', description: 'Are you sure you want to delete this warehouse? This cannot be undone.', variant: 'destructive' })
+        if (!ok) return
         try {
             const { error } = await supabase.from('hubs').delete().eq('id', id)
             if (error) throw error

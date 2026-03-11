@@ -8,6 +8,8 @@ import { supabase, type Order, type Driver } from "@/lib/supabase"
 import { isDriverOnline } from "@/lib/driver-status"
 import * as L from "leaflet" // Import Leaflet directly
 import { useTheme } from "next-themes"
+import { useConfirm } from "@/hooks/use-confirm"
+import { useToast } from "@/components/toast-provider"
 import { Capacitor } from "@capacitor/core"
 import type { MapControllerProps } from "@/components/map/map-controller"
 
@@ -136,6 +138,8 @@ interface InteractiveMapProps {
 export default function InteractiveMap({ orders, drivers, selectedDriverIds, driverFilter, userLocation, forceTheme, onOrderDeleted }: InteractiveMapProps) {
 
     const { theme } = useTheme()
+    const confirmDialog = useConfirm()
+    const { toast } = useToast()
     // Use forced theme if provided, otherwise fallback to system theme
     const currentTheme = forceTheme || theme
     const isDark = currentTheme === 'dark'
@@ -297,10 +301,11 @@ export default function InteractiveMap({ orders, drivers, selectedDriverIds, dri
                                     <button
                                         onClick={async (e) => {
                                             e.stopPropagation()
-                                            if (confirm(`Are you sure you want to delete order #${order.order_number}?`)) {
+                                            const ok = await confirmDialog({ title: 'Delete order', description: `Are you sure you want to delete order #${order.order_number}?`, variant: 'destructive' })
+                                            if (ok) {
                                                 const { error } = await supabase.from('orders').delete().eq('id', order.id)
                                                 if (error) {
-                                                    alert('Failed to delete order')
+                                                    toast({ title: 'Failed to delete order', type: 'error' })
                                                     console.error(error)
                                                 } else {
                                                     if (onOrderDeleted) onOrderDeleted(order.id)

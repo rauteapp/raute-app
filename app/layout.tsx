@@ -11,6 +11,7 @@ import { AuthListener } from "@/components/auth-listener";
 import { StatusBarManager } from "@/components/status-bar-manager";
 import { TrialGate } from "@/components/trial-gate";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ConfirmProvider } from "@/hooks/use-confirm";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -54,6 +55,7 @@ export default function RootLayout({
           <StatusBarManager />
           <NetworkStatusBanner />
           <ToastProvider>
+            <ConfirmProvider>
             <AuthListener />
             <AuthCheck>
               <ErrorBoundary>
@@ -67,6 +69,7 @@ export default function RootLayout({
               </TrialGate>
               </ErrorBoundary>
             </AuthCheck>
+          </ConfirmProvider>
           </ToastProvider>
         </ThemeProvider>
         <SpeedInsights />

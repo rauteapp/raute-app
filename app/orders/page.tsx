@@ -19,6 +19,7 @@ import { CustomFieldsManager } from "@/components/custom-fields-manager"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { DriverTracker } from "@/components/driver-tracker"
 import { useToast } from "@/components/toast-provider"
+import { useConfirm } from "@/hooks/use-confirm"
 import { XCircle } from "lucide-react"
 import { NotificationService } from '@/lib/notification-service'
 import dynamic from 'next/dynamic'
@@ -108,6 +109,7 @@ export default function OrdersPage() {
     const formRef = React.useRef<HTMLFormElement>(null)
     const fetchAbortRef = useRef<AbortController | null>(null)
     const { toast } = useToast()
+    const confirm = useConfirm()
     const [aiInputText, setAiInputText] = useState("")
 
     // Bulk Delete State
@@ -774,7 +776,7 @@ export default function OrdersPage() {
     async function handleBulkDelete() {
         if (selectedOrders.length === 0) return
 
-        const confirmed = confirm(`Are you sure you want to delete ${selectedOrders.length} order(s)? This cannot be undone.`)
+        const confirmed = await confirm({ title: 'Delete orders', description: `Are you sure you want to delete ${selectedOrders.length} order(s)? This cannot be undone.`, variant: 'destructive', confirmText: `Delete ${selectedOrders.length} order(s)` })
         if (!confirmed) return
 
         try {

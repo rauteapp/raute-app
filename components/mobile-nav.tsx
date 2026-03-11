@@ -13,6 +13,7 @@ import { useTheme } from 'next-themes'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { useToast } from '@/components/toast-provider'
 import { markIntentionalLogout } from '@/components/auth-check'
+import { useConfirm } from '@/hooks/use-confirm'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,6 +28,7 @@ export function MobileNav() {
     const pathname = usePathname()
     const router = useRouter()
     const { toast } = useToast()
+    const confirm = useConfirm()
     const [userRole, setUserRole] = useState<string | null>(null)
     const [userEmail, setUserEmail] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
@@ -72,7 +74,8 @@ export function MobileNav() {
     }
 
     async function handleLogout() {
-        if (!confirm('Are you sure you want to logout?')) return
+        const ok = await confirm({ title: 'Log out', description: 'Are you sure you want to log out of your account?', confirmText: 'Log out' })
+        if (!ok) return
 
         try {
             markIntentionalLogout()
