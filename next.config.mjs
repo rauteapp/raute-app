@@ -16,7 +16,7 @@ const nextConfig = {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
       "script-src-elem 'self' 'unsafe-inline' https://vercel.live",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' blob: data: https://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://*.googleapis.com https://unpkg.com https://cdnjs.cloudflare.com https://*.basemaps.cartocdn.com",
+      "img-src 'self' blob: data: https://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://*.googleapis.com https://unpkg.com https://cdnjs.cloudflare.com https://*.basemaps.cartocdn.com https://cdn-icons-png.flaticon.com",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.x.ai https://maps.googleapis.com https://nominatim.openstreetmap.org https://api.resend.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://*.basemaps.cartocdn.com https://vercel.live wss://vercel.live",
       "media-src 'self' blob:",
