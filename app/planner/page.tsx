@@ -494,6 +494,16 @@ export default function PlannerPage() {
             // Filter out cancelled/delivered orders from auto-optimization
             const ordersToOptimize = orders.filter(o => o.status !== 'cancelled' && o.status !== 'delivered')
 
+            if (ordersToOptimize.length === 0) {
+                toast({
+                    title: "No Active Orders",
+                    description: "All orders are cancelled or delivered. Nothing to optimize.",
+                    type: 'error',
+                })
+                setIsLoading(false)
+                return
+            }
+
             // Check for orders without GPS
             const noGpsCount = ordersToOptimize.filter(o => !o.latitude || !o.longitude).length
 
