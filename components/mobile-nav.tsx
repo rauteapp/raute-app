@@ -161,10 +161,7 @@ export function MobileNav() {
                                 .eq('is_active', true)
                                 .maybeSingle()
 
-                            if (subError) {
-                                console.error('[mobile-nav] subscription query error:', subError.message, subError.code)
-                            }
-                            console.log('[mobile-nav] subscription data:', sub, 'userId:', userId)
+                            console.warn('[mobile-nav] sub query result:', JSON.stringify({ sub, err: subError?.message, userId }))
 
                             if (mounted) {
                                 if (sub?.tier_name) {
