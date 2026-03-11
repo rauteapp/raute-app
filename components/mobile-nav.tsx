@@ -154,12 +154,17 @@ export function MobileNav() {
                                 .eq('id', userId)
                                 .single()
                             // Get active subscription
-                            const { data: sub } = await supabase
+                            const { data: sub, error: subError } = await supabase
                                 .from('subscription_history')
                                 .select('tier_name')
                                 .eq('user_id', userId)
                                 .eq('is_active', true)
                                 .maybeSingle()
+
+                            if (subError) {
+                                console.error('[mobile-nav] subscription query error:', subError.message, subError.code)
+                            }
+                            console.log('[mobile-nav] subscription data:', sub, 'userId:', userId)
 
                             if (mounted) {
                                 if (sub?.tier_name) {
