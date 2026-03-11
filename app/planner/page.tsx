@@ -516,17 +516,20 @@ export default function PlannerPage() {
                 return
             }
 
+            // Only check unassigned orders for warnings (assigned ones are already placed)
+            const unassignedOrders = ordersToOptimize.filter(o => !o.driver_id)
+
             // Check for orders without GPS
-            const noGpsCount = ordersToOptimize.filter(o => !o.latitude || !o.longitude).length
+            const noGpsCount = unassignedOrders.filter(o => !o.latitude || !o.longitude).length
 
             // Check for Unverified Addresses (only warn about low/failed — approximate is fine)
-            const unverifiedOrders = ordersToOptimize.filter(o => o.geocoding_confidence === 'low' || o.geocoding_confidence === 'failed')
+            const unverifiedOrders = unassignedOrders.filter(o => o.geocoding_confidence === 'low' || o.geocoding_confidence === 'failed')
 
             // Check for Duplicate GPS
             const duplicateGroups: { address: string, count: number, orders: string[] }[] = []
             const gpsMap = new Map<string, string[]>()
 
-            ordersToOptimize.forEach(o => {
+            unassignedOrders.forEach(o => {
                 if (o.latitude && o.longitude) {
                     const key = `${o.latitude.toFixed(6)},${o.longitude.toFixed(6)}`
                     if (!gpsMap.has(key)) gpsMap.set(key, [])
@@ -567,8 +570,8 @@ export default function PlannerPage() {
                 }
             }
 
-            // If ALL orders are invalid, stop here.
-            if (noGpsCount === ordersToOptimize.length && ordersToOptimize.length > 0) {
+            // If ALL unassigned orders are invalid, stop here.
+            if (noGpsCount === unassignedOrders.length && unassignedOrders.length > 0) {
                 toast({
                     title: "Optimization Failed",
                     description: "All available orders are missing GPS data. Optimization cannot proceed.",
@@ -625,8 +628,24 @@ export default function PlannerPage() {
                 }
             }
 
+            // Pin already-assigned orders so optimizer only assigns the unassigned ones
+            // (temporarily — we restore original is_pinned after optimization)
+            const originalPinState = new Map(ordersToOptimize.map(o => [o.id, !!o.is_pinned]))
+            const ordersWithPins = ordersToOptimize.map(o =>
+                o.driver_id ? { ...o, is_pinned: true } : o
+            )
+
             // Run the algorithm
-            const result = await optimizeRoute(ordersToOptimize, allowedDrivers, strategy, optimizationMode, routeStartHour)
+            const rawResult = await optimizeRoute(ordersWithPins, allowedDrivers, strategy, optimizationMode, routeStartHour)
+
+            // Restore original is_pinned flags so we don't pollute local state
+            const result = {
+                ...rawResult,
+                orders: rawResult.orders.map(o => ({
+                    ...o,
+                    is_pinned: originalPinState.get(o.id) ?? false,
+                })),
+            }
 
             // Update Local State
             setOrders(result.orders)
