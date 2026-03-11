@@ -504,6 +504,18 @@ export default function PlannerPage() {
                 return
             }
 
+            // If all orders are already assigned, nothing to optimize
+            const unassignedCount = ordersToOptimize.filter(o => !o.driver_id).length
+            if (unassignedCount === 0) {
+                toast({
+                    title: "All Orders Assigned",
+                    description: "There are no unassigned orders to optimize.",
+                    type: 'info',
+                })
+                setIsLoading(false)
+                return
+            }
+
             // Check for orders without GPS
             const noGpsCount = ordersToOptimize.filter(o => !o.latitude || !o.longitude).length
 
