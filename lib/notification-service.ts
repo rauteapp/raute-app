@@ -59,7 +59,7 @@ export const NotificationService = {
                 .from('users')
                 .select('id')
                 .eq('company_id', companyId)
-                .in('role', ['manager', 'admin', 'company_admin']);
+                .in('role', ['manager', 'admin', 'company_admin', 'dispatcher']);
 
             if (!managers?.length) return;
 

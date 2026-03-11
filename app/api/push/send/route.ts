@@ -210,9 +210,9 @@ export async function POST(request: NextRequest) {
 
     const { role, company_id } = user as { role: string; company_id: string }
 
-    if (!['admin', 'manager'].includes(role)) {
+    if (!['admin', 'manager', 'dispatcher'].includes(role)) {
       return NextResponse.json(
-        { error: 'Forbidden — only managers and admins can send notifications' },
+        { error: 'Forbidden — only managers, admins, and dispatchers can send notifications' },
         { status: 403 }
       )
     }
