@@ -714,7 +714,7 @@ export default function PlannerPage() {
 
             // Generate Optimization Report
             const assignedOrders = result.orders.filter(o => o.driver_id)
-            const unassignedOrders = result.orders.filter(o => !o.driver_id)
+            const remainingUnassigned = result.orders.filter(o => !o.driver_id)
 
             // Driver Breakdown
             const driverBreakdown = drivers.map(driver => ({
@@ -753,18 +753,18 @@ export default function PlannerPage() {
                 })
             }
 
-            if (unassignedOrders.length > 0) {
+            if (remainingUnassigned.length > 0) {
                 issues.push({
                     reason: 'Could Not Be Assigned (Distance/Capacity Constraints)',
-                    count: unassignedOrders.length,
-                    orders: unassignedOrders.map(o => o.order_number || o.id)
+                    count: remainingUnassigned.length,
+                    orders: remainingUnassigned.map(o => o.order_number || o.id)
                 })
             }
 
             setOptimizationReport({
                 totalProcessed: ordersToOptimize.length,
                 assigned: assignedOrders.length,
-                unassigned: unassignedOrders.length,
+                unassigned: remainingUnassigned.length,
                 problematic: noGpsOrders.length + lockedOrders.length,
                 driverBreakdown,
                 issues,
