@@ -64,7 +64,6 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
 
     // Helper: redirect to login (with cooldown)
     const redirectToLogin = (reason?: string) => {
-        console.warn(`[AuthCheck] redirectToLogin called, reason=${reason}, mounted=${isMountedRef.current}, public=${isPublicRoute}, resolved=${resolvedRef.current}`)
         if (!isMountedRef.current || isPublicRoute || resolvedRef.current) return
         const now = Date.now()
         if (now - lastRedirectRef.current > 3000) {
@@ -73,7 +72,13 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
             sessionConfirmedRef.current = false
             if (isMountedRef.current) setIsLoading(false)
             authCheckRunningRef.current = false
-            router.push('/login')
+            // Hard redirect for timeout/error — router.push gets stuck when
+            // navigator.locks are deadlocked (getSession blocks Next.js router)
+            if (reason === 'timeout' || reason === 'error') {
+                window.location.href = '/login'
+            } else {
+                router.push('/login')
+            }
         }
     }
 
