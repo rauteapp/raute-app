@@ -507,8 +507,8 @@ export default function PlannerPage() {
             // Check for orders without GPS
             const noGpsCount = ordersToOptimize.filter(o => !o.latitude || !o.longitude).length
 
-            // Check for Unverified Addresses
-            const unverifiedOrders = ordersToOptimize.filter(o => o.geocoding_confidence && o.geocoding_confidence !== 'exact')
+            // Check for Unverified Addresses (only warn about low/failed — approximate is fine)
+            const unverifiedOrders = ordersToOptimize.filter(o => o.geocoding_confidence === 'low' || o.geocoding_confidence === 'failed')
 
             // Check for Duplicate GPS
             const duplicateGroups: { address: string, count: number, orders: string[] }[] = []
@@ -704,7 +704,7 @@ export default function PlannerPage() {
                 })
             }
 
-            const lowConfidenceOrders = ordersToOptimize.filter(o => o.geocoding_confidence && o.geocoding_confidence !== 'exact')
+            const lowConfidenceOrders = ordersToOptimize.filter(o => o.geocoding_confidence === 'low' || o.geocoding_confidence === 'failed')
             if (lowConfidenceOrders.length > 0) {
                 issues.push({
                     reason: 'Unverified Address / Low Confidence',
