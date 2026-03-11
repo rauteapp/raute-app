@@ -4,9 +4,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 /**
  * Supabase Edge Function: send-push-notification
  *
- * Sends a push notification to a driver via Firebase Cloud Messaging HTTP v1 API.
+ * Sends a push notification via Firebase Cloud Messaging HTTP v1 API.
+ * Supports both user_id (looks up push_tokens table) and driver_id (legacy).
  *
- * POST body: { driver_id: string, title: string, body: string, data?: Record<string, string> }
+ * POST body: { user_id?: string, driver_id?: string, title: string, body: string, data?: Record<string, string> }
  *
  * Required env vars:
  *   FIREBASE_CLIENT_EMAIL  — Firebase service account client email
@@ -149,11 +150,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { driver_id, title, body, data } = await req.json();
+    const { driver_id, user_id, title, body, data } = await req.json();
 
-    if (!driver_id || !title || !body) {
+    if ((!driver_id && !user_id) || !title || !body) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: driver_id, title, body" }),
+        JSON.stringify({ error: "Missing required fields: (driver_id or user_id), title, body" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -178,29 +179,92 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Look up driver's push token
+    // Look up push token
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: driver, error: driverError } = await supabase
-      .from("drivers")
-      .select("push_token, platform, name")
-      .eq("id", driver_id)
-      .single();
+    let pushToken: string | null = null;
+    let recipientName: string = "Unknown";
 
-    if (driverError || !driver) {
-      return new Response(
-        JSON.stringify({ error: "Driver not found", details: driverError?.message }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
-      );
+    if (user_id) {
+      // Look up push token from push_tokens table (for any user type)
+      const { data: tokenRow, error: tokenError } = await supabase
+        .from("push_tokens")
+        .select("token, platform")
+        .eq("user_id", user_id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (tokenError) {
+        console.error("push_tokens lookup error:", tokenError.message);
+      }
+
+      if (tokenRow?.token) {
+        pushToken = tokenRow.token;
+      }
+
+      // Get user name for response
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("full_name")
+        .eq("id", user_id)
+        .maybeSingle();
+
+      // If no token in push_tokens, check if user is a driver with legacy push_token
+      if (!pushToken) {
+        const { data: driverRow } = await supabase
+          .from("drivers")
+          .select("push_token, name")
+          .eq("user_id", user_id)
+          .maybeSingle();
+
+        if (driverRow?.push_token) {
+          pushToken = driverRow.push_token;
+        }
+        recipientName = userRow?.full_name || driverRow?.name || "Unknown";
+      } else {
+        recipientName = userRow?.full_name || "Unknown";
+      }
+    } else if (driver_id) {
+      // Legacy path: look up driver directly by driver_id
+      const { data: driver, error: driverError } = await supabase
+        .from("drivers")
+        .select("push_token, platform, name, user_id")
+        .eq("id", driver_id)
+        .single();
+
+      if (driverError || !driver) {
+        return new Response(
+          JSON.stringify({ error: "Driver not found", details: driverError?.message }),
+          { status: 404, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      recipientName = driver.name || "Unknown";
+
+      // Try push_tokens table first (if driver has user_id), fall back to legacy field
+      if (driver.user_id) {
+        const { data: tokenRow } = await supabase
+          .from("push_tokens")
+          .select("token")
+          .eq("user_id", driver.user_id)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        pushToken = tokenRow?.token || driver.push_token;
+      } else {
+        pushToken = driver.push_token;
+      }
     }
 
-    if (!driver.push_token) {
+    if (!pushToken) {
       return new Response(
         JSON.stringify({
-          error: "Driver has no push token registered",
-          driver_name: driver.name,
+          error: "No push token registered",
+          recipient_name: recipientName,
         }),
         { status: 422, headers: { "Content-Type": "application/json" } }
       );
@@ -214,7 +278,7 @@ Deno.serve(async (req: Request) => {
     // Build FCM v1 message
     const message: Record<string, unknown> = {
       message: {
-        token: driver.push_token,
+        token: pushToken,
         notification: {
           title,
           body,
@@ -268,7 +332,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         message_name: fcmData.name,
-        driver_name: driver.name,
+        recipient_name: recipientName,
       }),
       {
         status: 200,
