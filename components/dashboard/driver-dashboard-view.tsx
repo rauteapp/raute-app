@@ -293,13 +293,13 @@ export function DriverDashboardView({ userId }: { userId: string }) {
     const isRange = dateRange?.from && dateRange.to && !isSameDay(dateRange.from, dateRange.to)
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 pt-12 p-4 space-y-6">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 pt-12 p-4 space-y-6 overflow-x-hidden">
             {/* Header with Date Picker */}
-            <div className="flex items-center justify-between animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div>
-                    <div className="flex items-center gap-1">
-                        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                            {isToday ? "My Route Today" : isRange ? "Period Reports" : "History Log"} {isToday && <Truck className="h-6 w-6 text-blue-500" />}
+            <div className="flex items-start justify-between gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
+                            {isToday ? "Today's Route" : isRange ? "Period Reports" : "History Log"} {isToday && <Truck className="h-5 w-5 text-blue-500 flex-shrink-0" />}
                         </h1>
                         <NotificationBell userId={userId} />
                     </div>
@@ -315,19 +315,19 @@ export function DriverDashboardView({ userId }: { userId: string }) {
                         <Button
                             variant="outline"
                             className={cn(
-                                "w-[240px] justify-start text-left font-normal",
+                                "flex-shrink-0 max-w-[200px] justify-start text-left font-normal text-xs",
                                 !dateRange && "text-muted-foreground"
                             )}
                         >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            <CalendarIcon className="mr-1.5 h-3.5 w-3.5 flex-shrink-0" />
                             {dateRange?.from ? (
                                 dateRange.to ? (
                                     <>
-                                        {format(dateRange.from, "LLL dd, y")} -{" "}
-                                        {format(dateRange.to, "LLL dd, y")}
+                                        {format(dateRange.from, "MMM d, y")} -{" "}
+                                        {format(dateRange.to, "MMM d, y")}
                                     </>
                                 ) : (
-                                    format(dateRange.from, "LLL dd, y")
+                                    format(dateRange.from, "MMM d, y")
                                 )
                             ) : (
                                 <span>Pick a date</span>
