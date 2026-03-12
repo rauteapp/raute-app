@@ -107,6 +107,8 @@ export default function MenuPage() {
         })
         if (!ok) return
         try {
+            // Stop any active location tracking before signing out
+            import('@/lib/geo-service').then(({ geoService }) => geoService.stopTracking()).catch(() => {})
             markIntentionalLogout()
             await supabase.auth.signOut()
             router.push('/login')

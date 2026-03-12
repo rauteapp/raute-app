@@ -286,6 +286,11 @@ export default function OrdersPage() {
             setCompanyId(userProfile.company_id) // Save to State
             setUserId(currentUserId) // Save userId for DriverTracker
 
+            // Stop any stale GeoService tracking if not a driver
+            if (userProfile.role !== 'driver') {
+                import('@/lib/geo-service').then(({ geoService }) => geoService.stopTracking())
+            }
+
             // Fetch Data based on Role
             let fetchedOrders: Order[] = []
             if (userProfile.role === 'driver') {
