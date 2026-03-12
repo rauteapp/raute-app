@@ -1,8 +1,7 @@
 'use client'
 
-import { Home, List, MapPin, User, Truck, Route, Settings as SettingsIcon, Users, ChevronRight, Moon, Sparkles, Mail, Crown, LogOut, Lock, Building2 } from 'lucide-react'
+import { Home, List, MapPin, Truck, Route, Settings as SettingsIcon } from 'lucide-react'
 
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useEffect, useState, useRef, useCallback } from 'react'
@@ -10,85 +9,12 @@ import { supabase } from '@/lib/supabase'
 import { hapticLight } from '@/lib/haptics'
 import { motion, useAnimationControls } from 'framer-motion'
 import { useTheme } from 'next-themes'
-import { ThemeToggle } from '@/components/theme-toggle'
-import { useToast } from '@/components/toast-provider'
-import { markIntentionalLogout } from '@/components/auth-check'
-import { useConfirm } from '@/hooks/use-confirm'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    SheetTrigger,
-} from "@/components/ui/sheet"
 
 export function MobileNav() {
     const pathname = usePathname()
     const router = useRouter()
-    const { toast } = useToast()
-    const confirm = useConfirm()
     const [userRole, setUserRole] = useState<string | null>(null)
-    const [userEmail, setUserEmail] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
-    const [planName, setPlanName] = useState<string | null>(null)
-    const [isTrialActive, setIsTrialActive] = useState(false)
-    const [trialDaysRemaining, setTrialDaysRemaining] = useState(0)
-
-    // Security & Logout State
-    const [changingPassword, setChangingPassword] = useState(false)
-    const [isPasswordSheetOpen, setIsPasswordSheetOpen] = useState(false)
-    const [newPassword, setNewPassword] = useState('')
-    const [confirmPassword, setConfirmPassword] = useState('')
-
-    async function handleChangePassword() {
-        if (newPassword !== confirmPassword) {
-            toast({ title: '❌ Passwords do not match!', type: 'error' })
-            return
-        }
-
-        if (newPassword.length < 8) {
-            toast({ title: '❌ Password must be at least 8 characters', type: 'error' })
-            return
-        }
-
-        try {
-            setChangingPassword(true)
-
-            const { error } = await supabase.auth.updateUser({
-                password: newPassword
-            })
-
-            if (error) throw error
-
-            toast({ title: '✅ Password changed successfully!', type: 'success' })
-            setNewPassword('')
-            setConfirmPassword('')
-            setIsPasswordSheetOpen(false)
-        } catch (error) {
-            toast({ title: 'Error changing password', type: 'error' })
-        } finally {
-            setChangingPassword(false)
-        }
-    }
-
-    async function handleLogout() {
-        const ok = await confirm({ title: 'Log out', description: 'Are you sure you want to log out of your account?', confirmText: 'Log out' })
-        if (!ok) return
-
-        try {
-            markIntentionalLogout()
-            await supabase.auth.signOut()
-            setIsMenuOpen(false)
-            router.push('/login')
-        } catch (error) {
-            toast({ title: 'Log out failed', type: 'error' })
-            router.push('/login')
-        }
-    }
-
-    const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [barNode, setBarNode] = useState<HTMLDivElement | null>(null)
     const barCallbackRef = useCallback((node: HTMLDivElement | null) => { setBarNode(node) }, [])
     const pillControls = useAnimationControls()
@@ -106,11 +32,6 @@ export function MobileNav() {
     const isDark = resolvedTheme === 'dark'
 
     const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/')
-
-    // Close menu when navigation changes
-    useEffect(() => {
-        setIsMenuOpen(false)
-    }, [pathname])
 
     useEffect(() => {
         let mounted = true
@@ -147,39 +68,6 @@ export function MobileNav() {
                             localStorage.setItem('raute_user_role', userProfile.role)
                         }
                         setLoading(false)
-
-                        // Fetch subscription info for managers
-                        if (userProfile.role === 'manager') {
-                            // Get trial info
-                            const { data: userData } = await supabase
-                                .from('users')
-                                .select('trial_ends_at')
-                                .eq('id', userId)
-                                .single()
-                            // Get active subscription
-                            const { data: sub } = await supabase
-                                .from('subscription_history')
-                                .select('tier_name')
-                                .eq('user_id', userId)
-                                .eq('is_active', true)
-                                .maybeSingle()
-
-                            if (mounted) {
-                                if (sub?.tier_name) {
-                                    // Extract friendly name from tier_name (e.g. "raute_starter_monthly" → "Starter")
-                                    const name = sub.tier_name.replace(/^(raute_|stripe_)/, '').replace(/_(monthly|annual)$/, '')
-                                    setPlanName(name.charAt(0).toUpperCase() + name.slice(1))
-                                } else if (userData?.trial_ends_at) {
-                                    const trialEnd = new Date(userData.trial_ends_at)
-                                    const now = new Date()
-                                    const days = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-                                    if (days > 0) {
-                                        setIsTrialActive(true)
-                                        setTrialDaysRemaining(days)
-                                    }
-                                }
-                            }
-                        }
                     } else if (retries > 0) {
                         // Retry if profile not found yet (race condition on signup/signin)
                         setTimeout(() => fetchRole(userId, retries - 1), 500)
@@ -225,7 +113,6 @@ export function MobileNav() {
                 if (session?.user) {
                     userId = session.user.id
                     userMeta = session.user.user_metadata ?? {}
-                    setUserEmail(session.user.email ?? null)
                 }
             } catch {
                 // getSession timed out or threw — try getUser() as fallback
@@ -234,7 +121,6 @@ export function MobileNav() {
                     if (userData.user) {
                         userId = userData.user.id
                         userMeta = userData.user.user_metadata ?? {}
-                        setUserEmail(userData.user.email ?? null)
                     }
                 } catch {
                     // Both failed
@@ -281,8 +167,9 @@ export function MobileNav() {
     }, [])
 
     // Pill measurement — must be before early returns (Rules of Hooks)
+    const isMenuContentActive = isActive('/menu') || isActive('/profile') || isActive('/settings') || isActive('/drivers') || isActive('/dispatchers')
     const activeTabId =
-        (isMenuOpen || (isActive('/profile') || isActive('/settings') || isActive('/drivers') || isActive('/dispatchers'))) ? 'settings'
+        isMenuContentActive ? 'settings'
             : isActive('/dashboard') ? 'dashboard'
                 : isActive('/orders') ? 'orders'
                     : isActive('/planner') ? 'planner'
@@ -291,14 +178,10 @@ export function MobileNav() {
 
     // Keep navigation callback in ref so the touch overlay always has latest closures
     navigateToTabRef.current = (navId: string) => {
-        if (navId === 'settings') {
-            setIsMenuOpen(prev => !prev)
-        } else {
-            const routes: Record<string, string> = { dashboard: '/dashboard', orders: '/orders', planner: '/planner', map: '/map' }
-            const href = routes[navId]
-            if (href && !isActive(href)) {
-                router.push(href)
-            }
+        const routes: Record<string, string> = { dashboard: '/dashboard', orders: '/orders', planner: '/planner', map: '/map', settings: '/menu' }
+        const href = routes[navId]
+        if (href && !isActive(href)) {
+            router.push(href)
         }
     }
 
@@ -463,7 +346,7 @@ export function MobileNav() {
         const SCROLL_DOWN_THRESHOLD = 8
 
         const handleScroll = () => {
-            if (isMenuOpen) return
+            if (isMenuContentActive) return
             const currentY = window.scrollY
             const delta = currentY - lastScrollYRef.current
             lastScrollYRef.current = currentY
@@ -501,7 +384,7 @@ export function MobileNav() {
             window.removeEventListener('scroll', handleScroll)
             if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
         }
-    }, [isMinimized, isMenuOpen, minimizeControls])
+    }, [isMinimized, isMenuContentActive, minimizeControls])
 
     // Hide on auth pages, landing page, and verification/activation pages
     const cleanPath = pathname.replace(/\/+$/, '') || '/' // Remove trailing slashes
@@ -521,9 +404,7 @@ export function MobileNav() {
     const isDriver = userRole === 'driver'
     const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'company_admin'
 
-    const isMenuContentActive = isActive('/profile') || isActive('/settings') || isActive('/drivers') || isActive('/dispatchers')
-
-    // Safety: If role is loaded but unknown, default to restricted view (Driver-like) 
+    // Safety: If role is loaded but unknown, default to restricted view (Driver-like)
     // to prevent leaking manager tabs
 
     return (
@@ -621,7 +502,7 @@ export function MobileNav() {
                         icon={Home}
                         label="Home"
                         navId="dashboard"
-                        active={!isMenuOpen && !isMenuContentActive && isActive('/dashboard')}
+                        active={!isMenuContentActive && isActive('/dashboard')}
                         isDark={isDark}
                     />
 
@@ -631,7 +512,7 @@ export function MobileNav() {
                         icon={List}
                         label={isDriver ? 'My Orders' : 'Orders'}
                         navId="orders"
-                        active={!isMenuOpen && !isMenuContentActive && isActive('/orders')}
+                        active={!isMenuContentActive && isActive('/orders')}
                         isDark={isDark}
                     />
 
@@ -642,7 +523,7 @@ export function MobileNav() {
                             icon={Route}
                             label="Planner"
                             navId="planner"
-                            active={!isMenuOpen && !isMenuContentActive && isActive('/planner')}
+                            active={!isMenuContentActive && isActive('/planner')}
                             isDark={isDark}
                         />
                     )}
@@ -653,252 +534,19 @@ export function MobileNav() {
                         icon={MapPin}
                         label="Map"
                         navId="map"
-                        active={!isMenuOpen && !isMenuContentActive && isActive('/map')}
+                        active={!isMenuContentActive && isActive('/map')}
                         isDark={isDark}
                     />
 
-                    {/* 5. Menu (Sheet — controlled via overlay tap/drag) */}
-                    <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-                        <motion.div
-                            data-nav-id="settings"
-                            className={cn(
-                                "flex flex-col items-center justify-center gap-1 h-[4.25rem] w-[4.5rem] select-none relative group z-10 pointer-events-none",
-                                isMenuOpen || isMenuContentActive
-                                    ? "text-blue-700 dark:text-blue-300"
-                                    : "text-slate-500 dark:text-slate-400"
-                            )}
-                            animate={{ opacity: (isMenuOpen || isMenuContentActive) ? 1 : 0.6, y: (isMenuOpen || isMenuContentActive) ? -1 : 0 }}
-                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                        >
-                            {/* Glass background for active settings tab */}
-                            {(isMenuOpen || isMenuContentActive) && (
-                                <div className="absolute inset-[4px] rounded-2xl" style={{
-                                    background: isDark
-                                        ? 'radial-gradient(ellipse at 30% 20%, rgba(147,197,253,0.18) 0%, rgba(59,130,246,0.10) 50%, rgba(59,130,246,0.05) 100%)'
-                                        : 'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.85) 0%, rgba(219,234,254,0.5) 50%, rgba(191,219,254,0.3) 100%)',
-                                    border: isDark ? '0.5px solid rgba(147,197,253,0.18)' : '0.5px solid rgba(255,255,255,0.70)',
-                                    boxShadow: isDark
-                                        ? 'inset 0 1px 3px rgba(147,197,253,0.10), 0 1px 4px -1px rgba(59,130,246,0.10)'
-                                        : 'inset 0 1px 4px rgba(255,255,255,0.7), 0 2px 8px -2px rgba(59,130,246,0.12)',
-                                }} />
-                            )}
-                            <SettingsIcon
-                                size={isMenuOpen || isMenuContentActive ? 24 : 22}
-                                strokeWidth={isMenuOpen || isMenuContentActive ? 2.5 : 2}
-                                className={cn(
-                                    "transition-all duration-300 relative z-[1]",
-                                    isMenuOpen || isMenuContentActive ? "animate-[spin_2s_ease-out]" : ""
-                                )}
-                            />
-                            <span className={cn(
-                                "text-[10px] tracking-tight transition-all duration-300 relative z-[1]",
-                                isMenuOpen || isMenuContentActive ? "font-bold" : "font-medium"
-                            )}>Settings</span>
-                        </motion.div>
-
-                        {/* Side Menu Content - iOS Settings Style */}
-                        <SheetContent hideClose side="right" className="px-5 pb-32 pt-14 z-[10000] border-l-white/50 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-3xl w-full max-w-full sm:w-[450px] sm:max-w-[450px] h-full overflow-y-auto">
-
-                            {/* Header */}
-                            <div className="flex items-center mb-8 px-2">
-                                <SheetTitle className="text-2xl font-bold text-slate-900 dark:text-white">
-                                    Settings
-                                </SheetTitle>
-                            </div>
-
-                            <div className="flex flex-col gap-6 max-w-lg mx-auto pb-32">
-
-                                {/* Subscription Banner — managers/admins only */}
-                                {isManager && (
-                                <Link href="/subscribe" onClick={() => setIsMenuOpen(false)} className="block">
-                                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border border-slate-700/50 p-6 text-white shadow-lg shadow-black/20 active:scale-[0.98] transition-transform">
-                                        {/* Decorative elements */}
-                                        <Sparkles className="absolute top-4 right-5 text-blue-400/60 w-5 h-5 animate-pulse" />
-                                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/20 rounded-full blur-2xl" />
-
-                                        <div className="flex flex-col items-start gap-4 relative z-10">
-                                            <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300">
-                                                <Crown className="h-3 w-3" />
-                                                {planName ? planName.toUpperCase() + ' PLAN' : 'PREMIUM'}
-                                            </div>
-                                            <div className="w-full flex items-center justify-between gap-4">
-                                                <h3 className="text-lg font-bold leading-tight">
-                                                    {planName
-                                                        ? <>{planName} Plan<br /><span className="text-white/70 text-sm font-medium">Manage your subscription</span></>
-                                                        : isTrialActive
-                                                            ? <>Free Trial<br /><span className="text-white/70 text-sm font-medium">{trialDaysRemaining} day{trialDaysRemaining === 1 ? '' : 's'} remaining</span></>
-                                                            : <>Upgrade to Pro<br /><span className="text-white/70 text-sm font-medium">Unlock all premium features</span></>
-                                                    }
-                                                </h3>
-                                                <span className="flex-shrink-0 bg-white hover:bg-slate-100 text-slate-900 font-bold px-5 py-2.5 rounded-full text-sm shadow-md">
-                                                    {planName ? 'Manage' : 'Upgrade'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Link>
-                                )}
-
-                                {/* Account Section */}
-                                <div className="flex flex-col gap-2">
-                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider pl-4">Account</span>
-                                    <div className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm">
-                                        <IOSListItem
-                                            icon={Mail}
-                                            label="Email"
-                                            value={userEmail || 'Not available'}
-                                            hasDivider={isManager}
-                                            copyable={true}
-                                        />
-                                        {isManager && (
-                                        <div className="relative">
-                                            <Link
-                                                href="/subscribe"
-                                                onClick={() => setIsMenuOpen(false)}
-                                                className="flex items-center px-4 py-3.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100 dark:active:bg-slate-800 touch-manipulation"
-                                            >
-                                                <div className="text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg mr-4 shadow-sm border border-slate-200/50 dark:border-slate-700/50">
-                                                    <Crown size={18} strokeWidth={2} />
-                                                </div>
-                                                <div className="flex-1 flex items-center justify-between min-w-0 pr-1">
-                                                    <span className="text-[15px] font-medium text-slate-800 dark:text-slate-200">Plan</span>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[15px] text-slate-500 dark:text-slate-400">
-                                                            {planName
-                                                                ? planName
-                                                                : isTrialActive
-                                                                    ? `Trial · ${trialDaysRemaining}d`
-                                                                    : 'Free'}
-                                                        </span>
-                                                        <ChevronRight size={18} className="text-slate-400/70" />
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                        </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Features / Main Links */}
-                                <div className="flex flex-col gap-2">
-                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider pl-4">General</span>
-                                    <div className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm">
-                                        <IOSListLink
-                                            href="/profile"
-                                            icon={User}
-                                            label="Edit Profile"
-                                            onClick={() => setIsMenuOpen(false)}
-                                            hasDivider
-                                        />
-                                        {isManager && (
-                                        <IOSListLink
-                                            href="/settings"
-                                            icon={SettingsIcon}
-                                            label="App Settings"
-                                            onClick={() => setIsMenuOpen(false)}
-                                            hasDivider
-                                        />
-                                        )}
-                                        <IOSListToggle
-                                            icon={Moon}
-                                            label="Dark Mode"
-                                            hasDivider
-                                        >
-                                            <ThemeToggle />
-                                        </IOSListToggle>
-                                        <IOSListButton
-                                            icon={Lock}
-                                            label="Security"
-                                            onClick={() => {
-                                                setIsMenuOpen(false)
-                                                setIsPasswordSheetOpen(true)
-                                            }}
-                                            hasDivider
-                                        />
-                                        <IOSListButton
-                                            icon={LogOut}
-                                            label="Logout"
-                                            onClick={handleLogout}
-                                            isDestructive
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Manager Controls */}
-                                {isManager && (
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider pl-4">Team Management</span>
-                                        <div className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm">
-                                            <IOSListLink
-                                                href="/settings"
-                                                icon={Building2}
-                                                label="Company Settings"
-                                                onClick={() => setIsMenuOpen(false)}
-                                                hasDivider
-                                            />
-                                            <IOSListLink
-                                                href="/dispatchers"
-                                                icon={Users}
-                                                label="Team & Dispatchers"
-                                                onClick={() => setIsMenuOpen(false)}
-                                                hasDivider
-                                            />
-                                            <IOSListLink
-                                                href="/drivers"
-                                                icon={Truck}
-                                                label="Drivers Overview"
-                                                onClick={() => setIsMenuOpen(false)}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
-                            </div>
-                        </SheetContent>
-                    </Sheet>
-
-                    {/* Change Password Sheet */}
-                    <Sheet open={isPasswordSheetOpen} onOpenChange={setIsPasswordSheetOpen}>
-                        <SheetContent side="bottom" className="h-[70vh] overflow-y-auto rounded-t-3xl safe-area-pt z-[10002]">
-                            <SheetHeader className="mb-6">
-                                <SheetTitle className="text-2xl font-bold text-slate-900 dark:text-white">Change Password</SheetTitle>
-                            </SheetHeader>
-                            <div className="space-y-5 px-4 pb-12 max-w-lg mx-auto">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-900 dark:text-slate-200">New Password</label>
-                                    <Input
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="Enter new password"
-                                        minLength={8}
-                                        className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-900 dark:text-slate-200">Confirm Password</label>
-                                    <Input
-                                        type="password"
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        placeholder="Confirm new password"
-                                        minLength={8}
-                                        className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800"
-                                    />
-                                </div>
-
-                                <Button
-                                    onClick={handleChangePassword}
-                                    disabled={changingPassword || !newPassword || !confirmPassword}
-                                    className="w-full h-14 bg-amber-600 hover:bg-amber-700 font-bold text-lg rounded-xl shadow-lg shadow-amber-500/20 mt-4 text-white"
-                                >
-                                    <Lock size={20} className="mr-2" />
-                                    {changingPassword ? 'Updating...' : 'Change Password'}
-                                </Button>
-                            </div>
-                        </SheetContent>
-                    </Sheet>
+                    {/* 5. Settings (navigates to /menu page) */}
+                    <NavItem
+                        href="/menu"
+                        icon={SettingsIcon}
+                        label="Settings"
+                        navId="settings"
+                        active={isMenuContentActive}
+                        isDark={isDark}
+                    />
                 </div>
             </div>
         </motion.div>
@@ -943,81 +591,3 @@ function NavItem({ href, icon: Icon, label, active, navId, isDark }: { href: str
     )
 }
 
-function IOSListItem({ icon: Icon, label, value, hasDivider, copyable }: { icon: any, label: string, value?: string, hasDivider?: boolean, copyable?: boolean }) {
-    return (
-        <div className="relative group">
-            <div className="flex items-center px-4 py-3.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-default">
-                <div className="text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg mr-4">
-                    <Icon size={18} strokeWidth={2} />
-                </div>
-                <div className="flex-1 flex items-center justify-between min-w-0 pr-2">
-                    <span className="text-[15px] font-medium text-slate-800 dark:text-slate-200">{label}</span>
-                    {value && (
-                        <span className="text-[15px] text-slate-500 dark:text-slate-400 truncate ml-4 max-w-[60%]">
-                            {value}
-                        </span>
-                    )}
-                </div>
-            </div>
-            {hasDivider && <div className="h-[1px] bg-slate-100 dark:bg-slate-800 ml-[3.25rem] mr-2" />}
-        </div>
-    )
-}
-
-function IOSListLink({ href, icon: Icon, label, onClick, hasDivider }: { href: string, icon: any, label: string, onClick?: () => void, hasDivider?: boolean }) {
-    return (
-        <div className="relative">
-            <Link
-                href={href}
-                onClick={onClick}
-                className="flex items-center px-4 py-3.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100 dark:active:bg-slate-800 touch-manipulation"
-            >
-                <div className="text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg mr-4 shadow-sm border border-slate-200/50 dark:border-slate-700/50">
-                    <Icon size={18} strokeWidth={2} />
-                </div>
-                <div className="flex-1 flex items-center justify-between min-w-0 pr-1">
-                    <span className="text-[15px] font-medium text-slate-800 dark:text-slate-200">{label}</span>
-                    <ChevronRight size={18} className="text-slate-400/70" />
-                </div>
-            </Link>
-            {hasDivider && <div className="h-[1px] bg-slate-100 dark:bg-slate-800 ml-[3.25rem] mr-2" />}
-        </div>
-    )
-}
-
-function IOSListButton({ icon: Icon, label, onClick, hasDivider, isDestructive }: { icon: any, label: string, onClick?: () => void, hasDivider?: boolean, isDestructive?: boolean }) {
-    return (
-        <div className="relative">
-            <button
-                onClick={onClick}
-                className="w-full flex items-center px-4 py-3.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100 dark:active:bg-slate-800 touch-manipulation"
-            >
-                <div className={cn("p-1.5 rounded-lg mr-4 shadow-sm border", isDestructive ? "text-red-500 bg-red-50 dark:bg-red-900/20 border-red-200/50 dark:border-red-900/50" : "text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border-slate-200/50 dark:border-slate-700/50")}>
-                    <Icon size={18} strokeWidth={2} />
-                </div>
-                <div className="flex-1 flex items-center justify-between min-w-0 pr-1">
-                    <span className={cn("text-[15px] font-medium", isDestructive ? "text-red-600 dark:text-red-500" : "text-slate-800 dark:text-slate-200")}>{label}</span>
-                    <ChevronRight size={18} className={cn(isDestructive ? "text-red-400/50" : "text-slate-400/70")} />
-                </div>
-            </button>
-            {hasDivider && <div className="h-[1px] bg-slate-100 dark:bg-slate-800 ml-[3.25rem] mr-2" />}
-        </div>
-    )
-}
-
-function IOSListToggle({ icon: Icon, label, hasDivider, children }: { icon: any, label: string, hasDivider?: boolean, children: React.ReactNode }) {
-    return (
-        <div className="relative">
-            <div className="flex items-center px-4 py-3 bg-white dark:bg-slate-900">
-                <div className="text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg mr-4 shadow-sm border border-slate-200/50 dark:border-slate-700/50">
-                    <Icon size={18} strokeWidth={2} />
-                </div>
-                <div className="flex-1 flex items-center justify-between min-w-0 pr-1">
-                    <span className="text-[15px] font-medium text-slate-800 dark:text-slate-200">{label}</span>
-                    {children}
-                </div>
-            </div>
-            {hasDivider && <div className="h-[1px] bg-slate-100 dark:bg-slate-800 ml-[3.25rem] mr-2" />}
-        </div>
-    )
-}

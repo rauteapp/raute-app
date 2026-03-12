@@ -651,8 +651,8 @@ export default function OrdersPage() {
                         status: 'pending',
                         priority: 0,
                         priority_level: result.priority_level || 'normal',
-                        time_window_start: result.time_window_start || null,
-                        time_window_end: result.time_window_end || null,
+                        time_window_start: (typeof result.time_window_start === 'string' && result.time_window_start) ? result.time_window_start : null,
+                        time_window_end: (typeof result.time_window_end === 'string' && result.time_window_end) ? result.time_window_end : null,
                         weight_lbs: result.weight_lbs ?? null,
                         latitude: null as number | null,
                         longitude: null as number | null,
@@ -2011,17 +2011,29 @@ export default function OrdersPage() {
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-slate-500">{filteredOrders.length} orders</span>
                         </div>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                                setIsSelectionMode(!isSelectionMode)
-                                if (isSelectionMode) setSelectedOrders([]) // Clear on exit
-                            }}
-                            className="text-slate-900 dark:text-white hover:bg-slate-100 font-bold text-sm tracking-wide"
-                        >
-                            {isSelectionMode ? "Cancel" : "Select"}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            {isSelectionMode && selectedOrders.length > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleBulkDelete}
+                                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold text-sm tracking-wide"
+                                >
+                                    Delete ({selectedOrders.length})
+                                </Button>
+                            )}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    setIsSelectionMode(!isSelectionMode)
+                                    if (isSelectionMode) setSelectedOrders([]) // Clear on exit
+                                }}
+                                className="text-slate-900 dark:text-white hover:bg-slate-100 font-bold text-sm tracking-wide"
+                            >
+                                {isSelectionMode ? "Cancel" : "Select"}
+                            </Button>
+                        </div>
                     </div>
                 )}
 

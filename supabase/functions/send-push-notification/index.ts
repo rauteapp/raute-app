@@ -129,34 +129,34 @@ async function getAccessToken(
 
 // ─── Main handler ────────────────────────────────────────────────────────────
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+function jsonResponse(body: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+}
+
 Deno.serve(async (req: Request) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      },
-    });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
   try {
     const { driver_id, user_id, title, body, data } = await req.json();
 
     if ((!driver_id && !user_id) || !title || !body) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: (driver_id or user_id), title, body" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Missing required fields: (driver_id or user_id), title, body" }, 400);
     }
 
     // Get env vars
@@ -166,17 +166,11 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!clientEmail || !privateKey) {
-      return new Response(
-        JSON.stringify({ error: "Firebase credentials not configured" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Firebase credentials not configured" }, 500);
     }
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(
-        JSON.stringify({ error: "Supabase credentials not configured" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Supabase credentials not configured" }, 500);
     }
 
     // Look up push token
@@ -236,10 +230,7 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (driverError || !driver) {
-        return new Response(
-          JSON.stringify({ error: "Driver not found", details: driverError?.message }),
-          { status: 404, headers: { "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ error: "Driver not found", details: driverError?.message }, 404);
       }
 
       recipientName = driver.name || "Unknown";
@@ -261,13 +252,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!pushToken) {
-      return new Response(
-        JSON.stringify({
-          error: "No push token registered",
-          recipient_name: recipientName,
-        }),
-        { status: 422, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "No push token registered", recipient_name: recipientName }, 422);
     }
 
     // Get OAuth2 access token for FCM
@@ -318,35 +303,12 @@ Deno.serve(async (req: Request) => {
 
     if (!fcmResp.ok) {
       console.error("FCM send failed:", JSON.stringify(fcmData));
-      return new Response(
-        JSON.stringify({
-          error: "FCM send failed",
-          status: fcmResp.status,
-          details: fcmData,
-        }),
-        { status: 502, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "FCM send failed", status: fcmResp.status, details: fcmData }, 502);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message_name: fcmData.name,
-        recipient_name: recipientName,
-      }),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      }
-    );
+    return jsonResponse({ success: true, message_name: fcmData.name, recipient_name: recipientName }, 200);
   } catch (err) {
     console.error("Edge function error:", err);
-    return new Response(
-      JSON.stringify({ error: "Internal error", details: String(err) }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: "Internal error", details: String(err) }, 500);
   }
 });

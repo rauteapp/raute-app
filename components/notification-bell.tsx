@@ -1,7 +1,7 @@
 "use client"
 
-import { Bell, Package, Truck, MapPin, AlertCircle, CheckCircle2, UserX, Check, Clock, AlertTriangle, PackageX } from "lucide-react"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Bell, Package, Truck, MapPin, AlertCircle, CheckCircle2, UserX, Check, Clock, AlertTriangle, PackageX, X } from "lucide-react"
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications"
 import { useRouter } from "next/navigation"
@@ -91,21 +91,29 @@ export function NotificationBell({ userId }: { userId: string | null }) {
                     )}
                 </button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-full sm:w-[400px] p-0 flex flex-col">
-                <SheetHeader className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+            <SheetContent side="right" className="w-full sm:w-[400px] p-0 flex flex-col" hideClose>
+                <SheetHeader className="px-5 pb-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 1rem))' }}>
                     <div className="flex items-center justify-between">
                         <SheetTitle className="text-lg font-black tracking-tight">Notifications</SheetTitle>
                         <SheetDescription className="sr-only">Your recent notifications</SheetDescription>
-                        {unreadCount > 0 && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={markAllAsRead}
-                                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 h-8 px-3"
-                            >
-                                <Check size={14} className="mr-1" /> Mark all read
-                            </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                            {unreadCount > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={markAllAsRead}
+                                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 h-8 px-3"
+                                >
+                                    <Check size={14} className="mr-1" /> Mark all read
+                                </Button>
+                            )}
+                            <SheetClose asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <X size={16} />
+                                    <span className="sr-only">Close</span>
+                                </Button>
+                            </SheetClose>
+                        </div>
                     </div>
                 </SheetHeader>
 

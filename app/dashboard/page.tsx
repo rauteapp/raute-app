@@ -86,12 +86,13 @@ export default function DashboardPage() {
         let isInitDone = false
 
         // Global safety timeout to prevent endless skeleton loader if Supabase hangs
+        // 15s allows: ~4s auth + ~5s user query + ~5s parallel data queries on slow mobile networks
         const maxWaitGlobal = setTimeout(() => {
             if (isMountedRef.current && !isInitDone) {
                 setIsLoading(false)
                 toast({ title: "Connection Timeout", description: "Database is taking too long to respond. Some data may be missing.", type: "error" })
             }
-        }, 10000)
+        }, 15000)
 
         // Session-aware init — run getSession() and getUser() in parallel for speed.
         // getSession() may hang due to navigator.locks, but getUser() bypasses locks.
@@ -225,53 +226,59 @@ export default function DashboardPage() {
 
                     if (companyId) {
                         companyIdRef.current = companyId
-                        // Fetch orders for this company (capped at 500 for performance)
-                        const { data: ordersData, error: ordersError } = await supabase
-                            .from('orders')
-                            .select('*')
-                            .eq('company_id', companyId)
-                            .order('created_at', { ascending: false })
-                            .limit(500)
+                        // Fetch orders, drivers, hubs IN PARALLEL for speed
+                        const [ordersResult, driversResult, hubsResult] = await Promise.allSettled([
+                            supabase
+                                .from('orders')
+                                .select('*')
+                                .eq('company_id', companyId)
+                                .order('created_at', { ascending: false })
+                                .limit(500),
+                            supabase
+                                .from('drivers')
+                                .select('*')
+                                .eq('company_id', companyId),
+                            supabase
+                                .from('hubs')
+                                .select('id')
+                                .eq('company_id', companyId),
+                        ])
 
-                        if (ordersData && !ordersError) {
-                            setOrders(ordersData)
-
-                            // Calculate stats
-                            const statsCalc = {
-                                total: ordersData.length,
-                                pending: ordersData.filter(o => o.status === 'pending').length,
-                                assigned: ordersData.filter(o => o.status === 'assigned').length,
-                                inProgress: ordersData.filter(o => o.status === 'in_progress').length,
-                                delivered: ordersData.filter(o => o.status === 'delivered').length,
-                                cancelled: ordersData.filter(o => o.status === 'cancelled').length
+                        // Process orders
+                        if (ordersResult.status === 'fulfilled') {
+                            const { data: ordersData, error: ordersError } = ordersResult.value
+                            if (ordersData && !ordersError) {
+                                setOrders(ordersData)
+                                setStats({
+                                    total: ordersData.length,
+                                    pending: ordersData.filter(o => o.status === 'pending').length,
+                                    assigned: ordersData.filter(o => o.status === 'assigned').length,
+                                    inProgress: ordersData.filter(o => o.status === 'in_progress').length,
+                                    delivered: ordersData.filter(o => o.status === 'delivered').length,
+                                    cancelled: ordersData.filter(o => o.status === 'cancelled').length
+                                })
                             }
-                            setStats(statsCalc)
                         }
 
-                        // Fetch Drivers
-                        const { data: driversData } = await supabase
-                            .from('drivers')
-                            .select('*')
-                            .eq('company_id', companyId)
-
-                        if (driversData) {
-                            setTotalDriversCount(driversData.length)
-                            // Build drivers map for quick lookup
-                            const dMap: Record<string, any> = {}
-                            driversData.forEach(d => {
-                                dMap[d.id] = { name: d.name, vehicle_type: d.vehicle_type, vehicle: d.vehicle_type }
-                            })
-                            setDriversMap(dMap)
+                        // Process drivers
+                        if (driversResult.status === 'fulfilled') {
+                            const { data: driversData } = driversResult.value
+                            if (driversData) {
+                                setTotalDriversCount(driversData.length)
+                                const dMap: Record<string, any> = {}
+                                driversData.forEach(d => {
+                                    dMap[d.id] = { name: d.name, vehicle_type: d.vehicle_type, vehicle: d.vehicle_type }
+                                })
+                                setDriversMap(dMap)
+                            }
                         }
 
-                        // Fetch Hubs
-                        const { data: hubsData } = await supabase
-                            .from('hubs')
-                            .select('id')
-                            .eq('company_id', companyId)
-
-                        if (hubsData) {
-                            setHasHubs(hubsData.length > 0)
+                        // Process hubs
+                        if (hubsResult.status === 'fulfilled') {
+                            const { data: hubsData } = hubsResult.value
+                            if (hubsData) {
+                                setHasHubs(hubsData.length > 0)
+                            }
                         }
                     }
                 }
@@ -305,32 +312,27 @@ export default function DashboardPage() {
         if (!companyId) return
 
         try {
-            const { data: ordersData } = await supabase
-                .from('orders')
-                .select('*')
-                .eq('company_id', companyId)
-                .order('created_at', { ascending: false })
-                .limit(500)
+            const [ordersResult, driversResult, hubsResult] = await Promise.allSettled([
+                supabase.from('orders').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(500),
+                supabase.from('drivers').select('*').eq('company_id', companyId),
+                supabase.from('hubs').select('id').eq('company_id', companyId),
+            ])
 
-            if (ordersData) {
+            if (ordersResult.status === 'fulfilled' && ordersResult.value.data) {
+                const ordersData = ordersResult.value.data
                 setOrders(ordersData)
-                const statsCalc = {
+                setStats({
                     total: ordersData.length,
                     pending: ordersData.filter(o => o.status === 'pending').length,
                     assigned: ordersData.filter(o => o.status === 'assigned').length,
                     inProgress: ordersData.filter(o => o.status === 'in_progress').length,
                     delivered: ordersData.filter(o => o.status === 'delivered').length,
                     cancelled: ordersData.filter(o => o.status === 'cancelled').length
-                }
-                setStats(statsCalc)
+                })
             }
 
-            const { data: driversData } = await supabase
-                .from('drivers')
-                .select('*')
-                .eq('company_id', companyId)
-
-            if (driversData) {
+            if (driversResult.status === 'fulfilled' && driversResult.value.data) {
+                const driversData = driversResult.value.data
                 setTotalDriversCount(driversData.length)
                 const dMap: Record<string, any> = {}
                 driversData.forEach(d => {
@@ -339,13 +341,8 @@ export default function DashboardPage() {
                 setDriversMap(dMap)
             }
 
-            const { data: hubsData } = await supabase
-                .from('hubs')
-                .select('id')
-                .eq('company_id', companyId)
-
-            if (hubsData) {
-                setHasHubs(hubsData.length > 0)
+            if (hubsResult.status === 'fulfilled' && hubsResult.value.data) {
+                setHasHubs(hubsResult.value.data.length > 0)
             }
         } catch (error) {
             console.error('Error refreshing dashboard data:', error)
