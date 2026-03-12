@@ -313,7 +313,7 @@ export default function LoginPage() {
                     router.push('/verify-email')
                     return
                 } else if (authError.message.includes('Invalid login credentials')) {
-                    setApiError("Incorrect email or password. First time logging in? Check your email for a setup link, or use \"Forgot Password\" below to get a new one.")
+                    setApiError("Incorrect email or password.")
                 } else if (authError.message.includes('string did not match') ||
                     authError.message.includes('pattern')) {
                     // Session validation error - clear all auth data and retry
