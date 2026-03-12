@@ -519,7 +519,7 @@ export function MobileNav() {
     if (!userRole) return null
 
     const isDriver = userRole === 'driver'
-    const isManager = userRole === 'manager' || userRole === 'admin'
+    const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'company_admin'
 
     const isMenuContentActive = isActive('/profile') || isActive('/settings') || isActive('/drivers') || isActive('/dispatchers')
 
@@ -706,9 +706,10 @@ export function MobileNav() {
                                 </SheetTitle>
                             </div>
 
-                            <div className="flex flex-col gap-6 max-w-lg mx-auto pb-12">
+                            <div className="flex flex-col gap-6 max-w-lg mx-auto pb-32">
 
-                                {/* Subscription Banner */}
+                                {/* Subscription Banner — managers/admins only */}
+                                {isManager && (
                                 <Link href="/subscribe" onClick={() => setIsMenuOpen(false)} className="block">
                                     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border border-slate-700/50 p-6 text-white shadow-lg shadow-black/20 active:scale-[0.98] transition-transform">
                                         {/* Decorative elements */}
@@ -736,6 +737,7 @@ export function MobileNav() {
                                         </div>
                                     </div>
                                 </Link>
+                                )}
 
                                 {/* Account Section */}
                                 <div className="flex flex-col gap-2">
@@ -744,10 +746,11 @@ export function MobileNav() {
                                         <IOSListItem
                                             icon={Mail}
                                             label="Email"
-                                            value={userEmail || 'Loading...'}
-                                            hasDivider
+                                            value={userEmail || 'Not available'}
+                                            hasDivider={isManager}
                                             copyable={true}
                                         />
+                                        {isManager && (
                                         <div className="relative">
                                             <Link
                                                 href="/subscribe"
@@ -772,6 +775,7 @@ export function MobileNav() {
                                                 </div>
                                             </Link>
                                         </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -786,6 +790,7 @@ export function MobileNav() {
                                             onClick={() => setIsMenuOpen(false)}
                                             hasDivider
                                         />
+                                        {isManager && (
                                         <IOSListLink
                                             href="/settings"
                                             icon={SettingsIcon}
@@ -793,6 +798,7 @@ export function MobileNav() {
                                             onClick={() => setIsMenuOpen(false)}
                                             hasDivider
                                         />
+                                        )}
                                         <IOSListToggle
                                             icon={Moon}
                                             label="Dark Mode"
