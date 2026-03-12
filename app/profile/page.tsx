@@ -60,6 +60,7 @@ export default function ProfilePage() {
     } | null>(null)
 
     // Password Change
+    const [currentPassword, setCurrentPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
 
@@ -343,18 +344,31 @@ export default function ProfilePage() {
     }
 
     async function handleChangePassword() {
-        if (newPassword !== confirmPassword) {
-            toast({ title: '❌ Passwords do not match!', type: 'error' })
+        if (!currentPassword) {
+            toast({ title: 'Please enter your current password', type: 'error' })
             return
         }
-
+        if (newPassword !== confirmPassword) {
+            toast({ title: 'Passwords do not match!', type: 'error' })
+            return
+        }
         if (newPassword.length < 8) {
-            toast({ title: '❌ Password must be at least 8 characters', type: 'error' })
+            toast({ title: 'Password must be at least 8 characters', type: 'error' })
             return
         }
 
         try {
             setChangingPassword(true)
+
+            // Verify current password
+            const { error: verifyError } = await supabase.auth.signInWithPassword({
+                email,
+                password: currentPassword,
+            })
+            if (verifyError) {
+                toast({ title: 'Current password is incorrect', type: 'error' })
+                return
+            }
 
             const { error } = await supabase.auth.updateUser({
                 password: newPassword
@@ -362,7 +376,8 @@ export default function ProfilePage() {
 
             if (error) throw error
 
-            toast({ title: '✅ Password changed successfully!', type: 'success' })
+            toast({ title: 'Password changed successfully!', type: 'success' })
+            setCurrentPassword('')
             setNewPassword('')
             setConfirmPassword('')
             setIsPasswordSheetOpen(false)

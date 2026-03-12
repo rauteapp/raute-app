@@ -33,10 +33,16 @@ export default function MenuPage() {
     // Security
     const [changingPassword, setChangingPassword] = useState(false)
     const [isPasswordSheetOpen, setIsPasswordSheetOpen] = useState(false)
+    const [currentPassword, setCurrentPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
+    const [sendingReset, setSendingReset] = useState(false)
 
     async function handleChangePassword() {
+        if (!currentPassword) {
+            toast({ title: 'Please enter your current password', type: 'error' })
+            return
+        }
         if (newPassword !== confirmPassword) {
             toast({ title: 'Passwords do not match!', type: 'error' })
             return
@@ -47,9 +53,22 @@ export default function MenuPage() {
         }
         try {
             setChangingPassword(true)
+
+            // Verify current password first
+            const { error: verifyError } = await supabase.auth.signInWithPassword({
+                email: userEmail!,
+                password: currentPassword,
+            })
+            if (verifyError) {
+                toast({ title: 'Current password is incorrect', type: 'error' })
+                return
+            }
+
+            // Update to new password
             const { error } = await supabase.auth.updateUser({ password: newPassword })
             if (error) throw error
             toast({ title: 'Password changed successfully!', type: 'success' })
+            setCurrentPassword('')
             setNewPassword('')
             setConfirmPassword('')
             setIsPasswordSheetOpen(false)
@@ -57,6 +76,26 @@ export default function MenuPage() {
             toast({ title: 'Error changing password', type: 'error' })
         } finally {
             setChangingPassword(false)
+        }
+    }
+
+    async function handleForgotPassword() {
+        if (!userEmail) {
+            toast({ title: 'No email found for your account', type: 'error' })
+            return
+        }
+        try {
+            setSendingReset(true)
+            const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+                redirectTo: `${window.location.origin}/update-password`,
+            })
+            if (error) throw error
+            toast({ title: 'Password reset link sent to your email', type: 'success' })
+            setIsPasswordSheetOpen(false)
+        } catch {
+            toast({ title: 'Failed to send reset link', type: 'error' })
+        } finally {
+            setSendingReset(false)
         }
     }
 
@@ -311,6 +350,23 @@ export default function MenuPage() {
                     </SheetHeader>
                     <div className="space-y-5 px-4 pb-12 max-w-lg mx-auto">
                         <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-900 dark:text-slate-200">Current Password</label>
+                            <Input
+                                type="password"
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                placeholder="Enter current password"
+                                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800"
+                            />
+                            <button
+                                onClick={handleForgotPassword}
+                                disabled={sendingReset}
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                            >
+                                {sendingReset ? 'Sending...' : 'Forgot your password?'}
+                            </button>
+                        </div>
+                        <div className="space-y-2">
                             <label className="text-sm font-semibold text-slate-900 dark:text-slate-200">New Password</label>
                             <Input
                                 type="password"
@@ -334,7 +390,7 @@ export default function MenuPage() {
                         </div>
                         <Button
                             onClick={handleChangePassword}
-                            disabled={changingPassword || !newPassword || !confirmPassword}
+                            disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
                             className="w-full h-14 bg-amber-600 hover:bg-amber-700 font-bold text-lg rounded-xl shadow-lg shadow-amber-500/20 mt-4 text-white"
                         >
                             <Lock size={20} className="mr-2" />
