@@ -86,7 +86,8 @@ export default function AuthCallback() {
         if (result && 'data' in result) {
           const { data: userProfile } = result
           if (!userProfile || !userProfile.role || !userProfile.company_id) {
-            window.location.href = '/login?message=verified'
+            // New user (e.g. Google/Apple signup) — send to onboarding to create profile
+            window.location.href = '/onboarding'
             return
           }
         }
