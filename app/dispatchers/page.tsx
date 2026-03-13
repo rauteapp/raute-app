@@ -152,7 +152,7 @@ export default function DispatchersPage() {
     async function handleResendSetupEmail(dispatcher: AppUser) {
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(dispatcher.email || '', {
-                redirectTo: window.location.origin + '/update-password'
+                redirectTo: 'https://raute.io/update-password'
             })
 
             if (!error) {
@@ -249,7 +249,7 @@ export default function DispatchersPage() {
 
             // Send account setup email
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
-                redirectTo: `${window.location.origin}/update-password`,
+                redirectTo: 'https://raute.io/update-password',
             })
 
             if (resetError) {

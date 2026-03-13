@@ -68,7 +68,7 @@ export default function UpdatePasswordPage() {
 
         try {
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(expiredEmail, {
-                redirectTo: `${window.location.origin}/update-password`,
+                redirectTo: 'https://raute.io/update-password',
             })
 
             if (resetError) {

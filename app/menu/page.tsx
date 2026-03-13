@@ -87,7 +87,7 @@ export default function MenuPage() {
         try {
             setSendingReset(true)
             const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-                redirectTo: `${window.location.origin}/update-password`,
+                redirectTo: 'https://raute.io/update-password',
             })
             if (error) throw error
             toast({ title: 'Password reset link sent to your email', type: 'success' })

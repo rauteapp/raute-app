@@ -444,8 +444,10 @@ export default function DriversPage() {
             }
 
             // Send account setup email to the driver
+            // Use hardcoded origin — on mobile (Capacitor), window.location.origin
+            // is "capacitor://localhost" which Supabase rejects, falling back to site URL
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/update-password`,
+                redirectTo: 'https://raute.io/update-password',
             })
 
             if (resetError) {
@@ -484,7 +486,7 @@ export default function DriversPage() {
             }
 
             const { error } = await supabase.auth.resetPasswordForEmail(target.email || '', {
-                redirectTo: window.location.origin + '/update-password'
+                redirectTo: 'https://raute.io/update-password'
             })
 
             if (!error) {
@@ -573,7 +575,7 @@ export default function DriversPage() {
         // Send setup email if requested — lets the driver set/reset their own password
         if (newPassword && newPassword.length >= 1 && editingDriver.user_id && editingDriver.email) {
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(editingDriver.email, {
-                redirectTo: window.location.origin + '/update-password'
+                redirectTo: 'https://raute.io/update-password'
             })
 
             if (resetError) {
