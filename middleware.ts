@@ -18,7 +18,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // PUBLIC ROUTES — always allow access
-    const publicRoutes = ['/login', '/signup', '/verify-email', '/auth/callback', '/pending-activation', '/forgot-password', '/update-password', '/onboarding']
+    const publicRoutes = ['/login', '/signup', '/verify-email', '/auth/callback', '/pending-activation', '/forgot-password', '/update-password', '/welcome-setup', '/onboarding']
     const isPublicRoute = publicRoutes.some(route => {
         return request.nextUrl.pathname === route || request.nextUrl.pathname === `${route}/`
     })
