@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Raute',
-  description: 'Learn how Raute collects, uses, and protects your personal information. Our privacy policy covers data collection, location tracking, push notifications, and your rights.',
+  description: 'Learn how Raute.io by Howl Dating LLC collects, uses, and protects your personal information. Covers data collection, GDPR rights, CCPA/CPRA compliance, data retention, and international transfers.',
 }
 
 export default function PrivacyPolicy() {
@@ -25,132 +25,192 @@ export default function PrivacyPolicy() {
           Privacy Policy
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-10">
-          Last updated: March 7, 2026
+          Last updated: March 11, 2026
         </p>
 
         <div className="space-y-10 text-slate-700 dark:text-slate-300 leading-relaxed">
-          {/* 1. Introduction */}
+          {/* 2.1 Introduction */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              1. Introduction
+              2.1 Introduction
             </h2>
             <p>
-              Welcome to Raute (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;). We operate the
-              Raute delivery management platform available at{' '}
-              <a href="https://raute.io" className="text-blue-600 dark:text-blue-400 hover:underline">
+              Welcome to Raute.io (&quot;we,&quot; &quot;our,&quot; or
+              &quot;us&quot;), operated by Howl Dating LLC. We are committed to
+              protecting your personal information and your right to privacy.
+              This Privacy Policy explains how we collect, use, disclose, and
+              safeguard your information when you use our route optimization and
+              delivery management platform, available at{' '}
+              <a
+                href="https://raute.io"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
                 raute.io
               </a>{' '}
-              and through our mobile applications. We are committed to protecting
-              your personal information and your right to privacy. This Privacy
-              Policy explains how we collect, use, disclose, and safeguard your
-              information when you use our services.
+              and through our mobile applications.
             </p>
           </section>
 
-          {/* 2. Information We Collect */}
+          {/* 2.2 Information We Collect */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              2. Information We Collect
+              2.2 Information We Collect
             </h2>
-            <p className="mb-4">
-              We collect information that you provide directly and information
-              collected automatically when you use our platform:
-            </p>
 
             <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200 mb-2">
-              Information You Provide
+              A) Information You Provide Directly
             </h3>
             <ul className="list-disc list-inside space-y-2 mb-4 pl-2">
               <li>
-                <strong>Account Information:</strong> Name, email address, phone
-                number, and company details required for account creation and
-                management.
+                <strong>Account Data:</strong> Name, email address, phone
+                number, company name, and role information provided during
+                registration and account management.
               </li>
               <li>
-                <strong>Driver Data:</strong> Names, vehicle types, and contact
-                information of drivers added to your fleet.
+                <strong>Payment Information:</strong> Billing details processed
+                securely through Stripe. We do not store your full credit card
+                numbers on our servers.
               </li>
               <li>
-                <strong>Order Data:</strong> Customer names, addresses, delivery
-                details, and notes uploaded for route planning and delivery
-                management.
+                <strong>Business Data:</strong> Driver information, delivery
+                addresses, order details, route data, fleet information, and
+                proof-of-delivery records (photos, signatures, notes) that you
+                upload or create through the platform.
               </li>
               <li>
-                <strong>Proof of Delivery:</strong> Photos, signatures, and
-                delivery notes captured by drivers upon completion of deliveries.
-              </li>
-              <li>
-                <strong>Communications:</strong> Messages, support requests, and
-                feedback you send to us.
+                <strong>Communications:</strong> Messages, support requests,
+                feedback, and other correspondence you send to us.
               </li>
             </ul>
 
             <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200 mb-2">
-              Information Collected Automatically
+              B) Information Collected Automatically
             </h3>
-            <ul className="list-disc list-inside space-y-2 pl-2">
+            <ul className="list-disc list-inside space-y-2 mb-4 pl-2">
+              <li>
+                <strong>Device Information:</strong> Device type, operating
+                system, browser type, app version, and unique device
+                identifiers.
+              </li>
+              <li>
+                <strong>Usage Data:</strong> Information about how you interact
+                with our platform, including features used, pages visited,
+                actions taken, and timestamps.
+              </li>
               <li>
                 <strong>Location Data:</strong> Real-time GPS location data is
                 collected from driver accounts while the app is active to
                 facilitate live delivery tracking, route optimization, and ETA
-                calculations. Location data is only collected when a driver is
-                actively on duty.
+                calculations.
               </li>
               <li>
-                <strong>Device Information:</strong> Device type, operating
-                system, app version, and unique device identifiers used for push
-                notification delivery and troubleshooting.
+                <strong>Cookies &amp; Similar Technologies:</strong> We use
+                cookies and similar tracking technologies to maintain sessions,
+                remember preferences, and analyze usage patterns. See our{' '}
+                <Link
+                  href="/cookies"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Cookie Policy
+                </Link>{' '}
+                for details.
+              </li>
+            </ul>
+
+            <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200 mb-2">
+              C) Information from Third Parties
+            </h3>
+            <ul className="list-disc list-inside space-y-2 pl-2">
+              <li>
+                <strong>Stripe:</strong> Payment confirmation and subscription
+                status information.
               </li>
               <li>
-                <strong>Usage Data:</strong> Information about how you interact
-                with our platform, including features used and pages visited.
+                <strong>Analytics Providers:</strong> Aggregated usage and
+                performance data.
+              </li>
+              <li>
+                <strong>Mapping Services:</strong> Geocoding, routing, and
+                address validation data.
               </li>
             </ul>
           </section>
 
-          {/* 3. How We Use Your Information */}
+          {/* 2.3 How We Use Your Information */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              3. How We Use Your Information
+              2.3 How We Use Your Information
             </h2>
             <p className="mb-3">We use the information we collect to:</p>
             <ul className="list-disc list-inside space-y-2 pl-2">
-              <li>Provide, operate, and maintain the Raute platform.</li>
               <li>
-                Calculate and optimize delivery routes for your fleet.
+                Provide, operate, and maintain the Raute.io platform and its
+                features.
               </li>
               <li>
-                Enable real-time delivery tracking and estimated time of arrival
-                notifications.
+                Process transactions and manage your subscription billing.
               </li>
               <li>
-                Send push notifications for delivery status updates, driver
-                alerts, and order assignments.
+                Communicate with you about your account, service updates, and
+                support requests.
               </li>
               <li>
-                Send email communications for account verification, password
-                resets, delivery confirmations, and service updates.
-              </li>
-              <li>Process payments and manage subscriptions.</li>
-              <li>
-                Improve our services, develop new features, and analyze usage
-                patterns.
+                Personalize your experience and improve the Service based on
+                usage patterns.
               </li>
               <li>
-                Respond to support requests and communicate with you about your
-                account.
+                Protect the security and integrity of the platform and prevent
+                fraud or unauthorized activity.
+              </li>
+              <li>Comply with legal obligations and enforce our Terms.</li>
+              <li>
+                Conduct analytics and research to improve our products and
+                services.
               </li>
               <li>
-                Enforce our terms and protect against fraud or unauthorized
-                activity.
+                Send marketing communications (only with your consent, and you
+                may opt out at any time).
               </li>
             </ul>
           </section>
 
-          {/* 4. Data Sharing */}
+          {/* 2.4 Legal Bases for Processing (GDPR) */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              4. Data Sharing and Disclosure
+              2.4 Legal Bases for Processing (GDPR)
+            </h2>
+            <p className="mb-3">
+              For users in the European Economic Area (EEA) and the United
+              Kingdom, we process your personal data under the following legal
+              bases:
+            </p>
+            <ul className="list-disc list-inside space-y-2 pl-2">
+              <li>
+                <strong>Contract Performance:</strong> Processing necessary to
+                fulfill our contractual obligations to you, including providing
+                the Service.
+              </li>
+              <li>
+                <strong>Legitimate Interests:</strong> Processing necessary for
+                our legitimate business interests, such as improving the
+                Service, ensuring security, and preventing fraud.
+              </li>
+              <li>
+                <strong>Consent:</strong> Where you have given explicit consent
+                for specific processing activities, such as marketing
+                communications.
+              </li>
+              <li>
+                <strong>Legal Obligations:</strong> Processing necessary to
+                comply with applicable laws and regulations.
+              </li>
+            </ul>
+          </section>
+
+          {/* 2.5 How We Share */}
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+              2.5 How We Share Your Information
             </h2>
             <p className="mb-3">
               We do not sell your personal data. We may share your information
@@ -158,103 +218,75 @@ export default function PrivacyPolicy() {
             </p>
             <ul className="list-disc list-inside space-y-2 pl-2">
               <li>
-                <strong>Service Providers:</strong> We share data with
-                third-party vendors that perform services on our behalf, such as
-                payment processors (Stripe, Apple), mapping services, cloud
-                hosting (Supabase), and email delivery services.
+                <strong>Service Providers:</strong> With third-party vendors
+                that perform services on our behalf, such as payment processing
+                (Stripe), cloud hosting, mapping services, email delivery, and
+                analytics providers. These providers are contractually obligated
+                to protect your data.
               </li>
               <li>
-                <strong>Delivery Tracking:</strong> Limited delivery information
-                (driver location, ETA, delivery status) may be shared with end
-                customers via tracking links that you generate through the
-                platform.
-              </li>
-              <li>
-                <strong>Legal Requirements:</strong> We may disclose your
-                information if required by law, regulation, legal process, or
-                governmental request.
+                <strong>Legal Requirements:</strong> When required by law,
+                regulation, legal process, or governmental request.
               </li>
               <li>
                 <strong>Business Transfers:</strong> In connection with a
-                merger, acquisition, or sale of assets, your information may be
-                transferred as part of the transaction.
+                merger, acquisition, reorganization, or sale of assets, your
+                information may be transferred as part of the transaction.
+              </li>
+              <li>
+                <strong>With Your Consent:</strong> When you have given us
+                explicit permission to share your information for a specific
+                purpose.
               </li>
             </ul>
           </section>
 
-          {/* 5. Data Security */}
+          {/* 2.6 Data Retention */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              5. Data Security
+              2.6 Data Retention
             </h2>
             <p>
-              We implement appropriate technical and organizational security
-              measures to protect your personal information. These include
-              encryption of data in transit and at rest, secure authentication
-              mechanisms, access controls, and regular security assessments.
+              We retain your personal information for as long as your account is
+              active or as needed to provide the Service. Upon account
+              termination or deletion, we will remove your personal data within
+              30 calendar days, except where retention is required by law or for
+              legitimate business purposes. Anonymized and aggregated data that
+              cannot be used to identify you may be retained indefinitely for
+              analytics and service improvement purposes.
+            </p>
+          </section>
+
+          {/* 2.7 Data Security */}
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+              2.7 Data Security
+            </h2>
+            <p className="mb-3">
+              We implement industry-standard technical and organizational
+              security measures to protect your personal information,
+              including:
+            </p>
+            <ul className="list-disc list-inside space-y-2 pl-2">
+              <li>TLS/SSL encryption for all data in transit.</li>
+              <li>Encryption at rest for stored data.</li>
+              <li>
+                Role-based access controls to limit data access to authorized
+                personnel.
+              </li>
+              <li>Regular security audits and assessments.</li>
+            </ul>
+            <p className="mt-3">
               However, no method of transmission over the internet or electronic
-              storage is completely secure, and we cannot guarantee absolute
-              security.
+              storage is 100% secure, and we cannot guarantee absolute security
+              of your data.
             </p>
           </section>
 
-          {/* 6. Cookies and Tracking */}
+          {/* 2.8 Your Rights */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              6. Cookies and Tracking Technologies
-            </h2>
-            <p>
-              Our web application uses cookies and similar technologies to
-              maintain your session, remember your preferences, and improve your
-              experience. We use essential cookies required for the platform to
-              function (such as authentication tokens) and analytics cookies to
-              understand usage patterns. You can control cookie preferences
-              through your browser settings, though disabling essential cookies
-              may affect platform functionality.
-            </p>
-          </section>
-
-          {/* 7. Push Notifications */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              7. Push Notifications
-            </h2>
-            <p>
-              We use push notifications to deliver time-sensitive information
-              such as new order assignments, delivery status updates, and
-              important alerts. You can manage your push notification preferences
-              in the app settings or through your device settings at any time.
-              Disabling push notifications will not affect the core functionality
-              of the platform, but you may miss important real-time updates.
-            </p>
-          </section>
-
-          {/* 8. Data Retention and Deletion */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              8. Data Retention and Deletion
-            </h2>
-            <p>
-              We retain your information for as long as your account is active or
-              as needed to provide our services. You may request the deletion of
-              your account and all associated data at any time by using the
-              &quot;Delete Account&quot; option in the application settings or by
-              contacting us at{' '}
-              <a
-                href="mailto:support@raute.io"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                support@raute.io
-              </a>
-              . Upon account deletion, we will remove your personal data within
-              30 days, except where retention is required by law.
-            </p>
-          </section>
-
-          {/* 9. Your Rights */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              9. Your Rights
+              2.8 Your Rights
             </h2>
             <p className="mb-3">
               Depending on your jurisdiction, you may have the following rights
@@ -267,7 +299,7 @@ export default function PrivacyPolicy() {
               </li>
               <li>
                 <strong>Correction:</strong> Request correction of inaccurate or
-                incomplete data.
+                incomplete personal data.
               </li>
               <li>
                 <strong>Deletion:</strong> Request deletion of your personal
@@ -275,67 +307,112 @@ export default function PrivacyPolicy() {
               </li>
               <li>
                 <strong>Portability:</strong> Request a copy of your data in a
-                structured, machine-readable format.
+                structured, commonly used, machine-readable format.
               </li>
               <li>
                 <strong>Opt-Out:</strong> Opt out of marketing communications
-                and non-essential push notifications.
+                and non-essential data processing.
               </li>
               <li>
                 <strong>Restriction:</strong> Request restriction of processing
                 of your personal data under certain conditions.
               </li>
+              <li>
+                <strong>Objection:</strong> Object to processing of your
+                personal data based on legitimate interests.
+              </li>
             </ul>
             <p className="mt-3">
-              To exercise any of these rights, please contact us at{' '}
+              To exercise any of these rights, you may use our self-service
+              privacy portal at{' '}
+              <a
+                href="https://raute.io/privacy-requests"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                raute.io/privacy-requests
+              </a>{' '}
+              or email us at{' '}
               <a
                 href="mailto:support@raute.io"
                 className="text-blue-600 dark:text-blue-400 hover:underline"
               >
                 support@raute.io
               </a>
-              .
+              . We will acknowledge your request within 5 business days and
+              fulfill it within 30 calendar days.
+            </p>
+
+            <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200 mb-2 mt-4">
+              California Residents (CCPA/CPRA)
+            </h3>
+            <p>
+              If you are a California resident, you have additional rights under
+              the California Consumer Privacy Act (CCPA) and the California
+              Privacy Rights Act (CPRA), including the right to know what
+              personal information we collect, the right to delete your personal
+              information, the right to opt out of the sale or sharing of your
+              personal information (we do not sell your data), and the right to
+              non-discrimination for exercising your privacy rights.
             </p>
           </section>
 
-          {/* 10. Children's Privacy */}
+          {/* 2.9 International Data Transfers */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              10. Children&apos;s Privacy
+              2.9 International Data Transfers
             </h2>
             <p>
-              Our platform is not intended for use by individuals under the age
+              Your information is processed and stored in the United States. If
+              you are located outside the United States, please be aware that
+              your data will be transferred to, stored, and processed in the
+              United States. Where required by applicable law, we use Standard
+              Contractual Clauses (SCCs) approved by the European Commission or
+              other legally approved transfer mechanisms to ensure adequate
+              protection of your personal data during international transfers.
+            </p>
+          </section>
+
+          {/* 2.10 Children's Privacy */}
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+              2.10 Children&apos;s Privacy
+            </h2>
+            <p>
+              The Service is not intended for use by individuals under the age
               of 18. We do not knowingly collect personal information from
-              children. If we become aware that we have collected data from a
-              child, we will take steps to delete that information promptly.
+              children under 18. If we become aware that we have collected
+              personal data from a child under 18, we will take prompt steps to
+              delete that information.
             </p>
           </section>
 
-          {/* 11. Changes to This Policy */}
+          {/* 2.11 Changes to This Policy */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              11. Changes to This Privacy Policy
+              2.11 Changes to This Policy
             </h2>
             <p>
-              We may update this Privacy Policy from time to time. We will notify
-              you of any material changes by posting the updated policy on our
-              platform and updating the &quot;Last updated&quot; date. Your
-              continued use of Raute after changes are posted constitutes
-              acceptance of the updated policy.
+              We may update this Privacy Policy from time to time to reflect
+              changes in our practices, technologies, legal requirements, or
+              other factors. We will notify you of any material changes by
+              posting the updated policy on our platform and updating the
+              &quot;Last updated&quot; date. Your continued use of the Service
+              after changes are posted constitutes acceptance of the updated
+              Privacy Policy.
             </p>
           </section>
 
-          {/* 12. Contact Us */}
+          {/* 2.12 Contact */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              12. Contact Us
+              2.12 Contact
             </h2>
             <p>
               If you have any questions or concerns about this Privacy Policy or
               our data practices, please contact us:
             </p>
             <div className="mt-3 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
-              <p className="font-medium text-slate-900 dark:text-white">Raute</p>
+              <p className="font-medium text-slate-900 dark:text-white">Howl Dating LLC, DBA Raute.io</p>
               <p>
                 Email:{' '}
                 <a

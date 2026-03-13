@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Terms of Service | Raute',
-  description: 'Terms of Service for Raute, the delivery management platform. Read about user responsibilities, acceptable use, service availability, and more.',
+  description: 'Terms of Service for Raute.io by Howl Dating LLC. Read about user responsibilities, acceptable use, subscription plans, intellectual property, liability, and dispute resolution.',
 }
 
 export default function TermsOfService() {
@@ -25,325 +25,290 @@ export default function TermsOfService() {
           Terms of Service
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-10">
-          Last updated: March 7, 2026
+          Last updated: March 11, 2026
         </p>
 
         <div className="space-y-10 text-slate-700 dark:text-slate-300 leading-relaxed">
-          {/* 1. Agreement to Terms */}
+          {/* 1.1 Agreement to Terms */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              1. Agreement to Terms
+              1.1 Agreement to Terms
             </h2>
             <p>
-              By accessing or using the Raute delivery management platform
+              These Terms of Service (&quot;Terms&quot;) constitute a legally
+              binding agreement between you (&quot;User,&quot; &quot;you,&quot;
+              or &quot;your&quot;) and Howl Dating LLC, doing business as
+              Raute.io (&quot;Company,&quot; &quot;we,&quot; &quot;our,&quot; or
+              &quot;us&quot;). By accessing or using the Raute.io platform
               (&quot;Service&quot;), available at{' '}
-              <a href="https://raute.io" className="text-blue-600 dark:text-blue-400 hover:underline">
+              <a
+                href="https://raute.io"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
                 raute.io
               </a>{' '}
-              and through our mobile applications, you agree to be bound by
-              these Terms of Service (&quot;Terms&quot;). If you disagree with
-              any part of these Terms, you may not access the Service. These
-              Terms apply to all users, including dispatchers, drivers, and
+              and through our mobile applications, you acknowledge that you have
+              read, understood, and agree to be bound by these Terms. If you do
+              not agree to these Terms, you must not access or use the Service.
+            </p>
+          </section>
+
+          {/* 1.2 Description of Service */}
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+              1.2 Description of Service
+            </h2>
+            <p>
+              Raute.io is a route optimization and delivery management platform
+              designed for logistics operations. The Service includes route
+              planning, driver coordination, delivery tracking, fleet
+              management, and analytics tools. Raute.io is offered as a
+              Software-as-a-Service (SaaS) subscription, providing web-based
+              dashboards and mobile applications for dispatchers, drivers, and
               administrators.
             </p>
           </section>
 
-          {/* 2. Description of Service */}
+          {/* 1.3 Eligibility */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              2. Description of Service
+              1.3 Eligibility
             </h2>
-            <p>
-              Raute is a delivery management platform that provides route
-              optimization, fleet management, real-time delivery tracking, driver
-              management, and order dispatch tools. The Service is designed for
-              businesses that manage delivery operations and includes web-based
-              dashboards and mobile applications for drivers and dispatchers.
+            <p className="mb-3">
+              To use the Service, you must meet all of the following
+              requirements:
             </p>
-          </section>
-
-          {/* 3. Account Registration */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              3. Account Registration
-            </h2>
-            <p>
-              To use the Service, you must create an account by providing
-              accurate and complete information. You are responsible for
-              maintaining the confidentiality of your account credentials and for
-              all activities that occur under your account. You agree to notify
-              us immediately of any unauthorized use of your account. Raute
-              reserves the right to suspend or terminate accounts that contain
-              inaccurate information or violate these Terms.
-            </p>
-          </section>
-
-          {/* 4. Subscriptions and Payments */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              4. Subscriptions and Payments
-            </h2>
             <ul className="list-disc list-inside space-y-2 pl-2">
+              <li>Be at least 18 years of age.</li>
               <li>
-                <strong>Pricing:</strong> Raute is a subscription-based service.
-                Current pricing is available on our website and within the
-                application.
+                Have the legal capacity to enter into a binding agreement.
               </li>
               <li>
-                <strong>Billing:</strong> Payments are processed via the Apple
-                App Store (iOS) or Stripe (Web). Subscriptions auto-renew unless
-                canceled at least 24 hours before the end of the current billing
-                period.
+                Not be prohibited from using the Service under any applicable
+                law or regulation.
               </li>
               <li>
-                <strong>Cancellations:</strong> You can manage or cancel your
-                subscription through your device settings (iOS) or through your
-                account profile on the web.
-              </li>
-              <li>
-                <strong>Refunds:</strong> Refund policies are governed by the
-                respective payment platform (Apple App Store or Stripe). Contact
-                us at{' '}
-                <a
-                  href="mailto:support@raute.io"
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  support@raute.io
-                </a>{' '}
-                for billing inquiries.
+                Provide accurate and complete registration information.
               </li>
             </ul>
           </section>
 
-          {/* 5. User Responsibilities */}
+          {/* 1.4 Account Registration & Security */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              5. User Responsibilities
+              1.4 Account Registration &amp; Security
             </h2>
-            <p className="mb-3">As a user of Raute, you agree to:</p>
+            <p>
+              You must provide truthful, accurate, and complete information when
+              creating an account. You are solely responsible for maintaining
+              the security and confidentiality of your account credentials,
+              including your password. You agree to accept responsibility for
+              all activities that occur under your account. You must notify us
+              immediately at{' '}
+              <a
+                href="mailto:support@raute.io"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                support@raute.io
+              </a>{' '}
+              if you become aware of any unauthorized access to or use of your
+              account.
+            </p>
+          </section>
+
+          {/* 1.5 Subscription Plans & Payment */}
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+              1.5 Subscription Plans &amp; Payment
+            </h2>
             <ul className="list-disc list-inside space-y-2 pl-2">
               <li>
-                Provide accurate and up-to-date information for your account,
-                drivers, and delivery orders.
+                <strong>Plans:</strong> Raute.io offers various subscription
+                plans as described on our pricing page. Features and limits vary
+                by plan.
               </li>
               <li>
-                Ensure that all drivers using the platform hold valid driver&apos;s
-                licenses and comply with applicable traffic laws.
+                <strong>Billing:</strong> All subscriptions are billed on a
+                recurring basis in United States Dollars (USD). Payments are
+                processed through our third-party payment provider.
               </li>
               <li>
-                Use the Service only for lawful purposes and in accordance with
-                these Terms.
+                <strong>Price Changes:</strong> We will provide at least 30
+                days&apos; written notice before any changes to subscription
+                pricing take effect.
               </li>
               <li>
-                Maintain appropriate insurance coverage for your delivery
-                operations.
-              </li>
-              <li>
-                Protect the confidentiality of your account credentials and not
-                share them with unauthorized individuals.
-              </li>
-              <li>
-                Notify us promptly of any security breach or unauthorized use of
-                your account.
+                <strong>Non-Payment:</strong> Failure to make timely payments
+                may result in suspension or termination of your account and
+                access to the Service.
               </li>
             </ul>
           </section>
 
-          {/* 6. Acceptable Use */}
+          {/* 1.6 Intellectual Property */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              6. Acceptable Use
+              1.6 Intellectual Property
             </h2>
-            <p className="mb-3">You agree not to:</p>
+            <p className="mb-3">
+              All content, software, features, and branding associated with the
+              Service are the property of Howl Dating LLC and are protected by
+              applicable intellectual property laws. You retain full ownership
+              of the data you upload to the platform.
+            </p>
+            <p>
+              By using the Service, you grant Howl Dating LLC a limited,
+              non-exclusive license to process, store, and use your data solely
+              for the purpose of providing and improving the Service. This
+              license terminates when you delete your data or close your
+              account.
+            </p>
+          </section>
+
+          {/* 1.7 User Conduct */}
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+              1.7 User Conduct
+            </h2>
+            <p className="mb-3">
+              You agree not to engage in any of the following prohibited
+              activities:
+            </p>
             <ul className="list-disc list-inside space-y-2 pl-2">
               <li>
-                Use the Service for any illegal, fraudulent, or unauthorized
-                purpose.
+                Violating any applicable local, state, national, or
+                international law or regulation.
               </li>
               <li>
-                Attempt to gain unauthorized access to the Service, other
-                accounts, or our systems.
+                Infringing upon the intellectual property rights or privacy
+                rights of any third party.
               </li>
               <li>
-                Interfere with or disrupt the operation of the Service or its
-                infrastructure.
+                Transmitting malware, viruses, or any harmful or malicious code
+                through the platform.
               </li>
               <li>
-                Reverse engineer, decompile, or attempt to extract the source
-                code of the Service.
+                Attempting to gain unauthorized access to the Service, other
+                user accounts, or our systems and infrastructure.
               </li>
               <li>
-                Upload malicious code, viruses, or any harmful content to the
-                platform.
-              </li>
-              <li>
-                Use automated tools (bots, scrapers) to access the Service
-                without our written consent.
-              </li>
-              <li>
-                Resell, redistribute, or sublicense access to the Service
-                without authorization.
-              </li>
-              <li>
-                Use the platform to transport illegal goods or engage in
-                prohibited delivery activities.
+                Disrupting, interfering with, or degrading the operation or
+                performance of the Service.
               </li>
             </ul>
           </section>
 
-          {/* 7. Driver Safety */}
+          {/* 1.8 Service Availability & Modifications */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              7. Driver Safety
+              1.8 Service Availability &amp; Modifications
             </h2>
             <p>
-              Raute provides route optimization and navigation suggestions but
-              does not guarantee road safety or real-time traffic accuracy. All
-              drivers must obey applicable traffic laws, exercise their own
-              judgment, and prioritize safety at all times. Raute is not liable
-              for accidents, traffic violations, penalties, or any damages
-              incurred while using the application for navigation or delivery
-              purposes.
+              We strive to maintain high availability but do not guarantee
+              uninterrupted, error-free, or secure access to the Service at all
+              times. The Service may be temporarily unavailable due to
+              maintenance, updates, or circumstances beyond our control. We
+              reserve the right to modify, suspend, or discontinue any aspect
+              of the Service at any time, with or without notice.
             </p>
           </section>
 
-          {/* 8. Service Availability */}
+          {/* 1.9 Limitation of Liability */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              8. Service Availability
+              1.9 Limitation of Liability
             </h2>
             <p>
-              We strive to maintain high availability of the Service, but we do
-              not guarantee uninterrupted, error-free, or secure access at all
-              times. The Service may be temporarily unavailable due to scheduled
-              maintenance, updates, or circumstances beyond our control
-              (including but not limited to internet outages, server failures, or
-              force majeure events). We will make reasonable efforts to notify
-              users of planned downtime in advance. We are not liable for any
-              losses or damages resulting from Service unavailability.
+              To the maximum extent permitted by applicable law, Howl Dating LLC
+              and its officers, directors, employees, and agents shall not be
+              liable for any indirect, incidental, special, consequential, or
+              punitive damages, including but not limited to loss of profits,
+              data, business opportunities, or goodwill, arising from your use
+              of or inability to use the Service. Our total aggregate liability
+              for any claims arising from or related to these Terms or the
+              Service shall not exceed the total amount you paid to Howl Dating
+              LLC during the twelve (12) months immediately preceding the event
+              giving rise to the claim.
             </p>
           </section>
 
-          {/* 9. Intellectual Property */}
+          {/* 1.10 Indemnification */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              9. Intellectual Property
+              1.10 Indemnification
             </h2>
             <p>
-              The Service, including all content, features, software, and
-              branding, is owned by Raute and protected by intellectual property
-              laws. You retain ownership of the data you upload to the platform
-              (such as order data and delivery records). By using the Service,
-              you grant Raute a limited license to use your data solely for the
-              purpose of providing and improving the Service.
-            </p>
-          </section>
-
-          {/* 10. Limitation of Liability */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              10. Limitation of Liability
-            </h2>
-            <p>
-              To the maximum extent permitted by applicable law, Raute and its
-              officers, directors, employees, and agents shall not be liable for
-              any indirect, incidental, special, consequential, or punitive
-              damages, including but not limited to loss of profits, data, or
-              business opportunities, arising from your use of or inability to
-              use the Service. Our total liability for any claims arising from
-              or related to these Terms or the Service shall not exceed the
-              amount you paid to Raute in the twelve (12) months preceding the
-              claim.
-            </p>
-          </section>
-
-          {/* 11. Disclaimer of Warranties */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              11. Disclaimer of Warranties
-            </h2>
-            <p>
-              The Service is provided on an &quot;as is&quot; and &quot;as
-              available&quot; basis without warranties of any kind, whether
-              express or implied, including but not limited to implied warranties
-              of merchantability, fitness for a particular purpose, and
-              non-infringement. We do not warrant that the Service will meet your
-              specific requirements, that route calculations will be optimal in
-              all conditions, or that delivery tracking will be accurate at all
-              times.
-            </p>
-          </section>
-
-          {/* 12. Indemnification */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              12. Indemnification
-            </h2>
-            <p>
-              You agree to indemnify, defend, and hold harmless Raute, its
-              affiliates, and their respective officers, directors, employees,
-              and agents from any claims, damages, losses, liabilities, and
-              expenses (including reasonable attorney fees) arising from your
+              You agree to indemnify, defend, and hold harmless Howl Dating LLC,
+              its affiliates, and their respective officers, directors,
+              employees, and agents from and against any and all claims,
+              damages, losses, liabilities, costs, and expenses (including
+              reasonable attorneys&apos; fees) arising from or related to your
               use of the Service, your violation of these Terms, or your
               violation of any rights of a third party.
             </p>
           </section>
 
-          {/* 13. Termination */}
+          {/* 1.11 Governing Law & Dispute Resolution */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              13. Termination
+              1.11 Governing Law &amp; Dispute Resolution
             </h2>
-            <p>
-              We may terminate or suspend your access to the Service
-              immediately, without prior notice or liability, for any reason,
-              including if you breach these Terms. Upon termination, your right
-              to use the Service will immediately cease. You may terminate your
-              account at any time by using the account deletion feature in the
-              application or by contacting us. Provisions of these Terms that by
-              their nature should survive termination will remain in effect.
-            </p>
-          </section>
-
-          {/* 14. Governing Law */}
-          <section>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              14. Governing Law
-            </h2>
-            <p>
+            <p className="mb-3">
               These Terms shall be governed by and construed in accordance with
-              the laws of the United States. Any disputes arising from these
-              Terms or the Service shall be resolved in the courts of competent
-              jurisdiction.
+              the laws of the State of California, without regard to its
+              conflict of law provisions.
+            </p>
+            <p className="mb-3">
+              In the event of any dispute arising from or relating to these
+              Terms or the Service, the parties agree to first attempt
+              resolution through good-faith mediation. If mediation is
+              unsuccessful, disputes shall be resolved through binding
+              arbitration administered by the American Arbitration Association
+              (AAA) in accordance with its Commercial Arbitration Rules. The
+              arbitration shall take place in the State of California.
             </p>
           </section>
 
-          {/* 15. Changes to Terms */}
+          {/* 1.12 Severability */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              15. Changes to These Terms
+              1.12 Severability
             </h2>
             <p>
-              We reserve the right to modify these Terms at any time. We will
-              notify you of material changes by posting the updated Terms on our
-              platform and updating the &quot;Last updated&quot; date. Your
-              continued use of the Service after changes are posted constitutes
-              acceptance of the revised Terms. If you do not agree to the
-              updated Terms, you must stop using the Service.
+              If any provision of these Terms is found to be unenforceable or
+              invalid by a court of competent jurisdiction, that provision shall
+              be limited or eliminated to the minimum extent necessary so that
+              these Terms shall otherwise remain in full force and effect.
             </p>
           </section>
 
-          {/* 16. Contact Us */}
+          {/* 1.13 Entire Agreement */}
           <section>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-              16. Contact Us
+              1.13 Entire Agreement
+            </h2>
+            <p>
+              These Terms, together with the Privacy Policy and any other legal
+              notices or policies published by us on the Service, constitute the
+              entire agreement between you and Howl Dating LLC regarding your
+              use of the Service. These Terms supersede all prior or
+              contemporaneous communications, proposals, and agreements, whether
+              oral or written, between you and Howl Dating LLC with respect to
+              the Service.
+            </p>
+          </section>
+
+          {/* 1.14 Contact */}
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
+              1.14 Contact
             </h2>
             <p>
               If you have any questions about these Terms of Service, please
               contact us:
             </p>
             <div className="mt-3 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
-              <p className="font-medium text-slate-900 dark:text-white">Raute</p>
+              <p className="font-medium text-slate-900 dark:text-white">Howl Dating LLC, DBA Raute.io</p>
               <p>
                 Email:{' '}
                 <a
