@@ -32,36 +32,25 @@ export default function UpdatePasswordPage() {
     const recoveryConfirmedRef = useRef(false)
 
     useEffect(() => {
-        // Listen for PASSWORD_RECOVERY event — this is the ONLY reliable way
-        // to know a recovery link was properly processed by Supabase.
-        // Without this, if User A is logged in and clicks User B's reset link,
-        // getSession() might return User A's session → wrong password gets changed.
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'PASSWORD_RECOVERY' && session) {
-                // Recovery link was successfully verified by Supabase.
-                // The session now belongs to the recovery user (not any previously logged-in user).
+                // Direct recovery event — ideal case
+                recoveryConfirmedRef.current = true
+                setRecoveryEmail(session.user.email || '')
+                setIsChecking(false)
+            } else if (event === 'INITIAL_SESSION' && session && !recoveryConfirmedRef.current) {
+                // The Supabase client singleton processes the URL hash (#access_token=...&type=recovery)
+                // and fires PASSWORD_RECOVERY BEFORE React mounts. By the time this listener is
+                // registered, the event is missed and the hash is cleared. However, onAuthStateChange
+                // always fires INITIAL_SESSION immediately with the current session — which IS the
+                // recovery session (Supabase replaced any previous session when it processed the hash).
                 recoveryConfirmedRef.current = true
                 setRecoveryEmail(session.user.email || '')
                 setIsChecking(false)
             }
         })
 
-        // The Supabase client singleton may have already processed the URL hash
-        // (with #access_token=...&type=recovery) BEFORE this component mounted,
-        // so the PASSWORD_RECOVERY event was fired and missed. Check for this case:
-        // if the URL hash contains type=recovery, the session is already established.
-        const hash = window.location.hash
-        if (hash.includes('type=recovery')) {
-            supabase.auth.getSession().then(({ data: { session } }) => {
-                if (session && !recoveryConfirmedRef.current) {
-                    recoveryConfirmedRef.current = true
-                    setRecoveryEmail(session.user.email || '')
-                    setIsChecking(false)
-                }
-            })
-        }
-
-        // Timeout: if PASSWORD_RECOVERY doesn't fire within 8 seconds,
+        // Timeout: if neither event provides a session within 8 seconds,
         // the link is expired/invalid or was already used.
         const timeout = setTimeout(() => {
             if (!recoveryConfirmedRef.current) {
