@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,9 +13,6 @@ import { friendlyError } from '@/lib/friendly-error'
 import { markIntentionalLogout } from '@/components/auth-check'
 
 // Capture URL hash IMMEDIATELY at module level.
-// The Supabase client singleton (created during import) starts async initialization
-// that will eventually clear the hash. Module-level code runs before that async work
-// completes, so we can safely capture the raw tokens here.
 const SAVED_HASH = typeof window !== 'undefined' ? window.location.hash.substring(1) : ''
 
 function parseHashParams(hash: string) {
@@ -46,6 +44,8 @@ export default function UpdatePasswordPage() {
 
     const [recoveryEmail, setRecoveryEmail] = useState('')
     const recoveryConfirmedRef = useRef(false)
+    // Isolated client — avoids race conditions with the singleton's _initialize()
+    const recoveryClientRef = useRef<ReturnType<typeof createClient> | null>(null)
 
     useEffect(() => {
         async function initRecovery() {
@@ -67,17 +67,21 @@ export default function UpdatePasswordPage() {
                 return
             }
 
-            // Case 3: Valid recovery tokens — force the recovery session.
-            // Clear any existing local session (e.g. another user logged in)
-            // then set the recovery session from the captured hash tokens.
-            try {
-                markIntentionalLogout()
-                await supabase.auth.signOut({ scope: 'local' })
-            } catch {
-                // Ignore
-            }
+            // Case 3: Valid recovery tokens — use an ISOLATED client.
+            const recoveryClient = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                {
+                    auth: {
+                        detectSessionInUrl: false,
+                        persistSession: false,
+                        autoRefreshToken: false,
+                    }
+                }
+            )
+            recoveryClientRef.current = recoveryClient
 
-            const { error: sessionError } = await supabase.auth.setSession({
+            const { error: sessionError } = await recoveryClient.auth.setSession({
                 access_token: accessToken,
                 refresh_token: refreshToken,
             })
@@ -89,7 +93,7 @@ export default function UpdatePasswordPage() {
                 return
             }
 
-            const { data: { user }, error: userError } = await supabase.auth.getUser()
+            const { data: { user }, error: userError } = await recoveryClient.auth.getUser()
             if (userError || !user) {
                 console.error('Recovery session validation failed:', userError)
                 setLinkExpired(true)
@@ -151,7 +155,10 @@ export default function UpdatePasswordPage() {
         setIsLoading(true)
 
         try {
-            const { error: updateError } = await supabase.auth.updateUser({
+            const client = recoveryClientRef.current
+            if (!client) throw new Error('Recovery session lost')
+
+            const { error: updateError } = await client.auth.updateUser({
                 password: password
             })
 
@@ -164,7 +171,7 @@ export default function UpdatePasswordPage() {
             })
 
             markIntentionalLogout()
-            await supabase.auth.signOut()
+            try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
             router.push('/login')
 
         } catch (err: any) {

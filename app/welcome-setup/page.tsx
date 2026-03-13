@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +58,9 @@ export default function WelcomeSetupPage() {
     const [resendSuccess, setResendSuccess] = useState(false)
 
     const recoveryConfirmedRef = useRef(false)
+    // Isolated Supabase client for recovery — avoids all race conditions with
+    // the singleton client's _initialize(), cross-tab sync, and cookie-based storage.
+    const recoveryClientRef = useRef<ReturnType<typeof createClient> | null>(null)
 
     useEffect(() => {
         async function initRecovery() {
@@ -78,21 +82,25 @@ export default function WelcomeSetupPage() {
                 return
             }
 
-            // Case 3: Valid recovery tokens — force the recovery session.
-            // The browser may have the manager's session in localStorage (from
-            // another tab). We must:
-            //   1. Clear local storage only (scope:'local') — does NOT revoke
-            //      any server session, just removes stale local data.
-            //   2. Set the recovery session from the hash tokens we captured.
-            //   3. Validate with getUser() (server call).
-            try {
-                markIntentionalLogout()
-                await supabase.auth.signOut({ scope: 'local' })
-            } catch {
-                // Ignore — may not have a session to clear
-            }
+            // Case 3: Valid recovery tokens — use an ISOLATED client.
+            // The singleton client (createBrowserClient) races with its own
+            // _initialize(), monkey-patched locks, and cross-tab cookie sync.
+            // A fresh client with detectSessionInUrl:false and persistSession:false
+            // avoids ALL of that. It operates purely in memory.
+            const recoveryClient = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                {
+                    auth: {
+                        detectSessionInUrl: false,
+                        persistSession: false,
+                        autoRefreshToken: false,
+                    }
+                }
+            )
+            recoveryClientRef.current = recoveryClient
 
-            const { error: sessionError } = await supabase.auth.setSession({
+            const { error: sessionError } = await recoveryClient.auth.setSession({
                 access_token: accessToken,
                 refresh_token: refreshToken,
             })
@@ -104,7 +112,7 @@ export default function WelcomeSetupPage() {
                 return
             }
 
-            const { data: { user }, error: userError } = await supabase.auth.getUser()
+            const { data: { user }, error: userError } = await recoveryClient.auth.getUser()
             if (userError || !user) {
                 console.error('Recovery session validation failed:', userError)
                 setLinkExpired(true)
@@ -114,13 +122,13 @@ export default function WelcomeSetupPage() {
 
             // Success — the session belongs to the driver
             recoveryConfirmedRef.current = true
-            await loadWelcomeData(user)
+            await loadWelcomeData(user, recoveryClient)
         }
 
         initRecovery()
     }, [])
 
-    async function loadWelcomeData(user: { id: string; email?: string; user_metadata?: Record<string, any> }) {
+    async function loadWelcomeData(user: { id: string; email?: string; user_metadata?: Record<string, any> }, client: ReturnType<typeof createClient>) {
         try {
             const meta = user.user_metadata || {}
 
@@ -130,10 +138,10 @@ export default function WelcomeSetupPage() {
             setUserName(meta.full_name || '')
             setUserRole(meta.role === 'dispatcher' ? 'dispatcher' : 'driver')
 
-            // Try to fetch company name from database (may fail with RLS for new users)
+            // Try to fetch company name from database using the recovery client
             const companyId = meta.company_id
             if (companyId) {
-                const { data: company } = await supabase
+                const { data: company } = await client
                     .from('companies')
                     .select('name')
                     .eq('id', companyId)
@@ -169,7 +177,10 @@ export default function WelcomeSetupPage() {
         setIsSubmitting(true)
 
         try {
-            const { error: updateError } = await supabase.auth.updateUser({
+            const client = recoveryClientRef.current
+            if (!client) throw new Error('Recovery session lost')
+
+            const { error: updateError } = await client.auth.updateUser({
                 password: password
             })
 
@@ -180,7 +191,8 @@ export default function WelcomeSetupPage() {
             // Brief delay to show success state, then sign out and redirect to login
             setTimeout(async () => {
                 markIntentionalLogout()
-                await supabase.auth.signOut()
+                // Sign out the singleton client (clears manager cookies if any)
+                try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
                 router.push('/login')
             }, 2500)
 
