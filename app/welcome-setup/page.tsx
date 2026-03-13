@@ -78,16 +78,32 @@ export default function WelcomeSetupPage() {
                 return
             }
 
-            // Case 3: Valid recovery tokens present in the URL hash.
-            // The Supabase client automatically detects hash tokens during its
-            // async initialization (_initialize → _getSessionFromURL) and sets
-            // up the session. We do NOT manually call signOut or setSession —
-            // doing so races with the client's own initialization and can
-            // destroy the session it just created.
-            //
-            // getUser() acquires the same internal lock as _initialize(), so it
-            // will wait for initialization to finish before making its server call.
-            // This guarantees we get the recovery user, not a stale manager session.
+            // Case 3: Valid recovery tokens — force the recovery session.
+            // The browser may have the manager's session in localStorage (from
+            // another tab). We must:
+            //   1. Clear local storage only (scope:'local') — does NOT revoke
+            //      any server session, just removes stale local data.
+            //   2. Set the recovery session from the hash tokens we captured.
+            //   3. Validate with getUser() (server call).
+            try {
+                markIntentionalLogout()
+                await supabase.auth.signOut({ scope: 'local' })
+            } catch {
+                // Ignore — may not have a session to clear
+            }
+
+            const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+            })
+
+            if (sessionError) {
+                console.error('Failed to set recovery session:', sessionError)
+                setLinkExpired(true)
+                setIsLoading(false)
+                return
+            }
+
             const { data: { user }, error: userError } = await supabase.auth.getUser()
             if (userError || !user) {
                 console.error('Recovery session validation failed:', userError)

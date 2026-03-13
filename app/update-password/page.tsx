@@ -67,14 +67,28 @@ export default function UpdatePasswordPage() {
                 return
             }
 
-            // Case 3: Valid recovery tokens present in the URL hash.
-            // The Supabase client automatically detects hash tokens during its
-            // async initialization and sets up the session. We do NOT manually
-            // call signOut or setSession — doing so races with the client's
-            // own initialization and can destroy the session.
-            //
-            // getUser() acquires the same internal lock, so it waits for
-            // initialization to finish before making its server call.
+            // Case 3: Valid recovery tokens — force the recovery session.
+            // Clear any existing local session (e.g. another user logged in)
+            // then set the recovery session from the captured hash tokens.
+            try {
+                markIntentionalLogout()
+                await supabase.auth.signOut({ scope: 'local' })
+            } catch {
+                // Ignore
+            }
+
+            const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+            })
+
+            if (sessionError) {
+                console.error('Failed to set recovery session:', sessionError)
+                setLinkExpired(true)
+                setIsChecking(false)
+                return
+            }
+
             const { data: { user }, error: userError } = await supabase.auth.getUser()
             if (userError || !user) {
                 console.error('Recovery session validation failed:', userError)
