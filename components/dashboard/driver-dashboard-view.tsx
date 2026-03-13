@@ -36,13 +36,7 @@ export function DriverDashboardView({ userId }: { userId: string }) {
     const [onTimeRate, setOnTimeRate] = useState(100)
     const [weeklyData, setWeeklyData] = useState<any[]>([])
     const [ordersList, setOrdersList] = useState<any[]>([])
-    const [isOnline, setIsOnline] = useState(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('driver_online_status')
-            return saved === 'true'
-        }
-        return false
-    })
+    const [isOnline, setIsOnline] = useState(false)
     const [driverId, setDriverId] = useState<string | null>(null)
     const { toast } = useToast()
     const [forceShowGuide, setForceShowGuide] = useState(false)
@@ -295,115 +289,98 @@ export function DriverDashboardView({ userId }: { userId: string }) {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-32 pt-12 p-4 space-y-6 overflow-x-hidden">
             {/* Header with Date Picker */}
-            <div className="flex items-start justify-between gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
-                            {isToday ? "Today's Route" : isRange ? "Period Reports" : "History Log"} {isToday && <Truck className="h-5 w-5 text-blue-500 flex-shrink-0" />}
-                        </h1>
-                        <NotificationBell userId={userId} />
-                    </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">
-                        {isRange
-                            ? `${dateRange?.from ? format(dateRange.from, 'MMM d') : ''} - ${dateRange?.to ? format(dateRange.to, 'MMM d, yyyy') : ''}`
+            <div className="flex items-center justify-between mb-8 animate-in fade-in slide-in-from-top-2 duration-500">
+                <div>
+                    <h1 className="text-[28px] font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none mb-1">
+                        {isToday ? "Today" : isRange ? "Period Reports" : "History Log"}
+                    </h1>
+                    <p className="text-[15px] text-slate-500 dark:text-slate-400 font-medium">
+                        {isRange && dateRange?.from && dateRange?.to && !isSameDay(dateRange.from, dateRange.to)
+                            ? `${format(dateRange.from, 'MMM d')} - ${format(dateRange.to, 'MMM d, yyyy')}`
                             : isToday ? "Let's get moving!" : dateRange?.from ? format(dateRange.from, 'EEEE, MMM d, yyyy') : ''}
                     </p>
                 </div>
 
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant="outline"
-                            className={cn(
-                                "flex-shrink-0 max-w-[200px] justify-start text-left font-normal text-xs",
-                                !dateRange && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-1.5 h-3.5 w-3.5 flex-shrink-0" />
-                            {dateRange?.from ? (
-                                dateRange.to ? (
-                                    <>
-                                        {format(dateRange.from, "MMM d, y")} -{" "}
-                                        {format(dateRange.to, "MMM d, y")}
-                                    </>
+                <div className="flex items-center gap-2">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                    "flex-shrink-0 h-10 rounded-full border-slate-200 dark:border-slate-800 bg-white dark:bg-[#18181B] shadow-sm px-4 font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all",
+                                    !dateRange && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4 text-slate-400" />
+                                {dateRange?.from ? (
+                                    dateRange.to && !isSameDay(dateRange.from, dateRange.to) ? (
+                                        <>
+                                            {format(dateRange.from, "MMM d")} - {format(dateRange.to, "MMM d, yy")}
+                                        </>
+                                    ) : (
+                                        isSameDay(dateRange.from, new Date()) ? "Today" : format(dateRange.from, "MMM d, yyyy")
+                                    )
                                 ) : (
-                                    format(dateRange.from, "MMM d, y")
-                                )
-                            ) : (
-                                <span>Pick a date</span>
-                            )}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                        <div className="p-3 border-b border-slate-100 dark:border-slate-800">
-                            <h4 className="font-bold text-xs text-slate-500 mb-2 uppercase tracking-wider">Quick Select</h4>
-                            <div className="flex gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-xs h-8 flex-1 bg-slate-50"
-                                    onClick={() => setDateRange({ from: new Date(), to: new Date() })}
-                                >
-                                    Today
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-xs h-8 flex-1 bg-slate-50"
-                                    onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}
-                                >
-                                    Last 7 Days
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-xs h-8 flex-1 bg-slate-50"
-                                    onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}
-                                >
-                                    This Month
-                                </Button>
+                                    <span>Date</span>
+                                )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 rounded-2xl shadow-xl" align="end">
+                            <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-[#18181B]">
+                                <h4 className="font-bold text-xs text-slate-500 mb-2 uppercase tracking-wider">Quick Select</h4>
+                                <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-white dark:bg-slate-900 rounded-xl font-bold" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>
+                                        Today
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-white dark:bg-slate-900 rounded-xl font-bold" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>
+                                        Last 7
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 flex-1 bg-white dark:bg-slate-900 rounded-xl font-bold" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>
+                                        This Month
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                        <Calendar
-                            mode="range"
-                            selected={dateRange}
-                            onSelect={setDateRange}
-                            disabled={(date) => date > new Date() || date < new Date("2024-01-01")}
-                            initialFocus
-                        />
-                        <div className="p-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-center">
-                            <p className="text-[10px] text-slate-500">
-                                💡 Tip: Click start date, then click end date to select a range.
-                            </p>
-                        </div>
-                    </PopoverContent>
-                </Popover>
+                            <Calendar
+                                mode="range"
+                                selected={dateRange}
+                                onSelect={setDateRange}
+                                disabled={(date) => date > new Date() || date < new Date("2024-01-01")}
+                                initialFocus
+                            />
+                        </PopoverContent>
+                    </Popover>
 
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                    onClick={() => setForceShowGuide(!forceShowGuide)}
-                >
-                    <HelpCircle size={20} />
-                </Button>
+                    <div className="bg-white dark:bg-[#18181B] border border-slate-200 dark:border-slate-800 shadow-sm rounded-full h-10 w-10 flex items-center justify-center relative">
+                        <NotificationBell userId={userId} />
+                    </div>
+                </div>
             </div>
 
             {/* STATUS TOGGLE & GUIDE (Only show for TODAY) */}
             {isToday && (
-                <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-3 duration-500 delay-150 fill-mode-both">
-                    <div className="flex items-center gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center transition-colors ${isOnline ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
-                            <Power size={20} />
+                <div className="flex items-center justify-between bg-white dark:bg-[#18181B] p-4 rounded-3xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 dark:border-slate-800/60 animate-in fade-in slide-in-from-bottom-3 duration-500 delay-150 fill-mode-both">
+                    <div className="flex items-center gap-3.5">
+                        <div className={cn(
+                            "h-[46px] w-[46px] rounded-full flex items-center justify-center transition-colors border-2",
+                            isOnline 
+                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-500/20' 
+                                : 'bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400'
+                        )}>
+                            <Power size={22} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">Status: {isOnline ? 'Online' : 'Offline'}</p>
-                            <p className="text-xs text-slate-500">{isOnline ? 'You are receiving orders' : 'You are currently hidden'}</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-100 text-[16px] leading-tight">Status: {isOnline ? 'Online' : 'Offline'}</p>
+                            <p className="text-[14px] text-slate-500 dark:text-slate-400 mt-0.5">{isOnline ? 'You are receiving orders' : 'You are currently hidden'}</p>
                         </div>
                     </div>
                     <Button
-                        variant={isOnline ? "default" : "secondary"}
-                        className={isOnline ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                        variant={isOnline ? "default" : "outline"}
+                        className={cn(
+                            "rounded-[14px] font-bold h-[42px] px-5",
+                            isOnline 
+                                ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-500/20" 
+                                : "bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                        )}
                         onClick={toggleOnlineStatus}
                         disabled={isTogglingStatus}
                     >
@@ -556,43 +533,60 @@ export function DriverDashboardView({ userId }: { userId: string }) {
                                 <div
                                     key={order.id}
                                     onClick={() => router.push(`/my-editor?id=${order.id}`)}
-                                    className={`bg-white dark:bg-slate-900 p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition-all active:scale-[0.99] ${isOverdue
-                                        ? 'border-orange-300 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-950/20'
-                                        : 'border-slate-100 dark:border-slate-800'
-                                        }`}
+                                    className={cn(
+                                        "bg-white dark:bg-[#18181B] p-4 rounded-2xl border shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex items-center justify-between cursor-pointer transition-all active:scale-[0.98]",
+                                        isOverdue 
+                                            ? "border-orange-200 dark:border-orange-500/30 shadow-[0_4px_12px_rgba(249,115,22,0.05)] dark:shadow-none" 
+                                            : "border-slate-100 dark:border-slate-800/60 hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)]"
+                                    )}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-2 h-2 rounded-full ${order.status === 'delivered' ? 'bg-green-500' :
-                                            order.status === 'cancelled' ? 'bg-red-500' : isOverdue ? 'bg-orange-500' : 'bg-blue-500'}`} />
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-bold text-sm text-slate-900 dark:text-slate-200">{order.customer_name}</p>
+                                    <div className="flex items-center gap-3 w-full">
+                                        {/* Status Dot */}
+                                        <div className={cn(
+                                            "w-2 h-2 rounded-full shrink-0",
+                                            order.status === 'delivered' ? "bg-emerald-500" :
+                                            order.status === 'cancelled' ? "bg-red-500" :
+                                            isOverdue ? "bg-orange-500" : "bg-blue-500"
+                                        )} />
+                                        
+                                        <div className="flex-1 min-w-0 pr-2">
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <p className="font-bold text-[15px] text-slate-900 dark:text-slate-100 truncate">
+                                                    {order.customer_name}
+                                                </p>
                                                 {isOverdue && (
-                                                    <span className="text-[9px] bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                                    <span className="shrink-0 text-[10px] bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
                                                         Overdue
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">{order.address?.split(',')[0]}</p>
+                                            <p className="text-[13px] text-slate-500 dark:text-slate-400 truncate">
+                                                {order.address?.split(',')[0]}
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <span className={`text-xs px-2 py-1 rounded-full font-bold inline-block ${order.status === 'delivered' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                                            order.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                                            }`}>
+
+                                    <div className="flex flex-col items-end shrink-0 pl-2">
+                                        <span className={cn(
+                                            "text-[12px] px-3 py-1 rounded-full font-bold",
+                                            order.status === 'delivered' ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" :
+                                            order.status === 'cancelled' ? "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400" :
+                                            "bg-blue-50/80 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+                                        )}>
                                             {order.status === 'delivered' ? 'Done' :
-                                                order.status === 'cancelled' ? 'Failed' : 'Active'}
+                                             order.status === 'cancelled' ? 'Failed' : 'Active'}
                                         </span>
+                                        
                                         {/* Timestamp Display */}
-                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-medium flex items-center justify-end gap-1">
+                                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 font-medium flex items-center justify-end gap-1">
                                             {order.status === 'delivered' && order.delivered_at ? (
                                                 <>
-                                                    <CheckCircle2 size={10} />
+                                                    <CheckCircle2 size={12} className="text-emerald-500" />
                                                     {format(new Date(order.delivered_at), 'h:mm a')}
                                                 </>
                                             ) : (order.time_window_start || order.time_window_end) ? (
                                                 <>
-                                                    <Clock size={10} />
+                                                    <Clock size={12} />
                                                     {order.time_window_start?.slice(0, 5)} - {order.time_window_end?.slice(0, 5)}
                                                 </>
                                             ) : null}

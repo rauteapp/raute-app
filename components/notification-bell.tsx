@@ -92,9 +92,9 @@ export function NotificationBell({ userId }: { userId: string | null }) {
                 </button>
             </SheetTrigger>
             <SheetContent side="right" className="w-full sm:w-[400px] p-0 flex flex-col" hideClose>
-                <SheetHeader className="px-5 pb-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 1rem))' }}>
-                    <div className="flex items-center justify-between">
-                        <SheetTitle className="text-lg font-black tracking-tight">Notifications</SheetTitle>
+                <SheetHeader className="px-5 pt-14 pb-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+                    <div className="flex items-center justify-between mt-2">
+                        <SheetTitle className="text-xl font-black tracking-tight">Notifications</SheetTitle>
                         <SheetDescription className="sr-only">Your recent notifications</SheetDescription>
                         <div className="flex items-center gap-1">
                             {unreadCount > 0 && (
@@ -108,8 +108,8 @@ export function NotificationBell({ userId }: { userId: string | null }) {
                                 </Button>
                             )}
                             <SheetClose asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                    <X size={16} />
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                                    <X size={18} className="text-slate-500" />
                                     <span className="sr-only">Close</span>
                                 </Button>
                             </SheetClose>

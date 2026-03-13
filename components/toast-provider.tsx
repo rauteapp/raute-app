@@ -1,8 +1,9 @@
 "use client"
 
-import React, { createContext, useContext, useState, useCallback } from "react"
-import { X, CheckCircle, AlertCircle, Info } from "lucide-react"
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react"
+import { X, CheckCircle2, AlertCircle, Info } from "lucide-react"
 import { hapticSuccess, hapticError } from "@/lib/haptics"
+import { cn } from "@/lib/utils"
 
 type ToastType = 'success' | 'error' | 'info'
 
@@ -30,7 +31,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
     const addToast = useCallback(({ title, description, type }: Omit<Toast, 'id'>) => {
         const id = Math.random().toString(36).substring(7)
-        setToasts(prev => [...prev, { id, title, description, type }])
+        // Only keep the most recent toast
+        setToasts([{ id, title, description, type }])
 
         // Haptic feedback based on toast type
         if (type === 'success') hapticSuccess()
@@ -44,7 +46,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         setToasts(prev => prev.filter(t => t.id !== id))
     }, [])
 
-    React.useEffect(() => {
+    useEffect(() => {
         const handleExternalToast = (event: any) => {
             if (event.detail) addToast(event.detail)
         }
@@ -55,24 +57,39 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return (
         <ToastContext.Provider value={{ toast: addToast }}>
             {children}
-            <div className="fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:bottom-4 sm:w-96 z-[9999] flex flex-col gap-2 pointer-events-none safe-area-pb">
+            {/* Top Right, smaller width */}
+            <div className="fixed top-14 right-4 sm:top-6 sm:right-6 w-[280px] z-[9999] flex flex-col gap-2 pointer-events-none safe-area-pt">
                 {toasts.map(t => (
                     <div
                         key={t.id}
-                        className={`pointer-events-auto flex items-start gap-3 p-4 rounded-2xl border animate-in slide-in-from-bottom-5 fade-in zoom-in-95 duration-300 ${t.type === 'success' ? 'bg-green-600 text-white border-green-700' :
-                            t.type === 'error' ? 'bg-red-600 text-white border-red-700' :
-                                'bg-slate-800 text-white border-slate-700'
-                            }`}
+                        className={cn(
+                            "pointer-events-auto flex items-center gap-2.5 p-3 rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.3)] border animate-in slide-in-from-right-8 fade-in zoom-in-95 duration-300",
+                            t.type === 'success' ? "bg-white dark:bg-[#18181B] border-emerald-100 dark:border-emerald-500/20" :
+                            t.type === 'error' ? "bg-white dark:bg-[#18181B] border-red-100 dark:border-red-500/20" :
+                            "bg-white dark:bg-[#18181B] border-slate-100 dark:border-slate-800"
+                        )}
                     >
-                        {t.type === 'success' && <CheckCircle className="shrink-0 h-5 w-5" />}
-                        {t.type === 'error' && <AlertCircle className="shrink-0 h-5 w-5" />}
-                        {t.type === 'info' && <Info className="shrink-0 h-5 w-5" />}
+                        <div className={cn(
+                            "h-7 w-7 shrink-0 rounded-full flex items-center justify-center",
+                            t.type === 'success' ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" :
+                            t.type === 'error' ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400" :
+                            "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+                        )}>
+                            {t.type === 'success' && <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={3} />}
+                            {t.type === 'error' && <AlertCircle className="h-3.5 w-3.5" strokeWidth={3} />}
+                            {t.type === 'info' && <Info className="h-3.5 w-3.5" strokeWidth={3} />}
+                        </div>
 
                         <div className="flex-1">
-                            <h4 className="font-bold text-sm leading-tight">{t.title}</h4>
-                            {t.description && <p className="text-xs opacity-90 mt-1 leading-relaxed">{t.description}</p>}
+                            <h4 className="font-bold text-[13px] leading-tight text-slate-900 dark:text-white">{t.title}</h4>
+                            {t.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{t.description}</p>}
                         </div>
-                        <button onClick={() => removeToast(t.id)} className="shrink-0"><X className="h-4 w-4 opacity-70 hover:opacity-100" /></button>
+                        <button 
+                            onClick={() => removeToast(t.id)} 
+                            className="shrink-0 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
                     </div>
                 ))}
             </div>
