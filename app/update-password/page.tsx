@@ -38,19 +38,25 @@ export default function UpdatePasswordPage() {
                 recoveryConfirmedRef.current = true
                 setRecoveryEmail(session.user.email || '')
                 setIsChecking(false)
-            } else if (event === 'INITIAL_SESSION' && session && !recoveryConfirmedRef.current) {
-                // The Supabase client singleton processes the URL hash (#access_token=...&type=recovery)
-                // and fires PASSWORD_RECOVERY BEFORE React mounts. By the time this listener is
-                // registered, the event is missed and the hash is cleared. However, onAuthStateChange
-                // always fires INITIAL_SESSION immediately with the current session — which IS the
-                // recovery session (Supabase replaced any previous session when it processed the hash).
-                recoveryConfirmedRef.current = true
-                setRecoveryEmail(session.user.email || '')
-                setIsChecking(false)
             }
         })
 
-        // Timeout: if neither event provides a session within 8 seconds,
+        // The Supabase client processes the URL hash BEFORE React mounts, so
+        // PASSWORD_RECOVERY fires before our listener is registered. As a fallback,
+        // validate the current session server-side with getUser(). This is safe
+        // because getUser() makes a server call — if the JWT belongs to a deleted
+        // user (stale cookies from previous sessions), it will fail with 403.
+        supabase.auth.getUser().then(({ data: { user }, error }) => {
+            if (user && !error && !recoveryConfirmedRef.current) {
+                recoveryConfirmedRef.current = true
+                setRecoveryEmail(user.email || '')
+                setIsChecking(false)
+            }
+        }).catch(() => {
+            // Invalid/stale session — wait for PASSWORD_RECOVERY or timeout
+        })
+
+        // Timeout: if neither provides a valid session within 8 seconds,
         // the link is expired/invalid or was already used.
         const timeout = setTimeout(() => {
             if (!recoveryConfirmedRef.current) {
