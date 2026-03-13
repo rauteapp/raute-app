@@ -443,18 +443,25 @@ export default function DriversPage() {
                     .eq('id', driverId)
             }
 
-            // Send account setup email to the driver
-            // Use hardcoded origin — on mobile (Capacitor), window.location.origin
-            // is "capacitor://localhost" which Supabase rejects, falling back to site URL
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: 'https://raute.io/update-password',
-            })
-
-            if (resetError) {
-                console.error('Failed to send setup email:', resetError)
-                toast({ title: '✅ Driver created!', description: `${name} has been added to your team. Setup email failed — you can resend it from the driver's card.`, type: 'success' })
-            } else {
-                toast({ title: '✅ Driver created!', description: `${name} has been added to your team. A setup email has been sent to set their password.`, type: 'success' })
+            // Send branded welcome email via server API (not resetPasswordForEmail which
+            // sends a confusing "Reset Your Password" email to new users)
+            try {
+                const { data: { session } } = await supabase.auth.getSession()
+                const welcomeRes = await fetch('/api/auth/send-welcome', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token}`,
+                    },
+                    body: JSON.stringify({ email, name, role: 'driver' }),
+                })
+                if (welcomeRes.ok) {
+                    toast({ title: '✅ Driver created!', description: `${name} has been added to your team. A welcome email has been sent to set their password.`, type: 'success' })
+                } else {
+                    toast({ title: '✅ Driver created!', description: `${name} has been added to your team. Welcome email failed — you can resend it from the driver's card.`, type: 'success' })
+                }
+            } catch {
+                toast({ title: '✅ Driver created!', description: `${name} has been added to your team. Welcome email failed — you can resend it from the driver's card.`, type: 'success' })
             }
 
             // Reset form state
@@ -485,14 +492,20 @@ export default function DriversPage() {
                 return
             }
 
-            const { error } = await supabase.auth.resetPasswordForEmail(target.email || '', {
-                redirectTo: 'https://raute.io/update-password'
+            const { data: { session } } = await supabase.auth.getSession()
+            const res = await fetch('/api/auth/send-welcome', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`,
+                },
+                body: JSON.stringify({ email: target.email, name: target.name, role: 'driver' }),
             })
 
-            if (!error) {
-                toast({ title: "Setup email sent!", description: `${target.name} will receive an email at ${target.email} to set their password.`, type: "success" })
+            if (res.ok) {
+                toast({ title: "Setup email sent!", description: `${target.name} will receive a welcome email at ${target.email} to set their password.`, type: "success" })
             } else {
-                toast({ title: "Failed to send setup email", description: error.message, type: "error" })
+                toast({ title: "Failed to send setup email", description: "Please try again.", type: "error" })
             }
 
         } catch (error) {
@@ -574,14 +587,24 @@ export default function DriversPage() {
 
         // Send setup email if requested — lets the driver set/reset their own password
         if (newPassword && newPassword.length >= 1 && editingDriver.user_id && editingDriver.email) {
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(editingDriver.email, {
-                redirectTo: 'https://raute.io/update-password'
-            })
+            try {
+                const { data: { session } } = await supabase.auth.getSession()
+                const res = await fetch('/api/auth/send-welcome', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token}`,
+                    },
+                    body: JSON.stringify({ email: editingDriver.email, name: editingDriver.name, role: 'driver' }),
+                })
 
-            if (resetError) {
-                toast({ title: 'Failed to send setup email', description: resetError.message, type: 'error' })
-            } else {
-                toast({ title: 'Setup email sent!', description: `${editingDriver.name} will receive an email to set their password.`, type: 'success' })
+                if (!res.ok) {
+                    toast({ title: 'Failed to send setup email', description: 'Please try again.', type: 'error' })
+                } else {
+                    toast({ title: 'Setup email sent!', description: `${editingDriver.name} will receive an email to set their password.`, type: 'success' })
+                }
+            } catch {
+                toast({ title: 'Failed to send setup email', type: 'error' })
             }
         }
 

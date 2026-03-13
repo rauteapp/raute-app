@@ -151,14 +151,20 @@ export default function DispatchersPage() {
 
     async function handleResendSetupEmail(dispatcher: AppUser) {
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(dispatcher.email || '', {
-                redirectTo: 'https://raute.io/update-password'
+            const { data: { session } } = await supabase.auth.getSession()
+            const res = await fetch('/api/auth/send-welcome', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`,
+                },
+                body: JSON.stringify({ email: dispatcher.email, name: dispatcher.full_name, role: 'dispatcher' }),
             })
 
-            if (!error) {
-                toast({ title: 'Setup email sent!', description: `${dispatcher.full_name} will receive an email at ${dispatcher.email} to set their password.`, type: 'success' })
+            if (res.ok) {
+                toast({ title: 'Setup email sent!', description: `${dispatcher.full_name} will receive a welcome email at ${dispatcher.email} to set their password.`, type: 'success' })
             } else {
-                toast({ title: 'Failed to send setup email', description: error.message, type: 'error' })
+                toast({ title: 'Failed to send setup email', description: 'Please try again.', type: 'error' })
             }
         } catch {
             toast({ title: 'Failed to send setup email', type: 'error' })
@@ -247,21 +253,35 @@ export default function DispatchersPage() {
             if (error) throw error
             if (data && !data.success) throw new Error(data.error || "Failed to create dispatcher")
 
-            // Send account setup email
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
-                redirectTo: 'https://raute.io/update-password',
-            })
-
-            if (resetError) {
-                toast({
-                    title: 'Dispatcher Created!',
-                    description: `Account created but setup email failed. You can resend it from the dispatcher's card using the mail icon.`,
-                    type: 'success'
+            // Send branded welcome email
+            try {
+                const { data: { session } } = await supabase.auth.getSession()
+                const welcomeRes = await fetch('/api/auth/send-welcome', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token}`,
+                    },
+                    body: JSON.stringify({ email: formData.email, name: formData.name, role: 'dispatcher' }),
                 })
-            } else {
+
+                if (welcomeRes.ok) {
+                    toast({
+                        title: 'Dispatcher Created!',
+                        description: `A welcome email has been sent to ${formData.email} to set their password.`,
+                        type: 'success'
+                    })
+                } else {
+                    toast({
+                        title: 'Dispatcher Created!',
+                        description: `Account created but welcome email failed. You can resend it from the dispatcher's card.`,
+                        type: 'success'
+                    })
+                }
+            } catch {
                 toast({
                     title: 'Dispatcher Created!',
-                    description: `A setup email has been sent to ${formData.email}. They need to click the link to set their password.`,
+                    description: `Account created but welcome email failed. You can resend it from the dispatcher's card.`,
                     type: 'success'
                 })
             }
