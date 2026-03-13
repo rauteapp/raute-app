@@ -174,7 +174,7 @@ export default function WelcomeSetupPage() {
 
         try {
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(expiredEmail, {
-                redirectTo: 'https://raute.io/welcome-setup',
+                redirectTo: 'https://raute.io/update-password',
             })
 
             if (resetError) {
