@@ -29,6 +29,7 @@ const ERROR_PATTERNS: [RegExp, string][] = [
     [/invalid login credentials/i, 'Invalid email or password. Please try again.'],
     [/email not confirmed/i, 'Please verify your email before logging in.'],
     [/user not found/i, 'No account found with this email.'],
+    [/sub claim.*does not exist/i, 'This setup link is no longer valid. Please request a new one.'],
     [/invalid.*token/i, 'Your session has expired. Please log in again.'],
     [/jwt expired/i, 'Your session has expired. Please log in again.'],
     [/refresh_token.*not found/i, 'Your session has expired. Please log in again.'],
