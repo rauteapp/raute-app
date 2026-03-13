@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Mail } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/toast-provider"
+import { friendlyError } from "@/lib/friendly-error"
 import { MobileAuthWrapper } from "@/components/mobile-auth-wrapper"
 import { AuthSkeleton } from "@/components/auth-skeleton"
 import { Browser } from '@capacitor/browser'
@@ -367,7 +368,7 @@ export default function LoginPage() {
             console.error('❌ Login failed:', err)
             toast({
                 title: "Login Failed",
-                description: err.message || "Invalid credentials",
+                description: friendlyError(err, "Invalid email or password. Please try again."),
                 type: "error"
             })
             setIsLoading(false) // Only reset on error
@@ -460,10 +461,10 @@ export default function LoginPage() {
         } catch (err: any) {
             toast({
                 title: "Signup Failed",
-                description: err.message || "An unexpected error occurred",
+                description: friendlyError(err),
                 type: "error"
             })
-            setSignupError(err instanceof Error ? err.message : "An unexpected error occurred")
+            setSignupError(friendlyError(err))
         } finally {
             setIsLoading(false)
         }

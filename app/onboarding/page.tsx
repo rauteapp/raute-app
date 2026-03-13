@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Building2, Phone, User, Loader2, CheckCircle2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/toast-provider"
+import { friendlyError } from "@/lib/friendly-error"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 
 export default function OnboardingPage() {
@@ -97,7 +98,7 @@ export default function OnboardingPage() {
         } catch (error: any) {
             toast({
                 title: "Setup Failed",
-                description: error.message,
+                description: friendlyError(error),
                 type: "error"
             })
             setIsSaving(false)

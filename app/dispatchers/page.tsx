@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { UserCog, Plus, Trash2, Power, Lock, Unlock, ShieldAlert, Send } from 'lucide-react'
 import { useToast } from '@/components/toast-provider'
+import { friendlyError } from '@/lib/friendly-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { PullToRefresh } from '@/components/pull-to-refresh'
@@ -293,7 +294,7 @@ export default function DispatchersPage() {
         } catch (error: any) {
             toast({
                 title: 'Error Creating Dispatcher',
-                description: error.message || "An unexpected error occurred",
+                description: friendlyError(error),
                 type: 'error'
             })
         } finally {

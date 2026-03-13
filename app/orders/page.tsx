@@ -19,6 +19,7 @@ import { CustomFieldsManager } from "@/components/custom-fields-manager"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { DriverTracker } from "@/components/driver-tracker"
 import { useToast } from "@/components/toast-provider"
+import { friendlyError } from "@/lib/friendly-error"
 import { useConfirm } from "@/hooks/use-confirm"
 import { XCircle } from "lucide-react"
 import { NotificationService } from '@/lib/notification-service'
@@ -386,7 +387,7 @@ export default function OrdersPage() {
                     })
                 } catch (e) { }
             } else {
-                toast({ title: 'Failed to update order', description: error.message, type: 'error' })
+                toast({ title: 'Failed to update order', description: friendlyError(error), type: 'error' })
             }
         } finally {
             setIsLoading(false)
@@ -534,7 +535,7 @@ export default function OrdersPage() {
             setIsOnline(currentStatus) // Revert UI
             toast({
                 title: "Failed to update status",
-                description: error.message || "Database permission denied",
+                description: friendlyError(error, "Failed to update status. Please try again."),
                 type: "error"
             })
         }
@@ -731,7 +732,7 @@ export default function OrdersPage() {
             console.error('❌ Order import failed:', error.message, error)
             toast({
                 title: "Import Failed",
-                description: error.message || "Could not extract orders. Please check the input format.",
+                description: friendlyError(error, "Could not extract orders. Please check the input format."),
                 type: "error"
             })
         } finally {
@@ -800,7 +801,7 @@ export default function OrdersPage() {
             setIsSelectionMode(false)
             fetchData() // background sync
         } catch (error: any) {
-            toast({ title: 'Delete error', description: error.message, type: 'error' })
+            toast({ title: 'Delete error', description: friendlyError(error), type: 'error' })
         }
     }
 
@@ -872,7 +873,7 @@ export default function OrdersPage() {
             })
             fetchData()
         } catch (error: any) {
-            toast({ title: "Retry failed", description: error.message, type: "error" })
+            toast({ title: "Retry failed", description: friendlyError(error), type: "error" })
         } finally {
             setIsRetryingGeocode(false)
         }

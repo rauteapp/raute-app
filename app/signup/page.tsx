@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Eye, EyeOff, AlertCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/toast-provider"
+import { friendlyError } from "@/lib/friendly-error"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 import { isValidPhoneNumber } from "react-phone-number-input"
 import { MobileAuthWrapper } from "@/components/mobile-auth-wrapper"
@@ -131,7 +132,7 @@ export default function SignupPage() {
         } catch (err: any) {
             toast({
                 title: "Signup Failed",
-                description: err.message || "An unexpected error occurred",
+                description: friendlyError(err),
                 type: "error"
             })
             setError(err instanceof Error ? err.message : "An unexpected error occurred")
@@ -398,7 +399,7 @@ export default function SignupPage() {
                         } catch (err: any) {
                             toast({
                                 title: "Sign up failed",
-                                description: err.message,
+                                description: friendlyError(err),
                                 type: "error"
                             })
                             setIsLoading(false)

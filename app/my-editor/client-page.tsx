@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { offlineManager } from '@/lib/offline-manager'
 import { geoService } from '@/lib/geo-service'
 import { useToast } from "@/components/toast-provider"
+import { friendlyError } from "@/lib/friendly-error"
 import LocationPicker from "@/components/location-picker"
 import { DriverTracker } from "@/components/driver-tracker"
 import { ImageViewerModal } from "@/components/image-viewer-modal"
@@ -212,7 +213,7 @@ export default function ClientOrderDetails() {
                 setProofImages(images)
             }
         } catch (error: any) {
-            toast({ title: 'Error fetching order', description: error.message, type: 'error' })
+            toast({ title: 'Error fetching order', description: friendlyError(error), type: 'error' })
         } finally {
             if (isInitial) setIsLoading(false)
         }
@@ -435,7 +436,7 @@ export default function ClientOrderDetails() {
                 }))
             }
         } catch (error: any) {
-            toast({ title: 'Could not auto-fill address', description: error.message || "Unknown error", type: 'error' })
+            toast({ title: 'Could not auto-fill address', description: friendlyError(error, 'Could not find address for this location.'), type: 'error' })
         } finally {
             setIsGeocodingReversed(false)
         }
@@ -466,13 +467,13 @@ export default function ClientOrderDetails() {
 
             toast({ title: 'Image deleted successfully', type: 'success' })
         } catch (error: any) {
-            toast({ title: 'Failed to delete image', description: error.message, type: 'error' })
+            toast({ title: 'Failed to delete image', description: friendlyError(error), type: 'error' })
         }
     }
 
     async function handleDelete() {
         if (!orderId) return
-        try { setIsDeleting(true); const { error } = await supabase.from('orders').delete().eq('id', orderId); if (error) throw error; router.push('/orders') } catch (error: any) { toast({ title: 'Delete Failed', description: error.message, type: 'error' }) } finally { setIsDeleting(false) }
+        try { setIsDeleting(true); const { error } = await supabase.from('orders').delete().eq('id', orderId); if (error) throw error; router.push('/orders') } catch (error: any) { toast({ title: 'Delete Failed', description: friendlyError(error), type: 'error' }) } finally { setIsDeleting(false) }
     }
 
     async function handleEditSubmit(e: React.FormEvent) {
@@ -526,7 +527,7 @@ export default function ClientOrderDetails() {
             toast({ title: "Changes Saved Successfully!", type: "success" })
 
         } catch (error: any) {
-            toast({ title: "Failed to update order", description: error.message || 'Check connection', type: "error" })
+            toast({ title: "Failed to update order", description: friendlyError(error, 'Please check your connection and try again.'), type: "error" })
         } finally {
             setIsUpdating(false)
         }
@@ -969,7 +970,7 @@ export default function ClientOrderDetails() {
                                                 }
                                             }
                                         } catch (e: any) {
-                                            if (e.message !== 'User cancelled photos app') toast({ title: "Camera Failed", description: e.message, type: "error" })
+                                            if (e.message !== 'User cancelled photos app') toast({ title: "Camera Failed", description: friendlyError(e, 'Could not access camera. Please check permissions.'), type: "error" })
                                         } finally {
                                             setIsUploadingProof(false)
                                         }
@@ -1031,13 +1032,13 @@ export default function ClientOrderDetails() {
                                             if (finalSignatureUrl) {
                                                 const { error: sigErr } = await supabase.from('orders').update({ signature_url: finalSignatureUrl }).eq('id', orderId)
                                                 if (sigErr) {
-                                                    toast({ title: "Failed to save signature", description: sigErr.message, type: "error" })
+                                                    toast({ title: "Failed to save signature", description: friendlyError(sigErr), type: "error" })
                                                     return
                                                 }
                                             }
                                             await updateOrderStatus('delivered', proofUrl)
                                         } catch (err: any) {
-                                            toast({ title: "Error", description: err.message, type: "error" })
+                                            toast({ title: "Error", description: friendlyError(err), type: "error" })
                                         } finally {
                                             setIsUpdating(false)
                                         }
@@ -1150,7 +1151,7 @@ export default function ClientOrderDetails() {
                                     }).eq('id', orderId)
 
                                     if (clearErr) {
-                                        toast({ title: "Failed to clear proof data", description: clearErr.message, type: "error" })
+                                        toast({ title: "Failed to clear proof data", description: friendlyError(clearErr), type: "error" })
                                         return
                                     }
 
@@ -1169,7 +1170,7 @@ export default function ClientOrderDetails() {
                                     // Update local state
                                     setOrder(prev => prev ? { ...prev, proof_url: null, signature_url: null } : prev)
                                 } catch (err: any) {
-                                    toast({ title: "Undo failed", description: err.message, type: "error" })
+                                    toast({ title: "Undo failed", description: friendlyError(err), type: "error" })
                                 } finally {
                                     setIsUpdating(false)
                                     setIsUndoDialogOpen(false)

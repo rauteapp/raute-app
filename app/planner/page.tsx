@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { MapPin, Truck, Sparkles, AlertCircle, AlertTriangle, Lock, Unlock, Clock, ExternalLink, CheckCircle2, User as UserIcon, Edit } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from "@/components/toast-provider"
+import { friendlyError } from "@/lib/friendly-error"
 import { useConfirm } from "@/hooks/use-confirm"
 import { useTheme } from 'next-themes'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -780,14 +781,8 @@ export default function PlannerPage() {
             })
 
         } catch (error: any) {
-            // Try to extract useful info
-            let msg = 'Unknown Error'
-            if (error?.message) msg = error.message
-            if (error?.code) msg += ` (Code: ${error.code})`
-            if (error?.details) msg += ` Details: ${error.details} `
-            if (error?.hint) msg += ` Hint: ${error.hint} `
-
-            toast({ title: 'Optimization Failed', description: msg, type: 'error' })
+            console.error('Optimization error:', error?.message, error?.code, error?.details, error?.hint)
+            toast({ title: 'Optimization Failed', description: friendlyError(error, 'Could not optimize routes. Please try again.'), type: 'error' })
         } finally {
             setIsLoading(false)
         }
@@ -848,7 +843,7 @@ export default function PlannerPage() {
             })
             fetchData()
         } catch (error: any) {
-            toast({ title: "Retry failed", description: error.message, type: "error" })
+            toast({ title: "Retry failed", description: friendlyError(error), type: "error" })
         } finally {
             setIsRetryingGeocode(false)
         }
@@ -961,7 +956,7 @@ export default function PlannerPage() {
             .eq('id', orderId)
 
         if (error) {
-            toast({ title: 'Failed to update order', description: error.message, type: 'error' })
+            toast({ title: 'Failed to update order', description: friendlyError(error), type: 'error' })
             fetchData() // Revert
         } else {
             const order = orders.find(o => o.id === orderId)
@@ -1010,7 +1005,7 @@ export default function PlannerPage() {
             .eq('id', orderId)
 
         if (error) {
-            toast({ title: 'Failed to update order', description: error.message, type: 'error' })
+            toast({ title: 'Failed to update order', description: friendlyError(error), type: 'error' })
             fetchData()
         } else {
             const order = orders.find(o => o.id === orderId)

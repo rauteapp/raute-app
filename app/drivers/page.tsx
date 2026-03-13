@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
 import { cacheData, getCachedData } from "@/lib/offline-cache"
+import { friendlyError } from "@/lib/friendly-error"
 import {
     Plus,
     Search,
@@ -260,7 +261,7 @@ export default function DriversPage() {
                     setFilteredDrivers(withMissing)
                     toast({ title: 'Offline Mode', description: 'Showing cached drivers', type: 'info' })
                 } else {
-                    toast({ title: 'Error fetching drivers', description: driversError.message, type: 'error' })
+                    toast({ title: 'Error fetching drivers', description: friendlyError(driversError), type: 'error' })
                     throw driversError
                 }
             }
@@ -278,7 +279,7 @@ export default function DriversPage() {
                 setFilteredDrivers(withMissing)
             }
         } catch (error: any) {
-            toast({ title: 'Error loading drivers', description: error.message, type: 'error' })
+            toast({ title: 'Error loading drivers', description: friendlyError(error), type: 'error' })
         } finally {
             setIsLoading(false)
         }
@@ -330,7 +331,7 @@ export default function DriversPage() {
             }
         } catch (error: any) {
             console.error('Geocoding error:', error)
-            toast({ title: 'Geocoding failed', description: error.message || 'An error occurred', type: 'error' })
+            toast({ title: 'Geocoding failed', description: friendlyError(error, 'Could not find this address. Please try again.'), type: 'error' })
         } finally {
             setIsGeocoding(false)
         }
@@ -425,7 +426,7 @@ export default function DriversPage() {
 
             if (error || (result && result.success === false)) {
                 console.error('❌ Driver creation failed:', error?.message || result?.error)
-                toast({ title: "Failed", description: error?.message || result?.error || 'Unknown error', type: "error" })
+                toast({ title: "Failed", description: friendlyError(error?.message || result?.error), type: "error" })
                 return
             }
 
@@ -475,7 +476,7 @@ export default function DriversPage() {
             fetchDrivers()
         } catch (error: any) {
             console.error('💥 Exception in handleCreateDriver:', error)
-            toast({ title: 'Error adding driver', description: error.message, type: 'error' })
+            toast({ title: 'Error adding driver', description: friendlyError(error), type: 'error' })
         } finally {
             setIsCreatingDriver(false)
         }
@@ -614,7 +615,7 @@ export default function DriversPage() {
             .eq('id', editingDriver.user_id)
 
         if (userError) {
-            toast({ title: 'Failed to update user info', description: userError.message, type: 'error' })
+            toast({ title: 'Failed to update user info', description: friendlyError(userError), type: 'error' })
             return
         }
 
@@ -639,7 +640,7 @@ export default function DriversPage() {
             .eq('id', editingDriver.id)
 
         if (driverError) {
-            toast({ title: 'Failed to update driver details', description: driverError.message, type: 'error' })
+            toast({ title: 'Failed to update driver details', description: friendlyError(driverError), type: 'error' })
             return
         }
 
@@ -665,7 +666,7 @@ export default function DriversPage() {
             setDeletingDriver(null)
             fetchDrivers()
         } catch (error: any) {
-            toast({ title: 'Error deleting driver', description: error.message, type: 'error' })
+            toast({ title: 'Error deleting driver', description: friendlyError(error), type: 'error' })
         } finally {
             setIsDeleting(false)
         }
@@ -682,7 +683,7 @@ export default function DriversPage() {
                 .eq('id', driverId)
 
             if (driverError) {
-                toast({ title: 'Failed to update driver status', description: driverError.message, type: 'error' })
+                toast({ title: 'Failed to update driver status', description: friendlyError(driverError), type: 'error' })
                 return
             }
 
@@ -701,7 +702,7 @@ export default function DriversPage() {
             // Refresh the drivers list
             fetchDrivers()
         } catch (error: any) {
-            toast({ title: 'Error toggling driver status', description: error.message, type: 'error' })
+            toast({ title: 'Error toggling driver status', description: friendlyError(error), type: 'error' })
         }
     }
 
@@ -1149,7 +1150,7 @@ export default function DriversPage() {
                                                     .eq('id', driver.id)
 
                                                 if (error) {
-                                                    toast({ title: 'Failed to update activation', description: error.message, type: 'error' })
+                                                    toast({ title: 'Failed to update activation', description: friendlyError(error), type: 'error' })
                                                 } else {
                                                     toast({ title: newStatus ? '✅ Driver activated!' : '⏸️ Driver deactivated', type: 'success' })
                                                     fetchDrivers()

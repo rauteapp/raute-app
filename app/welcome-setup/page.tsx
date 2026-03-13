@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Mail, Send, ArrowLeft, Clock, Truck, Radio, PartyPopper } from 'lucide-react'
+import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Mail, Send, ArrowLeft, Clock, Truck, Radio } from 'lucide-react'
+import { friendlyError } from '@/lib/friendly-error'
 import { useToast } from '@/components/toast-provider'
 import { markIntentionalLogout } from '@/components/auth-check'
 
@@ -140,10 +141,10 @@ export default function WelcomeSetupPage() {
             }, 2500)
 
         } catch (err: any) {
-            setError(err.message || 'Failed to set password')
+            setError(friendlyError(err, 'Failed to set password'))
             toast({
                 title: 'Setup Failed',
-                description: err.message,
+                description: friendlyError(err),
                 type: 'error'
             })
         } finally {

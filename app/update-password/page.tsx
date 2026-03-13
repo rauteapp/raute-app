@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Mail, Send, ArrowLeft, Clock } from 'lucide-react'
 import { useToast } from '@/components/toast-provider'
+import { friendlyError } from '@/lib/friendly-error'
 import { markIntentionalLogout } from '@/components/auth-check'
 
 export default function UpdatePasswordPage() {
@@ -117,10 +118,10 @@ export default function UpdatePasswordPage() {
             router.push('/login')
 
         } catch (err: any) {
-            setError(err.message || 'Failed to set password')
+            setError(friendlyError(err, 'Failed to set password'))
             toast({
                 title: 'Update Failed',
-                description: err.message,
+                description: friendlyError(err),
                 type: 'error'
             })
         } finally {

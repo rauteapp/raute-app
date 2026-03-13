@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useToast } from '@/components/toast-provider'
+import { friendlyError } from '@/lib/friendly-error'
 
 export default function ForgotPasswordPage() {
     const router = useRouter()
@@ -43,10 +44,10 @@ export default function ForgotPasswordPage() {
                 type: 'success'
             })
         } catch (err: any) {
-            setError(err.message || 'Failed to send reset link')
+            setError(friendlyError(err, 'Failed to send reset link'))
             toast({
                 title: 'Failed to send reset link',
-                description: err.message,
+                description: friendlyError(err),
                 type: 'error'
             })
         } finally {
