@@ -10,6 +10,23 @@ import { friendlyError } from '@/lib/friendly-error'
 import { useToast } from '@/components/toast-provider'
 import { markIntentionalLogout } from '@/components/auth-check'
 
+// Capture URL hash IMMEDIATELY at module level.
+// The Supabase client singleton (created during import) starts async initialization
+// that will eventually clear the hash. Module-level code runs before that async work
+// completes, so we can safely capture the raw tokens here.
+const SAVED_HASH = typeof window !== 'undefined' ? window.location.hash.substring(1) : ''
+
+function parseHashParams(hash: string) {
+    const params = new URLSearchParams(hash)
+    return {
+        accessToken: params.get('access_token'),
+        refreshToken: params.get('refresh_token') || '',
+        type: params.get('type'),
+        error: params.get('error'),
+        errorDescription: params.get('error_description'),
+    }
+}
+
 export default function WelcomeSetupPage() {
     const router = useRouter()
     const { toast } = useToast()
@@ -39,85 +56,90 @@ export default function WelcomeSetupPage() {
     const [isResending, setIsResending] = useState(false)
     const [resendSuccess, setResendSuccess] = useState(false)
 
-    // Track that PASSWORD_RECOVERY event fired — this is the ONLY reliable way
-    // to know the recovery link was properly processed and the session belongs
-    // to the correct user (not a previously logged-in user).
     const recoveryConfirmedRef = useRef(false)
 
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'PASSWORD_RECOVERY' && session) {
-                // Direct recovery event — ideal case
-                recoveryConfirmedRef.current = true
-                loadWelcomeData(session.user.id)
-            }
-        })
+        async function initRecovery() {
+            const { accessToken, refreshToken, type, error: hashError, errorDescription } = parseHashParams(SAVED_HASH)
 
-        // The Supabase client processes the URL hash BEFORE React mounts, so
-        // PASSWORD_RECOVERY fires before our listener is registered. As a fallback,
-        // validate the current session server-side with getUser(). This is safe
-        // because getUser() makes a server call — if the JWT belongs to a deleted
-        // user (stale cookies from previous sessions), it will fail with 403.
-        // Only if the server confirms the user exists do we proceed.
-        supabase.auth.getUser().then(({ data: { user }, error }) => {
-            if (user && !error && !recoveryConfirmedRef.current) {
-                recoveryConfirmedRef.current = true
-                loadWelcomeData(user.id)
-            }
-        }).catch(() => {
-            // Invalid/stale session — wait for PASSWORD_RECOVERY or timeout
-        })
-
-        // Timeout: if neither event provides a valid session within 8 seconds,
-        // the link is expired/invalid or was already used.
-        const timeout = setTimeout(() => {
-            if (!recoveryConfirmedRef.current) {
-                const params = new URLSearchParams(window.location.search)
-                setExpiredEmail(params.get('email') || '')
+            // Case 1: Supabase redirected with an error (expired/invalid token)
+            if (hashError) {
+                const desc = decodeURIComponent(errorDescription || '')
+                if (desc) console.warn('Recovery link error:', desc)
                 setLinkExpired(true)
                 setIsLoading(false)
+                return
             }
-        }, 8000)
 
-        return () => {
-            subscription.unsubscribe()
-            clearTimeout(timeout)
+            // Case 2: No recovery tokens in URL — invalid direct navigation
+            if (!accessToken || type !== 'recovery') {
+                setLinkExpired(true)
+                setIsLoading(false)
+                return
+            }
+
+            // Case 3: Valid recovery tokens — establish the recovery session.
+            // First, sign out any existing session (e.g. the manager who created
+            // this driver might be logged in on this browser). This clears stale
+            // cookies so they don't interfere.
+            try {
+                markIntentionalLogout()
+                await supabase.auth.signOut()
+            } catch {
+                // Ignore sign-out errors
+            }
+
+            // Set the recovery session from the hash tokens
+            const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+            })
+
+            if (sessionError) {
+                console.error('Failed to set recovery session:', sessionError)
+                setLinkExpired(true)
+                setIsLoading(false)
+                return
+            }
+
+            // Validate the session server-side (getUser makes a server call)
+            const { data: { user }, error: userError } = await supabase.auth.getUser()
+            if (userError || !user) {
+                console.error('Recovery session validation failed:', userError)
+                setLinkExpired(true)
+                setIsLoading(false)
+                return
+            }
+
+            // Success — the session belongs to the driver
+            recoveryConfirmedRef.current = true
+            await loadWelcomeData(user)
         }
+
+        initRecovery()
     }, [])
 
-    async function loadWelcomeData(userId: string) {
+    async function loadWelcomeData(user: { id: string; email?: string; user_metadata?: Record<string, any> }) {
         try {
-            // Get user metadata (has created_by_name from the send-welcome API)
-            const { data: { user } } = await supabase.auth.getUser()
-            const meta = user?.user_metadata || {}
+            const meta = user.user_metadata || {}
 
-            setUserEmail(user?.email || '')
+            // Set data from JWT metadata (always available, set during driver creation)
+            setUserEmail(user.email || '')
             setManagerName(meta.created_by_name || '')
             setUserName(meta.full_name || '')
             setUserRole(meta.role === 'dispatcher' ? 'dispatcher' : 'driver')
 
-            // Try to fetch profile + company from database (may fail with RLS for new users)
-            const { data: profile } = await supabase
-                .from('users')
-                .select('full_name, role, company_id')
-                .eq('id', userId)
-                .single()
-
-            if (profile) {
-                setUserName(profile.full_name || meta.full_name || '')
-                setUserRole(profile.role === 'dispatcher' ? 'dispatcher' : 'driver')
-
-                if (profile.company_id) {
-                    const { data: company } = await supabase
-                        .from('companies')
-                        .select('name')
-                        .eq('id', profile.company_id)
-                        .single()
-                    if (company?.name) setCompanyName(company.name)
-                }
+            // Try to fetch company name from database (may fail with RLS for new users)
+            const companyId = meta.company_id
+            if (companyId) {
+                const { data: company } = await supabase
+                    .from('companies')
+                    .select('name')
+                    .eq('id', companyId)
+                    .single()
+                if (company?.name) setCompanyName(company.name)
             }
         } catch (err) {
-            // Profile query may fail for new users — metadata fallback is already set above
             console.error('Failed to load welcome data:', err)
         } finally {
             setIsLoading(false)
@@ -128,7 +150,6 @@ export default function WelcomeSetupPage() {
         e.preventDefault()
         setError('')
 
-        // Safety check: only allow password update if recovery was confirmed
         if (!recoveryConfirmedRef.current) {
             setError('Invalid recovery session. Please request a new setup link.')
             return

@@ -11,6 +11,23 @@ import { useToast } from '@/components/toast-provider'
 import { friendlyError } from '@/lib/friendly-error'
 import { markIntentionalLogout } from '@/components/auth-check'
 
+// Capture URL hash IMMEDIATELY at module level.
+// The Supabase client singleton (created during import) starts async initialization
+// that will eventually clear the hash. Module-level code runs before that async work
+// completes, so we can safely capture the raw tokens here.
+const SAVED_HASH = typeof window !== 'undefined' ? window.location.hash.substring(1) : ''
+
+function parseHashParams(hash: string) {
+    const params = new URLSearchParams(hash)
+    return {
+        accessToken: params.get('access_token'),
+        refreshToken: params.get('refresh_token') || '',
+        type: params.get('type'),
+        error: params.get('error'),
+        errorDescription: params.get('error_description'),
+    }
+}
+
 export default function UpdatePasswordPage() {
     const router = useRouter()
     const { toast } = useToast()
@@ -27,50 +44,68 @@ export default function UpdatePasswordPage() {
     const [isResending, setIsResending] = useState(false)
     const [resendSuccess, setResendSuccess] = useState(false)
 
-    // Track the recovery user email to display and verify
     const [recoveryEmail, setRecoveryEmail] = useState('')
     const recoveryConfirmedRef = useRef(false)
 
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'PASSWORD_RECOVERY' && session) {
-                // Direct recovery event — ideal case
-                recoveryConfirmedRef.current = true
-                setRecoveryEmail(session.user.email || '')
-                setIsChecking(false)
-            }
-        })
+        async function initRecovery() {
+            const { accessToken, refreshToken, type, error: hashError, errorDescription } = parseHashParams(SAVED_HASH)
 
-        // The Supabase client processes the URL hash BEFORE React mounts, so
-        // PASSWORD_RECOVERY fires before our listener is registered. As a fallback,
-        // validate the current session server-side with getUser(). This is safe
-        // because getUser() makes a server call — if the JWT belongs to a deleted
-        // user (stale cookies from previous sessions), it will fail with 403.
-        supabase.auth.getUser().then(({ data: { user }, error }) => {
-            if (user && !error && !recoveryConfirmedRef.current) {
-                recoveryConfirmedRef.current = true
-                setRecoveryEmail(user.email || '')
-                setIsChecking(false)
-            }
-        }).catch(() => {
-            // Invalid/stale session — wait for PASSWORD_RECOVERY or timeout
-        })
-
-        // Timeout: if neither provides a valid session within 8 seconds,
-        // the link is expired/invalid or was already used.
-        const timeout = setTimeout(() => {
-            if (!recoveryConfirmedRef.current) {
-                const params = new URLSearchParams(window.location.search)
-                setExpiredEmail(params.get('email') || '')
+            // Case 1: Supabase redirected with an error (expired/invalid token)
+            if (hashError) {
+                const desc = decodeURIComponent(errorDescription || '')
+                if (desc) console.warn('Recovery link error:', desc)
                 setLinkExpired(true)
                 setIsChecking(false)
+                return
             }
-        }, 8000)
 
-        return () => {
-            subscription.unsubscribe()
-            clearTimeout(timeout)
+            // Case 2: No recovery tokens in URL — invalid direct navigation
+            if (!accessToken || type !== 'recovery') {
+                setLinkExpired(true)
+                setIsChecking(false)
+                return
+            }
+
+            // Case 3: Valid recovery tokens — establish the recovery session.
+            // First, sign out any existing session (another user might be logged
+            // in on this browser). This clears stale cookies.
+            try {
+                markIntentionalLogout()
+                await supabase.auth.signOut()
+            } catch {
+                // Ignore sign-out errors
+            }
+
+            // Set the recovery session from the hash tokens
+            const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+            })
+
+            if (sessionError) {
+                console.error('Failed to set recovery session:', sessionError)
+                setLinkExpired(true)
+                setIsChecking(false)
+                return
+            }
+
+            // Validate the session server-side
+            const { data: { user }, error: userError } = await supabase.auth.getUser()
+            if (userError || !user) {
+                console.error('Recovery session validation failed:', userError)
+                setLinkExpired(true)
+                setIsChecking(false)
+                return
+            }
+
+            // Success — the session belongs to the correct user
+            recoveryConfirmedRef.current = true
+            setRecoveryEmail(user.email || '')
+            setIsChecking(false)
         }
+
+        initRecovery()
     }, [])
 
     async function handleResendLink() {
@@ -100,7 +135,6 @@ export default function UpdatePasswordPage() {
         e.preventDefault()
         setError('')
 
-        // Safety check: only allow password update if recovery was confirmed
         if (!recoveryConfirmedRef.current) {
             setError('Invalid recovery session. Please request a new reset link.')
             return
