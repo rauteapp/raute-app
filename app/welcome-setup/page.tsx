@@ -21,6 +21,7 @@ export default function WelcomeSetupPage() {
 
     // User context
     const [userName, setUserName] = useState('')
+    const [userEmail, setUserEmail] = useState('')
     const [userRole, setUserRole] = useState<'driver' | 'dispatcher'>('driver')
     const [companyName, setCompanyName] = useState('')
     const [managerName, setManagerName] = useState('')
@@ -81,30 +82,35 @@ export default function WelcomeSetupPage() {
         try {
             // Get user metadata (has created_by_name from the send-welcome API)
             const { data: { user } } = await supabase.auth.getUser()
-            const metaManagerName = user?.user_metadata?.created_by_name || ''
+            const meta = user?.user_metadata || {}
 
-            // Fetch profile + company from database
+            setUserEmail(user?.email || '')
+            setManagerName(meta.created_by_name || '')
+            setUserName(meta.full_name || '')
+            setUserRole(meta.role === 'dispatcher' ? 'dispatcher' : 'driver')
+
+            // Try to fetch profile + company from database (may fail with RLS for new users)
             const { data: profile } = await supabase
                 .from('users')
                 .select('full_name, role, company_id')
                 .eq('id', userId)
                 .single()
 
-            let fetchedCompanyName = ''
-            if (profile?.company_id) {
-                const { data: company } = await supabase
-                    .from('companies')
-                    .select('name')
-                    .eq('id', profile.company_id)
-                    .single()
-                fetchedCompanyName = company?.name || ''
-            }
+            if (profile) {
+                setUserName(profile.full_name || meta.full_name || '')
+                setUserRole(profile.role === 'dispatcher' ? 'dispatcher' : 'driver')
 
-            setUserName(profile?.full_name || user?.user_metadata?.full_name || '')
-            setUserRole(profile?.role === 'dispatcher' ? 'dispatcher' : 'driver')
-            setCompanyName(fetchedCompanyName)
-            setManagerName(metaManagerName)
+                if (profile.company_id) {
+                    const { data: company } = await supabase
+                        .from('companies')
+                        .select('name')
+                        .eq('id', profile.company_id)
+                        .single()
+                    if (company?.name) setCompanyName(company.name)
+                }
+            }
         } catch (err) {
+            // Profile query may fail for new users — metadata fallback is already set above
             console.error('Failed to load welcome data:', err)
         } finally {
             setIsLoading(false)
@@ -339,6 +345,12 @@ export default function WelcomeSetupPage() {
                                     <>You&apos;ve been added as a <strong>{displayRole}</strong>{companyName ? <> to <strong>{companyName}</strong></> : ''}</>
                                 )}
                             </p>
+                            {userEmail && (
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
+                                    <Mail size={12} />
+                                    {userEmail}
+                                </p>
+                            )}
                         </div>
                     </div>
 
