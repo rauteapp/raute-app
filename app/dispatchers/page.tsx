@@ -158,7 +158,7 @@ export default function DispatchersPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session?.access_token}`,
                 },
-                body: JSON.stringify({ email: dispatcher.email, name: dispatcher.full_name, role: 'dispatcher' }),
+                body: JSON.stringify({ email: dispatcher.email, name: dispatcher.full_name, role: 'dispatcher', userId: dispatcher.id }),
             })
 
             if (res.ok) {
@@ -262,7 +262,7 @@ export default function DispatchersPage() {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${session?.access_token}`,
                     },
-                    body: JSON.stringify({ email: formData.email, name: formData.name, role: 'dispatcher' }),
+                    body: JSON.stringify({ email: formData.email, name: formData.name, role: 'dispatcher', userId: data?.user_id }),
                 })
 
                 if (welcomeRes.ok) {

@@ -453,7 +453,7 @@ export default function DriversPage() {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${session?.access_token}`,
                     },
-                    body: JSON.stringify({ email, name, role: 'driver' }),
+                    body: JSON.stringify({ email, name, role: 'driver', userId: result?.user_id }),
                 })
                 if (welcomeRes.ok) {
                     toast({ title: '✅ Driver created!', description: `${name} has been added to your team. A welcome email has been sent to set their password.`, type: 'success' })
@@ -499,7 +499,7 @@ export default function DriversPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session?.access_token}`,
                 },
-                body: JSON.stringify({ email: target.email, name: target.name, role: 'driver' }),
+                body: JSON.stringify({ email: target.email, name: target.name, role: 'driver', userId: target.user_id }),
             })
 
             if (res.ok) {
@@ -595,7 +595,7 @@ export default function DriversPage() {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${session?.access_token}`,
                     },
-                    body: JSON.stringify({ email: editingDriver.email, name: editingDriver.name, role: 'driver' }),
+                    body: JSON.stringify({ email: editingDriver.email, name: editingDriver.name, role: 'driver', userId: editingDriver.user_id }),
                 })
 
                 if (!res.ok) {

@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(
  */
 export async function POST(request: NextRequest) {
     try {
-        const { email, name, role } = await request.json()
+        const { email, name, role, userId } = await request.json()
 
         if (!email || !name) {
             return NextResponse.json({ error: 'Missing email or name' }, { status: 400 })
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
         const { data: callerProfile } = await supabaseAdmin
             .from('users')
-            .select('role, company_id')
+            .select('role, company_id, full_name')
             .eq('id', caller.id)
             .single()
 
@@ -52,13 +52,28 @@ export async function POST(request: NextRequest) {
 
         const companyName = company?.name || 'your team'
         const displayRole = role === 'dispatcher' ? 'Dispatcher' : 'Driver'
+        const managerName = callerProfile.full_name || 'Your Manager'
+
+        // Store manager name in the new user's metadata so the welcome page can display it
+        if (userId) {
+            try {
+                await supabaseAdmin.auth.admin.updateUserById(userId, {
+                    user_metadata: {
+                        created_by_name: managerName,
+                    }
+                })
+            } catch (metaErr) {
+                console.error('Failed to update user metadata:', metaErr)
+                // Non-fatal — continue sending the email
+            }
+        }
 
         // Generate a secure password recovery link using Supabase Admin API
         const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
             type: 'recovery',
             email,
             options: {
-                redirectTo: 'https://raute.io/update-password',
+                redirectTo: 'https://raute.io/welcome-setup',
             }
         })
 
@@ -69,7 +84,7 @@ export async function POST(request: NextRequest) {
 
         // Extract the token from the generated link and build our redirect URL
         // The hashed_token is what we need for the PKCE flow
-        const setupUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify?token=${linkData.properties.hashed_token}&type=recovery&redirect_to=https://raute.io/update-password`
+        const setupUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify?token=${linkData.properties.hashed_token}&type=recovery&redirect_to=https://raute.io/welcome-setup`
 
         // Send branded welcome email via Resend
         const resendKey = process.env.RESEND_API_KEY

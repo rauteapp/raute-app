@@ -8,7 +8,7 @@ import { Capacitor } from "@capacitor/core"
 import { restoreSessionFromBackup } from "@/components/auth-listener"
 
 // Public routes that don't require authentication
-const PUBLIC_ROUTES = ['/login', '/signup', '/', '/verify-email', '/auth/callback', '/pending-activation', '/privacy', '/terms', '/forgot-password', '/update-password', '/onboarding', '/refund-policy', '/cancellation-policy', '/acceptable-use', '/contact', '/promotional-terms', '/legal-restrictions', '/cookies', '/dpa']
+const PUBLIC_ROUTES = ['/login', '/signup', '/', '/verify-email', '/auth/callback', '/pending-activation', '/privacy', '/terms', '/forgot-password', '/update-password', '/welcome-setup', '/onboarding', '/refund-policy', '/cancellation-policy', '/acceptable-use', '/contact', '/promotional-terms', '/legal-restrictions', '/cookies', '/dpa']
 
 // Global flag: set to true when user explicitly clicks "Logout".
 // This tells the SIGNED_OUT handler to skip recovery attempts.
