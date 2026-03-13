@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, Database } from "lucide-react"
+import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, Database, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
@@ -1041,42 +1041,56 @@ export default function OrdersPage() {
 
         return (
             <PullToRefresh onRefresh={fetchData}>
-                <div className="p-4 pt-12 pb-32 space-y-6 max-w-lg mx-auto bg-background min-h-screen">
-                    {driverId && userId && <DriverTracker driverId={driverId} companyId={companyId || undefined} isOnline={isOnline} userId={userId} />}
+                <div className="px-5 pt-[calc(env(safe-area-inset-top,0px)+2rem)] pb-[calc(140px+env(safe-area-inset-bottom,0px))] space-y-7 max-w-lg mx-auto bg-[#f8fafc] dark:bg-[#020617] min-h-screen">
+                    {driverId && userId && <DriverTracker driverId={driverId} companyId={companyId || ""} isOnline={isOnline} userId={userId} />}
 
                     {/* OFFLINE / CACHE INDICATOR */}
                     {(!isOnline || isLoading) && (
-                        <div className="flex items-center justify-center p-1">
+                        <div className="flex items-center justify-center -mt-2 mb-2">
                             {/* Only show if we have data (cached) but might be offline */}
-                            {orders.length > 0 && typeof navigator !== 'undefined' && !navigator.onLine && (
-                                <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                    <WifiOff size={10} /> Offline Mode
+                            {orders.length > 0 && !isOnline && (
+                                <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500 bg-white shadow-sm border border-slate-200 dark:border-slate-800 dark:text-slate-400 dark:bg-slate-900 px-3 py-1 rounded-full flex items-center gap-1.5">
+                                    <WifiOff size={12} strokeWidth={2.5} /> Offline Mode
                                 </span>
                             )}
                         </div>
                     )}
 
                     {/* Driver Header with Toggle */}
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground font-medium">Good Morning,</p>
-                            <h1 className="text-2xl font-bold text-foreground">{userName.split(' ')[0]} 👋</h1>
+                            <p className="text-sm text-slate-500 font-semibold tracking-wide uppercase">Good Morning,</p>
+                            <h1 className="text-[32px] font-black text-slate-900 dark:text-white tracking-tight leading-none mt-1">{userName.split(' ')[0]} <span className="text-[28px]">👋</span></h1>
                         </div>
 
-                        {/* Status Toggle Button */}
-                        <div className="flex items-center gap-2">
+                        {/* Status Toggle Buttons */}
+                        <div className="flex items-center gap-3">
                             <Sheet>
                                 <SheetTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-9 w-9 p-0 rounded-full border-dashed border-2">
-                                        <Calendar size={16} className="text-slate-400" />
+                                    <Button variant="outline" size="sm" className="h-11 w-11 p-0 rounded-full border-dashed border-2 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                        <Calendar size={18} className="text-slate-400" />
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent className="safe-area-pt">
-                                    <SheetHeader>
-                                        <SheetTitle>Activity History</SheetTitle>
-                                        <SheetDescription>Your recent online/offline activity logs.</SheetDescription>
-                                    </SheetHeader>
-                                    <div className="mt-6 space-y-4 px-4">
+                                <SheetContent side={isDesktop ? "right" : "bottom"} className={cn("flex flex-col p-0", isDesktop ? "w-full sm:max-w-md" : "h-[85vh] rounded-t-[32px] bg-white dark:bg-slate-950")}>
+                                    {!isDesktop && (
+                                        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full" />
+                                    )}
+                                    <div className="px-6 pt-8 pb-4 bg-white dark:bg-slate-900 border-b border-slate-200/60 dark:border-slate-800 shrink-0">
+                                        <SheetHeader className="text-left space-y-1">
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300">
+                                                    <Activity size={20} strokeWidth={2.5} />
+                                                </div>
+                                                <div>
+                                                    <SheetTitle className="text-xl font-black text-slate-900 dark:text-white leading-none">Activity</SheetTitle>
+                                                </div>
+                                            </div>
+                                            <SheetDescription className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                                Your recent online/offline activity logs.
+                                            </SheetDescription>
+                                        </SheetHeader>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto w-full p-6 pb-36 space-y-4">
                                         <DriverActivityHistory driverId={driverId} />
                                     </div>
                                 </SheetContent>
@@ -1085,13 +1099,13 @@ export default function OrdersPage() {
                             <button
                                 onClick={toggleOnlineStatus}
                                 className={cn(
-                                    "flex items-center gap-2 px-4 py-2 rounded-full shadow-sm border transition-all text-sm font-bold",
+                                    "flex items-center gap-2.5 px-5 py-2.5 rounded-full border transition-all text-[13px] font-bold tracking-wide",
                                     isOnline
-                                        ? "bg-green-500/10 text-green-600 border-green-200 dark:border-green-900"
-                                        : "bg-muted text-muted-foreground border-border"
+                                        ? "bg-green-50 text-green-700 border-green-200 shadow-[0_4px_12px_rgba(34,197,94,0.1)] dark:bg-green-950/30 dark:border-green-800/50 dark:text-green-400"
+                                        : "bg-white text-slate-500 border-slate-200 dark:bg-slate-900 dark:border-slate-800/60 dark:text-slate-400 hover:bg-slate-50"
                                 )}
                             >
-                                <div className={cn("w-2 h-2 rounded-full transition-colors", isOnline ? "bg-green-500 animate-pulse" : "bg-slate-400")} />
+                                <div className={cn("w-2 h-2 rounded-full transition-colors", isOnline ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse" : "bg-slate-400")} />
                                 {isOnline ? "ONLINE" : "OFFLINE"}
                             </button>
                         </div>
@@ -1099,7 +1113,7 @@ export default function OrdersPage() {
 
                     {/* Offline Warning Banner */}
                     {!isOnline && (
-                        <div className="bg-slate-900 dark:bg-slate-800 text-white p-3 rounded-xl text-center text-sm font-medium shadow-lg animate-in fade-in slide-in-from-top-2">
+                        <div className="bg-slate-900 text-white p-3.5 rounded-[16px] text-center text-sm font-medium shadow-xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 border border-slate-800">
                             You are currently offline. You won't receive new tasks.
                         </div>
                     )}
@@ -1115,117 +1129,129 @@ export default function OrdersPage() {
                     />
 
                     {/* Quick Stats (dimmed if offline) */}
-                    <div className={cn("grid grid-cols-2 gap-3 transition-opacity", !isOnline && "opacity-60")}>
-                        <div className="bg-primary text-primary-foreground p-4 rounded-xl shadow-lg shadow-primary/20">
-                            <p className="text-primary-foreground/80 text-xs font-medium uppercase tracking-wider mb-1">Active Tasks</p>
-                            <p className="text-3xl font-bold mb-1">{activeCount}</p>
-                            <p className="text-xs text-primary-foreground/70">Ready to deliver</p>
+                    <div className={cn("grid grid-cols-2 gap-4 transition-opacity", !isOnline && "opacity-60")}>
+                        <div className="bg-[#0f172a] text-white p-5 rounded-[20px] shadow-[0_8px_20px_rgba(15,23,42,0.15)] relative overflow-hidden flex flex-col justify-between">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -translate-y-16 translate-x-12"></div>
+                            <div>
+                                <p className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mb-2">Active Tasks</p>
+                                <p className="text-[38px] font-black leading-none mb-1.5">{activeCount}</p>
+                            </div>
+                            <p className="text-[13px] text-slate-300 font-medium">Ready to deliver</p>
                         </div>
-                        <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
-                            <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider mb-1">Completed</p>
-                            <p className="text-3xl font-bold text-foreground mb-1">{completedCount}</p>
-                            <p className="text-xs text-green-600 flex items-center gap-1">
-                                <CheckCircle2 size={12} /> Today
+                        <div className="bg-white dark:bg-slate-900 p-5 rounded-[20px] border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest mb-2">Completed</p>
+                                <p className="text-[38px] font-black text-slate-900 dark:text-white leading-none mb-1.5">{completedCount}</p>
+                            </div>
+                            <p className="text-[13px] text-green-600 font-bold flex items-center gap-1.5">
+                                <CheckCircle2 size={14} strokeWidth={3} /> Today
                             </p>
                         </div>
                     </div>
 
                     {/* View Toggle (List vs Map) */}
-                    <div className="flex bg-muted p-1 rounded-xl shadow-inner mb-4">
-                        <button onClick={() => setViewMode('list')} className={cn("flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2", viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
-                            <List size={14} /> List
+                    <div className="flex bg-slate-100/80 dark:bg-slate-800/50 p-1.5 rounded-2xl shadow-inner mb-2 border border-slate-200/50 dark:border-slate-800 backdrop-blur-sm">
+                        <button onClick={() => setViewMode('list')} className={cn("flex-1 py-3 text-[13px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2", viewMode === 'list' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-[0_2px_10px_rgba(0,0,0,0.06)]" : "text-slate-500 hover:text-slate-700 dark:text-slate-400")}>
+                            <List size={16} strokeWidth={2.5} /> List
                         </button>
-                        <button onClick={() => setViewMode('map')} className={cn("flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2", viewMode === 'map' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
-                            <MapPin size={14} /> Route Map
+                        <button onClick={() => setViewMode('map')} className={cn("flex-1 py-3 text-[13px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2", viewMode === 'map' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-[0_2px_10px_rgba(0,0,0,0.06)]" : "text-slate-500 hover:text-slate-700 dark:text-slate-400")}>
+                            <MapPin size={16} strokeWidth={2.5} /> Route Map
                         </button>
                     </div>
 
                     {/* Date Range Picker */}
                     <Popover>
                         <PopoverTrigger asChild>
-                            <button className="flex items-center gap-2 w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
-                                <Calendar size={14} />
+                            <button className="flex items-center gap-2.5 w-full px-4 py-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-[0_2px_10px_rgba(0,0,0,0.02)] text-sm text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700 transition-all font-medium">
+                                <Calendar size={18} className="text-primary/70" />
                                 {dateRange?.from ? (
                                     dateRange.to && dateRange.from.toDateString() !== dateRange.to.toDateString() ? (
-                                        <span className="text-xs font-medium text-foreground">{format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd")}</span>
+                                        <span className="text-[13px] font-bold text-slate-900 dark:text-white">{format(dateRange!.from!, "MMM dd")} - {format(dateRange!.to!, "MMM dd")}</span>
                                     ) : (
-                                        <span className="text-xs font-medium text-foreground">{format(dateRange.from, "MMM dd, yyyy")}</span>
+                                        <span className="text-[13px] font-bold text-slate-900 dark:text-white">{format(dateRange!.from!, "MMM dd, yyyy")}</span>
                                     )
                                 ) : (
-                                    <span className="text-xs">Filter by date</span>
+                                    <span className="text-[13px]">Select delivery date</span>
                                 )}
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                            <div className="p-3 border-b border-border">
+                        <PopoverContent className="w-auto p-0 rounded-2xl border-slate-200 dark:border-slate-800 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] overflow-hidden" align="start">
+                            <div className="p-3 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900">
                                 <div className="flex gap-2 flex-wrap">
-                                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
-                                    <Button size="sm" variant="ghost" className="text-xs h-7 text-muted-foreground" onClick={() => setDateRange(undefined)}>All</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 rounded-lg bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm font-semibold" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 rounded-lg bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm font-semibold" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-8 rounded-lg bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm font-semibold" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
+                                    <Button size="sm" variant="ghost" className="text-xs h-8 text-slate-500 font-medium hover:bg-slate-200 dark:hover:bg-slate-800" onClick={() => setDateRange(undefined)}>Reset</Button>
                                 </div>
                             </div>
-                            <CalendarPicker
-                                mode="range"
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                disabled={(date) => date > new Date() || date < new Date("2024-01-01")}
-                                initialFocus
-                            />
+                            <div className="bg-white dark:bg-slate-950">
+                                <CalendarPicker
+                                    mode="range"
+                                    selected={dateRange}
+                                    onSelect={setDateRange}
+                                    disabled={(date) => date > new Date() || date < new Date("2024-01-01")}
+                                    initialFocus
+                                    className="p-3"
+                                />
+                            </div>
                         </PopoverContent>
                     </Popover>
 
-                    {/* Status Filter (remains) */}
-                    <div className="flex bg-muted p-1 rounded-xl shadow-inner mb-4 overflow-x-auto">
-                        {["all", "assigned", "delivered", "cancelled"].map((status) => (
-                            <button key={status} onClick={() => setStatusFilter(status)} className={cn("flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all min-w-[70px]", statusFilter === status ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-                                {status === 'all' ? 'All' : status}
-                            </button>
-                        ))}
+                    {/* Status Filter */}
+                    <div className="flex bg-slate-100/80 dark:bg-slate-800/40 p-1.5 rounded-2xl shadow-inner border border-slate-200/50 dark:border-slate-800/80 overflow-x-auto scrollbar-hide">
+                        <div className="flex gap-1 min-w-max w-full">
+                            {["all", "assigned", "delivered", "cancelled"].map((status) => (
+                                <button key={status} onClick={() => setStatusFilter(status)} className={cn("flex-1 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest rounded-xl transition-all", statusFilter === status ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]" : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200")}>
+                                    {status === 'all' ? 'All' : status}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Incomplete Orders from Previous Days */}
                     {incompleteOrders.length > 0 && (
-                        <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 overflow-hidden">
+                        <div className="rounded-[24px] border border-amber-200/60 dark:border-amber-900/40 bg-gradient-to-br from-amber-50 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10 overflow-hidden shadow-sm">
                             <button
                                 onClick={() => setShowIncomplete(!showIncomplete)}
-                                className="w-full flex items-center justify-between p-3 text-left"
+                                className="w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-amber-100/30 dark:hover:bg-amber-900/20"
                             >
-                                <div className="flex items-center gap-2">
-                                    <AlertTriangle size={14} className="text-amber-600" />
-                                    <span className="text-xs font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wider">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+                                        <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400" strokeWidth={2.5} />
+                                    </div>
+                                    <span className="text-[13px] font-bold text-amber-900 dark:text-amber-200 uppercase tracking-widest mt-0.5">
                                         Previous Incomplete ({incompleteOrders.length})
                                     </span>
                                 </div>
-                                <span className="text-xs text-amber-600">{showIncomplete ? 'Hide' : 'Show'}</span>
+                                <span className="text-[12px] font-bold text-amber-600 bg-amber-100/50 dark:bg-amber-900/30 px-3 py-1 rounded-full">{showIncomplete ? 'Hide' : 'Review'}</span>
                             </button>
                             {showIncomplete && (
-                                <div className="px-3 pb-3 space-y-2">
+                                <div className="px-3 pb-3 space-y-2.5 pt-1">
                                     {incompleteOrders.map(order => {
                                         const content = (
-                                            <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-amber-200/50 dark:border-amber-800/30 flex items-center gap-3">
+                                            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-4 rounded-[18px] border border-amber-100 dark:border-amber-800/30 shadow-[0_4px_12px_rgba(0,0,0,0.02)] flex items-center gap-3.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] transition-all">
                                                 {isSelectionMode && (
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedOrders.includes(order.id)}
                                                         onChange={(e) => { e.preventDefault(); toggleOrderSelection(order.id) }}
                                                         onClick={(e) => e.stopPropagation()}
-                                                        className="w-4 h-4 rounded border-amber-300 text-amber-600 shrink-0"
+                                                        className="w-5 h-5 rounded-md border-amber-300 text-amber-600 shrink-0"
                                                     />
                                                 )}
-                                                <div className={cn("w-2 h-2 rounded-full shrink-0",
-                                                    order.status === 'in_progress' ? 'bg-purple-500' : order.status === 'assigned' ? 'bg-blue-500' : 'bg-yellow-500'
+                                                <div className={cn("w-3 h-3 rounded-full shrink-0 shadow-sm",
+                                                    order.status === 'in_progress' ? 'bg-purple-500 shadow-purple-500/40' : order.status === 'assigned' ? 'bg-blue-500 shadow-blue-500/40' : 'bg-yellow-500 shadow-yellow-500/40'
                                                 )} />
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-foreground truncate">{order.customer_name}</p>
-                                                    <p className="text-[10px] text-muted-foreground truncate">{order.address}</p>
+                                                    <p className="text-[15px] font-bold text-slate-900 dark:text-white truncate leading-tight mb-1">{order.customer_name}</p>
+                                                    <p className="text-[12px] text-slate-500 truncate">{order.address}</p>
                                                 </div>
                                                 <div className="text-right shrink-0">
-                                                    <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", statusColors[order.status as keyof typeof statusColors])}>
+                                                    <span className={cn("text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border text-slate-700 bg-white", statusColors[order.status as keyof typeof statusColors])}>
                                                         {order.status.replace('_', ' ')}
                                                     </span>
-                                                    <p className="text-[10px] text-muted-foreground mt-1">
-                                                        {format(new Date(order.delivery_date || order.created_at), "MMM dd")}
+                                                    <p className="text-[11px] font-medium text-slate-400 mt-1.5 flex justify-end">
+                                                        {format(new Date(order.delivery_date || order.created_at), "MMM dd, yyyy")}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1249,7 +1275,7 @@ export default function OrdersPage() {
                         // LIST VIEW
                         <div className="space-y-4" id="orders-list">
                             <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest pl-1">
-                                {dateRange?.from && isToday(dateRange.from) && (!dateRange.to || isToday(dateRange.to)) ? "Today's Route" : "Orders"}
+                                {dateRange?.from && isToday(dateRange!.from!) && (!dateRange.to || isToday(dateRange!.to!)) ? "Today's Route" : "Orders"}
                             </h2>
                             {filteredOrders.length === 0 ? (
                                 <div className="text-center py-12 bg-muted/30 rounded-2xl border border-dashed border-border">
