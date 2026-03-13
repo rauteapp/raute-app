@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -20,46 +20,48 @@ export default function UpdatePasswordPage() {
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
+    const [isChecking, setIsChecking] = useState(true)
     const [error, setError] = useState('')
     const [linkExpired, setLinkExpired] = useState(false)
     const [expiredEmail, setExpiredEmail] = useState('')
     const [isResending, setIsResending] = useState(false)
     const [resendSuccess, setResendSuccess] = useState(false)
 
-    // Check if we have a valid recovery session
+    // Track the recovery user email to display and verify
+    const [recoveryEmail, setRecoveryEmail] = useState('')
+    const recoveryConfirmedRef = useRef(false)
+
     useEffect(() => {
-        checkRecoverySession()
-    }, [])
-
-    async function checkRecoverySession() {
-        let hasSession = false
-
-        try {
-            const { data: { session } } = await Promise.race([
-                supabase.auth.getSession(),
-                new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error('getSession timeout')), 5000)
-                ),
-            ])
-            hasSession = !!session
-        } catch {
-            try {
-                const { data: userData } = await supabase.auth.getUser()
-                hasSession = !!userData.user
-            } catch {
-                hasSession = false
+        // Listen for PASSWORD_RECOVERY event — this is the ONLY reliable way
+        // to know a recovery link was properly processed by Supabase.
+        // Without this, if User A is logged in and clicks User B's reset link,
+        // getSession() might return User A's session → wrong password gets changed.
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY' && session) {
+                // Recovery link was successfully verified by Supabase.
+                // The session now belongs to the recovery user (not any previously logged-in user).
+                recoveryConfirmedRef.current = true
+                setRecoveryEmail(session.user.email || '')
+                setIsChecking(false)
             }
-        }
+        })
 
-        // No valid session = link expired or invalid
-        if (!hasSession) {
-            // Try to get email from URL params (some Supabase flows include it)
-            const params = new URLSearchParams(window.location.search)
-            const emailFromUrl = params.get('email') || ''
-            setExpiredEmail(emailFromUrl)
-            setLinkExpired(true)
+        // Timeout: if PASSWORD_RECOVERY doesn't fire within 8 seconds,
+        // the link is expired/invalid or was already used.
+        const timeout = setTimeout(() => {
+            if (!recoveryConfirmedRef.current) {
+                const params = new URLSearchParams(window.location.search)
+                setExpiredEmail(params.get('email') || '')
+                setLinkExpired(true)
+                setIsChecking(false)
+            }
+        }, 8000)
+
+        return () => {
+            subscription.unsubscribe()
+            clearTimeout(timeout)
         }
-    }
+    }, [])
 
     async function handleResendLink() {
         if (!expiredEmail) return
@@ -73,7 +75,7 @@ export default function UpdatePasswordPage() {
             })
 
             if (resetError) {
-                setError(resetError.message)
+                setError(friendlyError(resetError))
             } else {
                 setResendSuccess(true)
             }
@@ -87,6 +89,12 @@ export default function UpdatePasswordPage() {
     async function handleUpdatePassword(e: React.FormEvent) {
         e.preventDefault()
         setError('')
+
+        // Safety check: only allow password update if recovery was confirmed
+        if (!recoveryConfirmedRef.current) {
+            setError('Invalid recovery session. Please request a new reset link.')
+            return
+        }
 
         if (password.length < 8) {
             setError('Password must be at least 8 characters')
@@ -129,6 +137,25 @@ export default function UpdatePasswordPage() {
         }
     }
 
+    // === LOADING / CHECKING STATE ===
+    if (isChecking) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center p-4 safe-area-p">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="text-center space-y-2">
+                        <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2 animate-pulse">
+                            <Lock className="h-6 w-6 text-primary" />
+                        </div>
+                        <CardTitle className="text-2xl">Verifying Link...</CardTitle>
+                        <CardDescription>
+                            Please wait while we verify your reset link.
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+            </div>
+        )
+    }
+
     // === EXPIRED LINK VIEW ===
     if (linkExpired) {
         return (
@@ -140,7 +167,7 @@ export default function UpdatePasswordPage() {
                         </div>
                         <CardTitle className="text-2xl">Link Expired</CardTitle>
                         <CardDescription>
-                            This setup link is no longer valid. Enter your email below to get a new one.
+                            This reset link is no longer valid. Enter your email below to get a new one.
                         </CardDescription>
                     </CardHeader>
 
@@ -157,7 +184,7 @@ export default function UpdatePasswordPage() {
                                 <div className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm p-4 rounded-lg border border-green-200 dark:border-green-800">
                                     <p className="font-medium mb-1">New link sent!</p>
                                     <p className="text-xs text-green-600 dark:text-green-500">
-                                        Check your inbox (and spam folder) for the new setup link.
+                                        Check your inbox (and spam folder) for the new reset link.
                                     </p>
                                 </div>
 
@@ -198,7 +225,7 @@ export default function UpdatePasswordPage() {
                                     disabled={isResending || !expiredEmail}
                                 >
                                     <Send size={16} className="mr-2" />
-                                    {isResending ? 'Sending...' : 'Send New Setup Link'}
+                                    {isResending ? 'Sending...' : 'Send New Reset Link'}
                                 </Button>
                             </>
                         )}
@@ -228,7 +255,10 @@ export default function UpdatePasswordPage() {
                     </div>
                     <CardTitle className="text-2xl">Set Your Password</CardTitle>
                     <CardDescription>
-                        Create a password to access your account
+                        {recoveryEmail
+                            ? <>Create a new password for <strong>{recoveryEmail}</strong></>
+                            : 'Create a password to access your account'
+                        }
                     </CardDescription>
                 </CardHeader>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -38,48 +38,43 @@ export default function WelcomeSetupPage() {
     const [isResending, setIsResending] = useState(false)
     const [resendSuccess, setResendSuccess] = useState(false)
 
+    // Track that PASSWORD_RECOVERY event fired — this is the ONLY reliable way
+    // to know the recovery link was properly processed and the session belongs
+    // to the correct user (not a previously logged-in user).
+    const recoveryConfirmedRef = useRef(false)
+
     useEffect(() => {
-        loadWelcomeData()
-    }, [])
-
-    async function loadWelcomeData() {
-        try {
-            // 1. Check for valid recovery session
-            let hasSession = false
-            let userId: string | null = null
-
-            try {
-                const { data: { session } } = await Promise.race([
-                    supabase.auth.getSession(),
-                    new Promise<never>((_, reject) =>
-                        setTimeout(() => reject(new Error('getSession timeout')), 5000)
-                    ),
-                ])
-                hasSession = !!session
-                userId = session?.user?.id || null
-            } catch {
-                try {
-                    const { data: userData } = await supabase.auth.getUser()
-                    hasSession = !!userData.user
-                    userId = userData.user?.id || null
-                } catch {
-                    hasSession = false
-                }
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY' && session) {
+                recoveryConfirmedRef.current = true
+                loadWelcomeData(session.user.id)
             }
+        })
 
-            if (!hasSession || !userId) {
+        // Timeout: if PASSWORD_RECOVERY doesn't fire within 8 seconds,
+        // the link is expired/invalid or was already used.
+        const timeout = setTimeout(() => {
+            if (!recoveryConfirmedRef.current) {
                 const params = new URLSearchParams(window.location.search)
                 setExpiredEmail(params.get('email') || '')
                 setLinkExpired(true)
                 setIsLoading(false)
-                return
             }
+        }, 8000)
 
-            // 2. Get user metadata (has created_by_name from the send-welcome API)
+        return () => {
+            subscription.unsubscribe()
+            clearTimeout(timeout)
+        }
+    }, [])
+
+    async function loadWelcomeData(userId: string) {
+        try {
+            // Get user metadata (has created_by_name from the send-welcome API)
             const { data: { user } } = await supabase.auth.getUser()
             const metaManagerName = user?.user_metadata?.created_by_name || ''
 
-            // 3. Fetch profile + company from database
+            // Fetch profile + company from database
             const { data: profile } = await supabase
                 .from('users')
                 .select('full_name, role, company_id')
@@ -102,7 +97,6 @@ export default function WelcomeSetupPage() {
             setManagerName(metaManagerName)
         } catch (err) {
             console.error('Failed to load welcome data:', err)
-            // Still show the page even if some data failed to load
         } finally {
             setIsLoading(false)
         }
@@ -111,6 +105,12 @@ export default function WelcomeSetupPage() {
     async function handleSetPassword(e: React.FormEvent) {
         e.preventDefault()
         setError('')
+
+        // Safety check: only allow password update if recovery was confirmed
+        if (!recoveryConfirmedRef.current) {
+            setError('Invalid recovery session. Please request a new setup link.')
+            return
+        }
 
         if (password.length < 8) {
             setError('Password must be at least 8 characters')
@@ -164,7 +164,7 @@ export default function WelcomeSetupPage() {
             })
 
             if (resetError) {
-                setError(resetError.message)
+                setError(friendlyError(resetError))
             } else {
                 setResendSuccess(true)
             }
