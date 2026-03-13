@@ -60,7 +60,8 @@ export default function WelcomeSetupPage() {
     const recoveryConfirmedRef = useRef(false)
     // Isolated Supabase client for recovery — avoids all race conditions with
     // the singleton client's _initialize(), cross-tab sync, and cookie-based storage.
-    const recoveryClientRef = useRef<ReturnType<typeof createClient> | null>(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recoveryClientRef = useRef<any>(null)
 
     useEffect(() => {
         async function initRecovery() {
@@ -128,7 +129,8 @@ export default function WelcomeSetupPage() {
         initRecovery()
     }, [])
 
-    async function loadWelcomeData(user: { id: string; email?: string; user_metadata?: Record<string, any> }, client: ReturnType<typeof createClient>) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function loadWelcomeData(user: { id: string; email?: string; user_metadata?: Record<string, any> }, client: any) {
         try {
             const meta = user.user_metadata || {}
 

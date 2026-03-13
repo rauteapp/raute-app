@@ -45,7 +45,8 @@ export default function UpdatePasswordPage() {
     const [recoveryEmail, setRecoveryEmail] = useState('')
     const recoveryConfirmedRef = useRef(false)
     // Isolated client — avoids race conditions with the singleton's _initialize()
-    const recoveryClientRef = useRef<ReturnType<typeof createClient> | null>(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recoveryClientRef = useRef<any>(null)
 
     useEffect(() => {
         async function initRecovery() {
