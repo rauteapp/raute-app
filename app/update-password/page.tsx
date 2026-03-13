@@ -67,32 +67,14 @@ export default function UpdatePasswordPage() {
                 return
             }
 
-            // Case 3: Valid recovery tokens — establish the recovery session.
-            // Clear any existing LOCAL session first (another user might be logged
-            // in on this browser) so it doesn't interfere.
-            // IMPORTANT: Use scope:'local' — global signOut would revoke the
-            // recovery session that was just created by the verify endpoint.
-            try {
-                markIntentionalLogout()
-                await supabase.auth.signOut({ scope: 'local' })
-            } catch {
-                // Ignore sign-out errors
-            }
-
-            // Set the recovery session from the hash tokens
-            const { error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-            })
-
-            if (sessionError) {
-                console.error('Failed to set recovery session:', sessionError)
-                setLinkExpired(true)
-                setIsChecking(false)
-                return
-            }
-
-            // Validate the session server-side
+            // Case 3: Valid recovery tokens present in the URL hash.
+            // The Supabase client automatically detects hash tokens during its
+            // async initialization and sets up the session. We do NOT manually
+            // call signOut or setSession — doing so races with the client's
+            // own initialization and can destroy the session.
+            //
+            // getUser() acquires the same internal lock, so it waits for
+            // initialization to finish before making its server call.
             const { data: { user }, error: userError } = await supabase.auth.getUser()
             if (userError || !user) {
                 console.error('Recovery session validation failed:', userError)

@@ -78,32 +78,16 @@ export default function WelcomeSetupPage() {
                 return
             }
 
-            // Case 3: Valid recovery tokens — establish the recovery session.
-            // Clear any existing LOCAL session first (e.g. manager logged in on
-            // this browser) so it doesn't interfere with the recovery session.
-            // IMPORTANT: Use scope:'local' — global signOut would revoke the
-            // recovery session that was just created by the verify endpoint.
-            try {
-                markIntentionalLogout()
-                await supabase.auth.signOut({ scope: 'local' })
-            } catch {
-                // Ignore sign-out errors
-            }
-
-            // Set the recovery session from the hash tokens
-            const { error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-            })
-
-            if (sessionError) {
-                console.error('Failed to set recovery session:', sessionError)
-                setLinkExpired(true)
-                setIsLoading(false)
-                return
-            }
-
-            // Validate the session server-side (getUser makes a server call)
+            // Case 3: Valid recovery tokens present in the URL hash.
+            // The Supabase client automatically detects hash tokens during its
+            // async initialization (_initialize → _getSessionFromURL) and sets
+            // up the session. We do NOT manually call signOut or setSession —
+            // doing so races with the client's own initialization and can
+            // destroy the session it just created.
+            //
+            // getUser() acquires the same internal lock as _initialize(), so it
+            // will wait for initialization to finish before making its server call.
+            // This guarantees we get the recovery user, not a stale manager session.
             const { data: { user }, error: userError } = await supabase.auth.getUser()
             if (userError || !user) {
                 console.error('Recovery session validation failed:', userError)
