@@ -56,7 +56,7 @@ export function Footer() {
 
                 <div className="pt-8 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
                     <p className="text-slate-400 text-sm">
-                        © {new Date().getFullYear()} Raute Inc. All rights reserved.
+                        © {new Date().getFullYear()} Raute. All rights reserved.
                     </p>
                     <div className="flex items-center gap-2 text-sm text-slate-400">
                         <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
