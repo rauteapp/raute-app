@@ -51,6 +51,20 @@ export default function WelcomeSetupPage() {
             }
         })
 
+        // The Supabase client singleton may have already processed the URL hash
+        // (with #access_token=...&type=recovery) BEFORE this component mounted,
+        // so the PASSWORD_RECOVERY event was fired and missed. Check for this case:
+        // if the URL hash contains type=recovery, the session is already established.
+        const hash = window.location.hash
+        if (hash.includes('type=recovery')) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session && !recoveryConfirmedRef.current) {
+                    recoveryConfirmedRef.current = true
+                    loadWelcomeData(session.user.id)
+                }
+            })
+        }
+
         // Timeout: if PASSWORD_RECOVERY doesn't fire within 8 seconds,
         // the link is expired/invalid or was already used.
         const timeout = setTimeout(() => {
