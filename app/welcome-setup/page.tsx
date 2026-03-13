@@ -79,11 +79,13 @@ export default function WelcomeSetupPage() {
             }
 
             // Case 3: Valid recovery tokens — establish the recovery session.
-            // Sign out any existing session first (e.g. manager logged in on
+            // Clear any existing LOCAL session first (e.g. manager logged in on
             // this browser) so it doesn't interfere with the recovery session.
+            // IMPORTANT: Use scope:'local' — global signOut would revoke the
+            // recovery session that was just created by the verify endpoint.
             try {
                 markIntentionalLogout()
-                await supabase.auth.signOut()
+                await supabase.auth.signOut({ scope: 'local' })
             } catch {
                 // Ignore sign-out errors
             }
