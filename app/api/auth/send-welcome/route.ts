@@ -82,9 +82,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Failed to generate setup link' }, { status: 500 })
         }
 
-        // Extract the token from the generated link and build our redirect URL
-        // The hashed_token is what we need for the PKCE flow
-        const setupUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify?token=${linkData.properties.hashed_token}&type=recovery&redirect_to=https://raute.io/welcome-setup`
+        // Use the action_link directly from generateLink — it contains the correct
+        // token format and parameters for the current Supabase version.
+        // Do NOT manually construct the verify URL as the token parameter name
+        // may differ between Supabase versions (token vs token_hash).
+        const setupUrl = linkData.properties.action_link
 
         // Send branded welcome email via Resend
         const resendKey = process.env.RESEND_API_KEY

@@ -49,6 +49,15 @@ export default function UpdatePasswordPage() {
 
     useEffect(() => {
         async function initRecovery() {
+            // ALWAYS sign out any existing session first (another user might be
+            // logged in on this browser). This prevents session leakage.
+            try {
+                markIntentionalLogout()
+                await supabase.auth.signOut()
+            } catch {
+                // Ignore sign-out errors
+            }
+
             const { accessToken, refreshToken, type, error: hashError, errorDescription } = parseHashParams(SAVED_HASH)
 
             // Case 1: Supabase redirected with an error (expired/invalid token)
@@ -68,14 +77,6 @@ export default function UpdatePasswordPage() {
             }
 
             // Case 3: Valid recovery tokens — establish the recovery session.
-            // First, sign out any existing session (another user might be logged
-            // in on this browser). This clears stale cookies.
-            try {
-                markIntentionalLogout()
-                await supabase.auth.signOut()
-            } catch {
-                // Ignore sign-out errors
-            }
 
             // Set the recovery session from the hash tokens
             const { error: sessionError } = await supabase.auth.setSession({
