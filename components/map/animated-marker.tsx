@@ -12,12 +12,19 @@ interface AnimatedMarkerProps {
     duration?: number // Animation duration in ms
 }
 
+/**
+ * Smoothly animates a Leaflet marker between positions.
+ *
+ * Default duration matches the GPS tracking interval (5s) so the marker
+ * appears to glide continuously instead of jumping between discrete points.
+ * Uses linear easing for natural constant-speed movement along roads.
+ */
 export default function AnimatedMarker({
     position,
     icon,
     zIndexOffset,
     children,
-    duration = 1000,
+    duration = 5000,
 }: AnimatedMarkerProps) {
     const markerRef = useRef<L.Marker>(null)
     const animationRef = useRef<number | null>(null)
@@ -32,6 +39,12 @@ export default function AnimatedMarker({
         // Skip animation if positions are essentially the same (<1 meter)
         if (startPos.distanceTo(endPos) < 1) return
 
+        // For large jumps (>500m), snap instantly — likely a GPS correction or teleport
+        if (startPos.distanceTo(endPos) > 500) {
+            marker.setLatLng(endPos)
+            return
+        }
+
         const startTime = performance.now()
 
         function animate(currentTime: number) {
@@ -39,11 +52,9 @@ export default function AnimatedMarker({
             const elapsed = currentTime - startTime
             const progress = Math.min(elapsed / duration, 1)
 
-            // Ease-out cubic for natural deceleration
-            const eased = 1 - Math.pow(1 - progress, 3)
-
-            const lat = startPos.lat + (endPos.lat - startPos.lat) * eased
-            const lng = startPos.lng + (endPos.lng - startPos.lng) * eased
+            // Linear easing for constant-speed movement (looks natural on roads)
+            const lat = startPos.lat + (endPos.lat - startPos.lat) * progress
+            const lng = startPos.lng + (endPos.lng - startPos.lng) * progress
 
             marker.setLatLng([lat, lng])
 

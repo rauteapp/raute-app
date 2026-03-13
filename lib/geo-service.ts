@@ -6,11 +6,11 @@ import { supabase as defaultSupabase } from './supabase';
 
 /**
  * Adaptive tracking intervals:
- * - Moving: 10s updates (real-time for fleet managers)
+ * - Moving: 5s updates (smooth live tracking for fleet managers)
  * - Idle (not moved 100m+): 30s updates (saves battery)
  * - Background on web: 15s (browser may throttle anyway)
  */
-const INTERVAL_MOVING = 10_000;   // 10 seconds when moving
+const INTERVAL_MOVING = 5_000;    // 5 seconds when moving (smooth live tracking)
 const INTERVAL_IDLE = 30_000;     // 30 seconds when idle (battery saver)
 const IDLE_THRESHOLD_METERS = 100;
 
@@ -32,7 +32,7 @@ class GeoService {
 
     // Dedup: prevent double-syncs from watchPosition + interval firing together
     private lastSyncTime: number = 0;
-    private readonly MIN_SYNC_GAP_MS = 5_000; // At least 5s between syncs
+    private readonly MIN_SYNC_GAP_MS = 3_000; // At least 3s between syncs
 
     public debugState = {
         lastAttempt: null as string | null,
