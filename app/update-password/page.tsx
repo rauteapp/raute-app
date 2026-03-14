@@ -15,6 +15,7 @@ import { markIntentionalLogout } from '@/components/auth-check'
 // Capture URL hash and query params IMMEDIATELY at module level.
 const SAVED_HASH = typeof window !== 'undefined' ? window.location.hash.substring(1) : ''
 const SAVED_CODE = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('code') : null
+const SAVED_QUERY_ERROR = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('error') : null
 
 function parseHashParams(hash: string) {
     const params = new URLSearchParams(hash)
@@ -66,36 +67,53 @@ export default function UpdatePasswordPage() {
                 )
             }
 
+            // === Check for errors in query string (PKCE error redirect) ===
+            if (SAVED_QUERY_ERROR) {
+                const queryDesc = typeof window !== 'undefined'
+                    ? new URLSearchParams(window.location.search).get('error_description') || ''
+                    : ''
+                if (queryDesc) console.warn('Recovery link error:', queryDesc)
+                setLinkExpired(true)
+                setIsChecking(false)
+                return
+            }
+
             // === Flow A: PKCE code in query string (?code=...) ===
             // This comes from forgot-password → resetPasswordForEmail().
-            // The singleton client has the code_verifier in cookies, so we
-            // MUST use it for the exchange, then transfer tokens to an isolated client.
+            // The singleton client has the code_verifier in cookies and its
+            // _initialize() will automatically exchange the code. We CANNOT
+            // call exchangeCodeForSession manually — _initialize() races us
+            // and consumes the one-time code first.
+            //
+            // Instead: let _initialize() handle it, then read the session.
+            // getUser() acquires the same internal lock, so it waits for
+            // _initialize() to finish the code exchange.
             if (SAVED_CODE) {
-                const { data, error: codeError } = await supabase.auth.exchangeCodeForSession(SAVED_CODE)
+                // Wait for singleton to finish PKCE exchange via _initialize()
+                const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-                if (codeError || !data.session) {
-                    console.error('PKCE code exchange failed:', codeError)
+                if (userError || !user) {
+                    console.error('PKCE session validation failed:', userError)
                     setLinkExpired(true)
                     setIsChecking(false)
                     return
                 }
 
-                // Transfer the resulting tokens to an isolated client
+                // Get the session tokens from the singleton and transfer to isolated client
+                const { data: { session } } = await supabase.auth.getSession()
+                if (!session) {
+                    setLinkExpired(true)
+                    setIsChecking(false)
+                    return
+                }
+
                 const recoveryClient = makeIsolatedClient()
                 recoveryClientRef.current = recoveryClient
 
                 await recoveryClient.auth.setSession({
-                    access_token: data.session.access_token,
-                    refresh_token: data.session.refresh_token,
+                    access_token: session.access_token,
+                    refresh_token: session.refresh_token,
                 })
-
-                const { data: { user }, error: userError } = await recoveryClient.auth.getUser()
-                if (userError || !user) {
-                    console.error('Recovery session validation failed:', userError)
-                    setLinkExpired(true)
-                    setIsChecking(false)
-                    return
-                }
 
                 recoveryConfirmedRef.current = true
                 setRecoveryEmail(user.email || '')
