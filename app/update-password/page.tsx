@@ -12,8 +12,9 @@ import { useToast } from '@/components/toast-provider'
 import { friendlyError } from '@/lib/friendly-error'
 import { markIntentionalLogout } from '@/components/auth-check'
 
-// Capture URL hash IMMEDIATELY at module level.
+// Capture URL hash and query params IMMEDIATELY at module level.
 const SAVED_HASH = typeof window !== 'undefined' ? window.location.hash.substring(1) : ''
+const SAVED_CODE = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('code') : null
 
 function parseHashParams(hash: string) {
     const params = new URLSearchParams(hash)
@@ -50,6 +51,60 @@ export default function UpdatePasswordPage() {
 
     useEffect(() => {
         async function initRecovery() {
+            // Helper: create an isolated client for the recovery session
+            function makeIsolatedClient() {
+                return createClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                    {
+                        auth: {
+                            detectSessionInUrl: false,
+                            persistSession: false,
+                            autoRefreshToken: false,
+                        }
+                    }
+                )
+            }
+
+            // === Flow A: PKCE code in query string (?code=...) ===
+            // This comes from forgot-password → resetPasswordForEmail().
+            // The singleton client has the code_verifier in cookies, so we
+            // MUST use it for the exchange, then transfer tokens to an isolated client.
+            if (SAVED_CODE) {
+                const { data, error: codeError } = await supabase.auth.exchangeCodeForSession(SAVED_CODE)
+
+                if (codeError || !data.session) {
+                    console.error('PKCE code exchange failed:', codeError)
+                    setLinkExpired(true)
+                    setIsChecking(false)
+                    return
+                }
+
+                // Transfer the resulting tokens to an isolated client
+                const recoveryClient = makeIsolatedClient()
+                recoveryClientRef.current = recoveryClient
+
+                await recoveryClient.auth.setSession({
+                    access_token: data.session.access_token,
+                    refresh_token: data.session.refresh_token,
+                })
+
+                const { data: { user }, error: userError } = await recoveryClient.auth.getUser()
+                if (userError || !user) {
+                    console.error('Recovery session validation failed:', userError)
+                    setLinkExpired(true)
+                    setIsChecking(false)
+                    return
+                }
+
+                recoveryConfirmedRef.current = true
+                setRecoveryEmail(user.email || '')
+                setIsChecking(false)
+                return
+            }
+
+            // === Flow B: Hash fragment (#access_token=...&type=recovery) ===
+            // This comes from the welcome-setup resend link.
             const { accessToken, refreshToken, type, error: hashError, errorDescription } = parseHashParams(SAVED_HASH)
 
             // Case 1: Supabase redirected with an error (expired/invalid token)
@@ -69,17 +124,7 @@ export default function UpdatePasswordPage() {
             }
 
             // Case 3: Valid recovery tokens — use an ISOLATED client.
-            const recoveryClient = createClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                {
-                    auth: {
-                        detectSessionInUrl: false,
-                        persistSession: false,
-                        autoRefreshToken: false,
-                    }
-                }
-            )
+            const recoveryClient = makeIsolatedClient()
             recoveryClientRef.current = recoveryClient
 
             const { error: sessionError } = await recoveryClient.auth.setSession({
