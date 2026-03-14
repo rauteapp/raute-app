@@ -182,11 +182,23 @@ export default function WelcomeSetupPage() {
             const client = recoveryClientRef.current
             if (!client) throw new Error('Recovery session lost')
 
-            const { error: updateError } = await client.auth.updateUser({
-                password: password
+            // Use the server-side admin API to set the password.
+            // This avoids Supabase sending a "password changed" email —
+            // because this is the driver's FIRST password, not a change.
+            const { data: { session } } = await client.auth.getSession()
+            if (!session?.access_token) throw new Error('Recovery session lost')
+
+            const res = await fetch('/api/auth/set-initial-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: session.access_token,
+                    password: password,
+                }),
             })
 
-            if (updateError) throw updateError
+            const result = await res.json()
+            if (!res.ok) throw new Error(result.error || 'Failed to set password')
 
             setSetupComplete(true)
 
