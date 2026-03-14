@@ -62,13 +62,10 @@ export default function AuthCallback() {
         return
       }
 
-      // Redirect to dashboard immediately — don't block on profile check or role sync.
-      // The dashboard page handles role loading with its own fallback/timeout.
-      // Profile check and role sync happen in the background (best-effort).
+      // Check profile and role before redirecting
       hasRedirected.current = true
-      setStatus('Redirecting to dashboard...')
+      setStatus('Redirecting...')
 
-      // Fire-and-forget: sync role in background before redirect
       try {
         const profilePromise = supabase
           .from('users')
@@ -77,7 +74,7 @@ export default function AuthCallback() {
           .single()
 
         // Give profile check 2s — if it responds quickly and user has no profile,
-        // redirect to login instead. Otherwise, just go to dashboard.
+        // redirect to onboarding instead. Otherwise, just go to dashboard.
         const result = await Promise.race([
           profilePromise,
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
@@ -89,6 +86,20 @@ export default function AuthCallback() {
             // New user (e.g. Google/Apple signup) — send to onboarding to create profile
             window.location.href = '/onboarding'
             return
+          }
+
+          // Check if driver needs activation
+          if (userProfile.role === 'driver') {
+            const { data: driverData } = await supabase
+              .from('drivers')
+              .select('is_active')
+              .eq('user_id', userId)
+              .single()
+
+            if (driverData && !driverData.is_active) {
+              window.location.href = '/pending-activation'
+              return
+            }
           }
         }
 

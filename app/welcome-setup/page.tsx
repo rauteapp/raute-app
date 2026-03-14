@@ -202,7 +202,9 @@ export default function WelcomeSetupPage() {
 
             setSetupComplete(true)
 
-            // Brief delay to show success state, then sign out and redirect to login
+            // Brief delay to show success state, then sign out and redirect to login.
+            // When the driver logs in, the login page checks is_active and redirects
+            // to /pending-activation if not yet activated by their manager.
             setTimeout(async () => {
                 markIntentionalLogout()
                 // Sign out the singleton client (clears manager cookies if any)
@@ -281,7 +283,7 @@ export default function WelcomeSetupPage() {
                         Your password has been created successfully.
                     </p>
                     <p className="text-sm text-slate-400 dark:text-slate-500">
-                        Redirecting you to login...
+                        Your manager will activate your account shortly. Redirecting you to login...
                     </p>
                 </div>
             </div>

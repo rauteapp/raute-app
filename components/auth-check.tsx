@@ -54,6 +54,23 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
         )
     }, [pathname])
 
+    // Helper: check if driver is pending activation
+    const checkDriverActivation = async (userId: string, role: string | null) => {
+        if (role !== 'driver' || pathname === '/pending-activation') return false
+        try {
+            const { data: driverData } = await supabase
+                .from('drivers')
+                .select('is_active')
+                .eq('user_id', userId)
+                .single()
+            if (driverData && !driverData.is_active) {
+                router.push('/pending-activation')
+                return true // blocked
+            }
+        } catch {}
+        return false
+    }
+
     // Helper: stop loading and mark resolved
     const finishLoading = () => {
         if (isMountedRef.current) setIsLoading(false)
@@ -268,6 +285,18 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                         if (now - lastRedirectRef.current > 3000) {
                             lastRedirectRef.current = now
                             router.push('/verify-email')
+                        }
+                    }
+
+                    // Check if driver needs activation before allowing access
+                    const userRole = data.session.user.user_metadata?.role
+                    if (userRole === 'driver') {
+                        const blocked = await checkDriverActivation(data.session.user.id, userRole)
+                        if (blocked) {
+                            clearTimeout(maxTimeout)
+                            authCheckRunningRef.current = false
+                            resolvedRef.current = true
+                            return
                         }
                     }
 

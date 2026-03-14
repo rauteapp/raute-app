@@ -360,6 +360,21 @@ export default function LoginPage() {
                 return
             }
 
+            // 8. Check if driver needs activation
+            const userRole = authData.session.user.user_metadata?.role
+            if (userRole === 'driver') {
+                const { data: driverData } = await supabase
+                    .from('drivers')
+                    .select('is_active')
+                    .eq('user_id', authData.session.user.id)
+                    .single()
+
+                if (driverData && !driverData.is_active) {
+                    router.push('/pending-activation')
+                    return
+                }
+            }
+
             // Success - redirect to dashboard
             router.push('/dashboard')
 
