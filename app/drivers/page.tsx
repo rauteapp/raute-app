@@ -103,13 +103,18 @@ export default function DriversPage() {
     const { toast } = useToast()
 
     useEffect(() => {
+        let hasFetched = false
+
         // Initial attempt
         checkUserAndFetch()
+        hasFetched = true
 
-        // Listener for async auth state loading
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN' || session?.user) {
+        // Listener for async auth state loading — only re-fetch on actual sign-in,
+        // NOT on token refreshes (which fire TOKEN_REFRESHED with session?.user truthy)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, _session) => {
+            if (event === 'SIGNED_IN' && !hasFetched) {
                 checkUserAndFetch()
+                hasFetched = true
             }
         })
 
@@ -210,7 +215,8 @@ export default function DriversPage() {
     }
 
     async function fetchDrivers() {
-        setIsLoading(true)
+        // Only show skeleton loader on initial load, not on background refreshes
+        if (drivers.length === 0) setIsLoading(true)
         try {
             const userId = await getCurrentUserId()
             if (!userId) {
