@@ -113,7 +113,8 @@ export async function POST(request: Request) {
                 if (promoCodes.data.length > 0) {
                     const stripePromo = promoCodes.data[0]
                     // Verify this promo code belongs to our founding member coupon
-                    if (stripePromo.coupon.id === foundingCouponId) {
+                    const coupon = stripePromo.coupon as Stripe.Coupon
+                    if (coupon && coupon.id === foundingCouponId) {
                         sessionConfig.discounts = [{ promotion_code: stripePromo.id }]
                         sessionConfig.metadata!.is_founding = 'true'
                         sessionConfig.subscription_data!.metadata!.is_founding = 'true'
