@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { getStripePlans } from '@/lib/stripe-plans'
+import { getStripePlans, getFoundingCouponId } from '@/lib/stripe-plans'
 import { applyRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
@@ -40,10 +40,21 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json()
-        const { planId, billingCycle = 'monthly' } = body
+        const { planId, billingCycle = 'monthly', promoCode } = body
 
         if (!planId || !['starter', 'pro', 'pioneer'].includes(planId)) {
             return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+        }
+
+        // Get plan details
+        const plans = getStripePlans(billingCycle)
+        const plan = plans.find(p => p.id === planId)
+
+        if (!plan || !plan.priceId) {
+            return NextResponse.json(
+                { error: 'Stripe prices not configured. Please contact support.' },
+                { status: 503 }
+            )
         }
 
         // Check founding member status
@@ -60,26 +71,13 @@ export async function POST(request: Request) {
             .single()
 
         const isFoundingAvailable = config?.value?.active && config.value.count < config.value.limit
-        const plans = getStripePlans(billingCycle, isFoundingAvailable)
-        const plan = plans.find(p => p.id === planId)
+        const foundingCouponId = getFoundingCouponId()
 
-        if (!plan) {
-            return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
-        }
-
-        const priceId = (isFoundingAvailable && plan.foundingPriceId) || plan.priceId
-        if (!priceId) {
-            return NextResponse.json(
-                { error: 'Stripe prices not configured. Please contact support.' },
-                { status: 503 }
-            )
-        }
-
-        // Create Stripe Checkout Session
-        const session = await stripe.checkout.sessions.create({
+        // Build checkout session config
+        const sessionConfig: Stripe.Checkout.SessionCreateParams = {
             mode: 'subscription',
             payment_method_types: ['card'],
-            line_items: [{ price: priceId, quantity: 1 }],
+            line_items: [{ price: plan.priceId, quantity: 1 }],
             success_url: `${process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin')}/subscribe?success=true`,
             cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin')}/subscribe?canceled=true`,
             client_reference_id: user.id,
@@ -89,7 +87,7 @@ export async function POST(request: Request) {
                 plan_id: planId,
                 driver_limit: plan.driverLimit.toString(),
                 order_limit: plan.orderLimit.toString(),
-                is_founding: isFoundingAvailable ? 'true' : 'false',
+                is_founding: 'false',
             },
             subscription_data: {
                 metadata: {
@@ -97,9 +95,43 @@ export async function POST(request: Request) {
                     plan_id: planId,
                     driver_limit: plan.driverLimit.toString(),
                     order_limit: plan.orderLimit.toString(),
+                    original_plan_id: planId,
                 },
             },
-        })
+        }
+
+        // Apply founding member coupon if promo code provided and founding is still active
+        if (promoCode && isFoundingAvailable && foundingCouponId) {
+            // Validate the promo code against Stripe
+            try {
+                const promoCodes = await stripe.promotionCodes.list({
+                    code: promoCode,
+                    active: true,
+                    limit: 1,
+                })
+
+                if (promoCodes.data.length > 0) {
+                    const stripePromo = promoCodes.data[0]
+                    // Verify this promo code belongs to our founding member coupon
+                    if (stripePromo.coupon.id === foundingCouponId) {
+                        sessionConfig.discounts = [{ promotion_code: stripePromo.id }]
+                        sessionConfig.metadata!.is_founding = 'true'
+                        sessionConfig.subscription_data!.metadata!.is_founding = 'true'
+                    }
+                }
+            } catch (e) {
+                console.error('Promo code validation error:', e)
+                // Continue without discount — don't block checkout
+            }
+        }
+
+        // Allow promo code input in Stripe Checkout if no discount was pre-applied
+        if (!sessionConfig.discounts) {
+            sessionConfig.allow_promotion_codes = true
+        }
+
+        // Create Stripe Checkout Session
+        const session = await stripe.checkout.sessions.create(sessionConfig)
 
         return NextResponse.json({ url: session.url })
     } catch (error) {

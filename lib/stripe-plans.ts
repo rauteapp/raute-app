@@ -10,13 +10,10 @@
  * STRIPE_PRICE_PIONEER_MONTHLY=price_xxx
  * STRIPE_PRICE_PIONEER_ANNUAL=price_xxx
  *
- * For founding member pricing (50% off), create separate prices in Stripe
- * with coupons or use the founding member price IDs:
+ * For founding member pricing, James set up a Stripe coupon (50% off for 12 months).
+ * The coupon is applied at checkout — no separate founding price IDs needed.
  *
- * STRIPE_PRICE_STARTER_MONTHLY_FOUNDING=price_xxx
- * STRIPE_PRICE_PRO_MONTHLY_FOUNDING=price_xxx
- * STRIPE_PRICE_PIONEER_MONTHLY_FOUNDING=price_xxx
- * (etc.)
+ * STRIPE_FOUNDING_COUPON_ID=UxLZUMsZ (live) or s3qhbJNE (test)
  */
 
 export interface StripePlan {
@@ -25,12 +22,10 @@ export interface StripePlan {
     driverLimit: number
     orderLimit: number
     priceId: string
-    foundingPriceId?: string
 }
 
-export function getStripePlans(billingCycle: 'monthly' | 'annual', useFoundingPricing: boolean): StripePlan[] {
+export function getStripePlans(billingCycle: 'monthly' | 'annual'): StripePlan[] {
     const suffix = billingCycle === 'annual' ? '_ANNUAL' : '_MONTHLY'
-    const foundingSuffix = suffix + '_FOUNDING'
 
     return [
         {
@@ -39,7 +34,6 @@ export function getStripePlans(billingCycle: 'monthly' | 'annual', useFoundingPr
             driverLimit: 5,
             orderLimit: 500,
             priceId: process.env[`STRIPE_PRICE_STARTER${suffix}`] || '',
-            foundingPriceId: useFoundingPricing ? process.env[`STRIPE_PRICE_STARTER${foundingSuffix}`] : undefined,
         },
         {
             id: 'pro',
@@ -47,7 +41,6 @@ export function getStripePlans(billingCycle: 'monthly' | 'annual', useFoundingPr
             driverLimit: 15,
             orderLimit: 2000,
             priceId: process.env[`STRIPE_PRICE_PRO${suffix}`] || '',
-            foundingPriceId: useFoundingPricing ? process.env[`STRIPE_PRICE_PRO${foundingSuffix}`] : undefined,
         },
         {
             id: 'pioneer',
@@ -55,9 +48,16 @@ export function getStripePlans(billingCycle: 'monthly' | 'annual', useFoundingPr
             driverLimit: 40,
             orderLimit: 10000,
             priceId: process.env[`STRIPE_PRICE_PIONEER${suffix}`] || '',
-            foundingPriceId: useFoundingPricing ? process.env[`STRIPE_PRICE_PIONEER${foundingSuffix}`] : undefined,
         },
     ]
+}
+
+/**
+ * Get the founding member coupon ID from env.
+ * This is a Stripe coupon that gives 50% off for 12 months.
+ */
+export function getFoundingCouponId(): string | null {
+    return process.env.STRIPE_FOUNDING_COUPON_ID || null
 }
 
 // Same limits map used by Stripe webhook (maps Stripe price IDs → limits)
@@ -71,7 +71,7 @@ export function getLimitsForPriceId(priceId: string): { drivers: number; orders:
     ]
 
     for (const plan of plans) {
-        for (const suffix of ['_MONTHLY', '_ANNUAL', '_MONTHLY_FOUNDING', '_ANNUAL_FOUNDING']) {
+        for (const suffix of ['_MONTHLY', '_ANNUAL']) {
             const envKey = `STRIPE_PRICE_${plan.key}${suffix}`
             const id = process.env[envKey]
             if (id) {

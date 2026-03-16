@@ -37,12 +37,17 @@ export function PricingSection() {
                 {/* Founding Member Banner */}
                 {isFoundingActive && (
                     <div className="max-w-2xl mx-auto mb-12">
-                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-center text-white shadow-lg shadow-blue-500/20">
-                            <p className="text-sm font-bold uppercase tracking-wide mb-1">Founding Member Deal</p>
-                            <p className="text-xl font-extrabold mb-1">50% off for 12 months</p>
-                            <p className="text-blue-100 text-sm">
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-center text-white shadow-lg shadow-blue-500/20">
+                            <p className="text-sm font-bold uppercase tracking-wide mb-1">Founding Member Offer</p>
+                            <p className="text-xl font-extrabold mb-1">50% off for your first 12 months</p>
+                            <p className="text-blue-100 text-sm mb-3">
                                 <span className="font-bold text-white">{spotsRemaining}</span> of {foundingMember?.limit} spots remaining
                             </p>
+                            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
+                                <span className="text-sm text-blue-100">Use code</span>
+                                <span className="font-bold text-white bg-white/20 px-3 py-0.5 rounded font-mono tracking-wider">FOUNDER50</span>
+                                <span className="text-sm text-blue-100">at checkout</span>
+                            </div>
                         </div>
                     </div>
                 )}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, Loader2, ArrowLeft, Crown, Zap, Rocket, RefreshCw } from 'lucide-react'
+import { Check, Loader2, ArrowLeft, Crown, Zap, Rocket, RefreshCw, Tag, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/toast-provider'
 import { Capacitor } from '@capacitor/core'
@@ -19,8 +19,8 @@ const plans = [
         annualProductId: 'raute_starter_annual',
         price: '$24.99',
         foundingPrice: '$12.50',
-        annualPrice: '$249.99',
-        annualFoundingPrice: '$125',
+        annualPrice: '$249.90',
+        annualFoundingPrice: '$124.95',
         drivers: 5,
         orders: '500',
         support: 'Email Support',
@@ -34,9 +34,9 @@ const plans = [
         monthlyProductId: 'raute_pro_monthly',
         annualProductId: 'raute_pro_annual',
         price: '$59.99',
-        foundingPrice: '$30',
-        annualPrice: '$599.99',
-        annualFoundingPrice: '$300',
+        foundingPrice: '$30.00',
+        annualPrice: '$599.90',
+        annualFoundingPrice: '$299.95',
         drivers: 15,
         orders: '2,000',
         support: 'Priority Email Support',
@@ -50,9 +50,9 @@ const plans = [
         monthlyProductId: 'raute_pioneer_monthly',
         annualProductId: 'raute_pioneer_annual',
         price: '$99.99',
-        foundingPrice: '$50',
-        annualPrice: '$999.99',
-        annualFoundingPrice: '$500',
+        foundingPrice: '$50.00',
+        annualPrice: '$999.90',
+        annualFoundingPrice: '$499.95',
         drivers: 40,
         orders: '10,000',
         support: 'Dedicated Support',
@@ -67,6 +67,8 @@ export default function SubscribePage() {
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
     const [foundingMember, setFoundingMember] = useState<{ count: number; limit: number; active: boolean } | null>(null)
     const [currentPlanId, setCurrentPlanId] = useState<string | null>(null)
+    const [promoCode, setPromoCode] = useState('')
+    const [promoApplied, setPromoApplied] = useState(false)
     const { toast } = useToast()
     const isNative = Capacitor.isNativePlatform()
     const searchParams = useSearchParams()
@@ -83,10 +85,8 @@ export default function SubscribePage() {
     // Load founding member counter + current subscription
     useEffect(() => {
         async function loadConfig() {
-            // First ensure we have a valid session before making DB queries
             const { data: { user } } = await supabase.auth.getUser()
 
-            // Fetch founding member config (public read allowed)
             const { data, error: configError } = await supabase
                 .from('app_config')
                 .select('value')
@@ -96,7 +96,6 @@ export default function SubscribePage() {
                 setFoundingMember(data.value as any)
             }
 
-            // Check if user already has an active subscription
             if (user) {
                 const { data: sub } = await supabase
                     .from('subscription_history')
@@ -106,7 +105,6 @@ export default function SubscribePage() {
                     .limit(1)
                     .maybeSingle()
                 if (sub?.tier_name) {
-                    // Map tier_name to plan id (e.g. "raute_starter_monthly" -> "starter")
                     const name = sub.tier_name
                         .replace(/^(raute_|stripe_)/, '')
                         .replace(/_(monthly|annual)$/, '')
@@ -172,7 +170,11 @@ export default function SubscribePage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session.access_token}`,
                 },
-                body: JSON.stringify({ planId: plan.id, billingCycle }),
+                body: JSON.stringify({
+                    planId: plan.id,
+                    billingCycle,
+                    promoCode: promoApplied ? promoCode.trim() : undefined,
+                }),
             })
 
             const data = await res.json()
@@ -227,6 +229,17 @@ export default function SubscribePage() {
         }
     }
 
+    const handleApplyPromo = () => {
+        if (!promoCode.trim()) return
+        setPromoApplied(true)
+        toast({ title: 'Promo code applied!', description: 'Discount will be applied at checkout.', type: 'success' })
+    }
+
+    const handleRemovePromo = () => {
+        setPromoCode('')
+        setPromoApplied(false)
+    }
+
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
             {/* Header */}
@@ -243,11 +256,16 @@ export default function SubscribePage() {
                 {/* Founding Member Banner */}
                 {isFoundingActive && (
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-center text-white shadow-lg shadow-blue-500/20">
-                        <p className="text-xs font-bold uppercase tracking-wide mb-1 text-blue-100">Founding Member Deal</p>
-                        <p className="text-xl font-extrabold">50% off for 12 months</p>
+                        <p className="text-xs font-bold uppercase tracking-wide mb-1 text-blue-100">Founding Member Offer</p>
+                        <p className="text-xl font-extrabold">50% off for your first 12 months</p>
                         <p className="text-blue-100 text-sm mt-1">
                             <span className="font-bold text-white">{spotsRemaining}</span> of {foundingMember?.limit} spots remaining
                         </p>
+                        {!promoApplied && (
+                            <p className="text-blue-200 text-xs mt-2">
+                                Use code <span className="font-bold text-white bg-white/20 px-2 py-0.5 rounded">FOUNDER50</span> at checkout
+                            </p>
+                        )}
                     </div>
                 )}
 
@@ -255,6 +273,46 @@ export default function SubscribePage() {
                 {foundingMember && !isFoundingActive && (
                     <div className="bg-slate-100 dark:bg-slate-900 rounded-2xl p-4 text-center border border-slate-200 dark:border-slate-800">
                         <p className="text-sm text-slate-600 dark:text-slate-400">Founding member offer has ended. Subscribe at regular pricing below.</p>
+                    </div>
+                )}
+
+                {/* Promo Code Field (Web only) */}
+                {!isNative && (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                        {promoApplied ? (
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Tag size={16} className="text-green-600" />
+                                    <span className="text-sm font-semibold text-green-700 dark:text-green-400">
+                                        Promo code applied: <span className="font-mono">{promoCode}</span>
+                                    </span>
+                                </div>
+                                <button onClick={handleRemovePromo} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                    <X size={16} className="text-slate-400" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        value={promoCode}
+                                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                        placeholder="Have a promo code?"
+                                        className="w-full pl-9 pr-3 h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                                    />
+                                </div>
+                                <Button
+                                    onClick={handleApplyPromo}
+                                    disabled={!promoCode.trim()}
+                                    className="h-10 px-5 rounded-xl font-semibold bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-40"
+                                >
+                                    Apply
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -288,7 +346,7 @@ export default function SubscribePage() {
                         const Icon = plan.icon
                         const isCurrentPurchasing = isPurchasing === plan.id
                         const isCurrentPlan = currentPlanId === plan.id
-                        const showFoundingPrice = isFoundingActive
+                        const showFoundingPrice = isFoundingActive && promoApplied
                         const displayPrice = showFoundingPrice
                             ? (billingCycle === 'annual' ? plan.annualFoundingPrice : plan.foundingPrice)
                             : (billingCycle === 'annual' ? plan.annualPrice : plan.price)
@@ -342,6 +400,9 @@ export default function SubscribePage() {
                                             <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{displayPrice}</span>
                                         </div>
                                         <span className="text-xs text-slate-500">{period}</span>
+                                        {showFoundingPrice && (
+                                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold mt-0.5">for first 12 months</p>
+                                        )}
                                     </div>
                                 </div>
 

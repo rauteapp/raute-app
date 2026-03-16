@@ -101,7 +101,7 @@ export async function POST(request: Request) {
                     event_id: event.id, event_type: event.type, user_id: userId, status: 'processed'
                 })
 
-                console.log(`Stripe: Subscription activated for ${userId} → ${driverLimit} drivers`)
+                console.log(`Stripe: Subscription activated for ${userId} → ${driverLimit} drivers${isFoundingMember ? ' (founding member)' : ''}`)
                 break
             }
 
@@ -190,6 +190,33 @@ export async function POST(request: Request) {
 
                 const priceId = subscription.items.data[0]?.price.id
                 const limits = priceId ? getLimitsForPriceId(priceId) : null
+                const currentPlanId = limits
+                    ? (limits.drivers === 5 ? 'starter' : limits.drivers === 15 ? 'pro' : 'pioneer')
+                    : null
+                const originalPlanId = subscription.metadata?.original_plan_id
+
+                // If the plan changed AND this was a founding member, remove the coupon
+                // This prevents abuse: sign up cheap with 50% off then upgrade keeping discount
+                if (originalPlanId && currentPlanId && originalPlanId !== currentPlanId) {
+                    const isFounding = subscription.metadata?.is_founding === 'true'
+                    if (isFounding && subscription.discount?.coupon) {
+                        try {
+                            await stripe.subscriptions.deleteDiscount(subscription.id)
+                            // Update metadata to reflect founding discount was removed
+                            await stripe.subscriptions.update(subscription.id, {
+                                metadata: {
+                                    ...subscription.metadata,
+                                    is_founding: 'false',
+                                    founding_removed_reason: 'plan_changed',
+                                    original_plan_id: originalPlanId,
+                                },
+                            })
+                            console.log(`Stripe: Founding member discount removed for ${userId} — plan changed from ${originalPlanId} to ${currentPlanId}`)
+                        } catch (e) {
+                            console.error('Failed to remove founding discount:', e)
+                        }
+                    }
+                }
 
                 if (limits) {
                     await supabaseAdmin
@@ -206,7 +233,7 @@ export async function POST(request: Request) {
                         .from('subscription_history')
                         .update({
                             driver_limit: limits.drivers,
-                            tier_name: `stripe_${limits.drivers === 5 ? 'starter' : limits.drivers === 15 ? 'pro' : 'pioneer'}`,
+                            tier_name: `stripe_${currentPlanId}`,
                         })
                         .eq('user_id', userId)
                         .eq('is_active', true)
