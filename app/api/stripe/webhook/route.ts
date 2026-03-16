@@ -199,7 +199,7 @@ export async function POST(request: Request) {
                 // This prevents abuse: sign up cheap with 50% off then upgrade keeping discount
                 if (originalPlanId && currentPlanId && originalPlanId !== currentPlanId) {
                     const isFounding = subscription.metadata?.is_founding === 'true'
-                    if (isFounding && subscription.discount?.coupon) {
+                    if (isFounding && (subscription as any).discount?.coupon) {
                         try {
                             await stripe.subscriptions.deleteDiscount(subscription.id)
                             // Update metadata to reflect founding discount was removed
