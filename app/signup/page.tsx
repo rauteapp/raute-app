@@ -127,7 +127,7 @@ export default function SignupPage() {
             // Save email so verify-email page can resend without a session
             // (Supabase doesn't create a session until email is verified)
             sessionStorage.setItem('pending_verification_email', email)
-            router.push("/verify-email")
+            window.location.href = '/verify-email'
 
         } catch (err: any) {
             toast({

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useMemo } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Capacitor } from "@capacitor/core"
@@ -28,7 +28,6 @@ export function markIntentionalLogout() {
 }
 
 export default function AuthCheck({ children }: { children: React.ReactNode }) {
-    const router = useRouter()
     const pathname = usePathname()
     const isMarketingPage = pathname === '/' || pathname === '/privacy' || pathname === '/terms'
     // Don't show skeleton on public routes (login, signup, etc) — render immediately
@@ -64,7 +63,7 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                 .eq('user_id', userId)
                 .single()
             if (driverData && !driverData.is_active) {
-                router.push('/pending-activation')
+                window.location.href = '/pending-activation'
                 return true // blocked
             }
         } catch {}
@@ -202,7 +201,7 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                                 const now = Date.now()
                                 if (now - lastRedirectRef.current > 3000) {
                                     lastRedirectRef.current = now
-                                    router.push('/verify-email')
+                                    window.location.href = '/verify-email'
                                 }
                             }
                             clearTimeout(maxTimeout)
@@ -303,7 +302,7 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                         const now = Date.now()
                         if (now - lastRedirectRef.current > 3000) {
                             lastRedirectRef.current = now
-                            router.push('/verify-email')
+                            window.location.href = '/verify-email'
                         }
                     }
 
@@ -435,7 +434,7 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                         _intentionalLogoutTimeout = null
                     }
                     if (isMountedRef.current && !isPublicRoute) {
-                        router.push('/login')
+                        window.location.href = '/login'
                     }
                     return
                 }
@@ -524,7 +523,7 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
         }
     // CRITICAL: Only re-run when pathname changes. Do NOT include state variables
     // that change during the effect (like lastRedirect) — that causes infinite loops.
-    }, [router, pathname, isPublicRoute, isMarketingPage])
+    }, [pathname, isPublicRoute, isMarketingPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Public and marketing pages render immediately (no skeleton)
     if (isMarketingPage || isPublicPage) {

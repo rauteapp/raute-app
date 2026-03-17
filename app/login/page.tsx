@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Mail } from "lucide-react"
@@ -25,7 +24,6 @@ const testimonials = [
 ];
 
 export default function LoginPage() {
-    const router = useRouter()
     const [showPassword, setShowPassword] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [currentTestimonial, setCurrentTestimonial] = useState(0)
@@ -163,7 +161,7 @@ export default function LoginPage() {
                 clearTimeout(timeout)
 
                 if (data?.session) {
-                    router.push('/dashboard')
+                    window.location.href = '/dashboard'
                 } else {
                     // No valid session despite cookies existing — show login form
                     // Cookies may be stale/expired fragments
@@ -181,7 +179,7 @@ export default function LoginPage() {
         return () => {
             cancelled = true
         }
-    }, [router])
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // --- OAuth Handlers (shared between mobile landing & forms) ---
 
@@ -217,7 +215,7 @@ export default function LoginPage() {
                 })
                 if (error) throw error
 
-                router.push('/dashboard')
+                window.location.href = '/dashboard'
             } else {
                 // Web: Use Supabase OAuth redirect flow
                 const redirectUrl = `${window.location.origin}/auth/callback`
@@ -310,7 +308,7 @@ export default function LoginPage() {
                 if (authError.message.includes('Email not confirmed')) {
                     // Email exists but not verified — redirect to verify-email page
                     sessionStorage.setItem('pending_verification_email', email)
-                    router.push('/verify-email')
+                    window.location.href = '/verify-email'
                     return
                 } else if (authError.message.includes('Invalid login credentials')) {
                     setApiError("Incorrect email or password.")
@@ -356,7 +354,7 @@ export default function LoginPage() {
 
             // 7. Handle Redirection
             if (!isEmailVerified) {
-                router.push('/verify-email')
+                window.location.href = '/verify-email'
                 return
             }
 
@@ -370,13 +368,13 @@ export default function LoginPage() {
                     .single()
 
                 if (driverData && !driverData.is_active) {
-                    router.push('/pending-activation')
+                    window.location.href = '/pending-activation'
                     return
                 }
             }
 
             // Success - redirect to dashboard
-            router.push('/dashboard')
+            window.location.href = '/dashboard'
 
         } catch (err: any) {
             console.error('❌ Login failed:', err)
@@ -470,7 +468,7 @@ export default function LoginPage() {
             }
 
             sessionStorage.setItem('pending_verification_email', email)
-            router.push("/verify-email")
+            window.location.href = '/verify-email'
 
         } catch (err: any) {
             toast({
