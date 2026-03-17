@@ -314,14 +314,12 @@ export default function ClientOrderDetails() {
                 }).eq('id', orderId)
             }
 
-            // Send tracking email notification (fire-and-forget)
-            if ((newStatus === 'in_progress' || newStatus === 'delivered') && order.customer_email && order.tracking_token) {
-                supabase.functions.invoke('send-tracking-email', {
-                    body: {
-                        order_id: orderId,
-                        event_type: newStatus,
-                        tracking_url: `${window.location.origin}/track/${order.tracking_token}`
-                    }
+            // Send tracking email when driver starts delivery (fire-and-forget)
+            if (newStatus === 'in_progress') {
+                fetch('/api/send-tracking-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_id: orderId }),
                 }).catch(() => {})
             }
 

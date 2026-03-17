@@ -681,23 +681,6 @@ export default function PlannerPage() {
                 throw error
             }
 
-            // Fire-and-forget: send tracking emails for newly assigned orders
-            const previousOrderMap = new Map(ordersToOptimize.map(o => [o.id, o]))
-            // Use result.orders (full data) for email check since routingUpdates is minimal
-            const ordersWithEmail = result.orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled')
-            ordersWithEmail.forEach(order => {
-                const prev = previousOrderMap.get(order.id)
-                const trackingToken = routingUpdates.find(u => u.id === order.id)?.tracking_token
-                const isNewlyAssigned = order.driver_id && (!prev?.driver_id || prev.driver_id !== order.driver_id)
-                if (isNewlyAssigned && (order as any).customer_email && trackingToken) {
-                    fetch('/api/send-tracking-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ order_id: order.id }),
-                    }).catch(() => {}) // fire-and-forget
-                }
-            })
-
             // Notify affected drivers about route update
             const affectedDriverIds = [...new Set(result.orders.filter(o => o.driver_id).map(o => o.driver_id!))]
             affectedDriverIds.forEach(dId => {
@@ -970,12 +953,6 @@ export default function PlannerPage() {
                     { order_id: orderId, route: `/my-editor?id=${orderId}` }
                 )
 
-                // Fire-and-forget: send tracking email to customer
-                fetch('/api/send-tracking-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order_id: orderId }),
-                }).catch(() => {})
             }
 
             // Notify PREVIOUS driver about unassignment (if order was taken from them)
