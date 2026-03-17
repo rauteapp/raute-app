@@ -690,12 +690,10 @@ export default function PlannerPage() {
                 const trackingToken = routingUpdates.find(u => u.id === order.id)?.tracking_token
                 const isNewlyAssigned = order.driver_id && (!prev?.driver_id || prev.driver_id !== order.driver_id)
                 if (isNewlyAssigned && (order as any).customer_email && trackingToken) {
-                    supabase.functions.invoke('send-tracking-email', {
-                        body: {
-                            order_id: order.id,
-                            event_type: 'assigned',
-                            tracking_url: `${window.location.origin}/track/${trackingToken}`
-                        }
+                    fetch('/api/send-tracking-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order_id: order.id }),
                     }).catch(() => {}) // fire-and-forget
                 }
             })
@@ -971,6 +969,13 @@ export default function PlannerPage() {
                     `Order #${order.order_number} has been assigned to you`,
                     { order_id: orderId, route: `/my-editor?id=${orderId}` }
                 )
+
+                // Fire-and-forget: send tracking email to customer
+                fetch('/api/send-tracking-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_id: orderId }),
+                }).catch(() => {})
             }
 
             // Notify PREVIOUS driver about unassignment (if order was taken from them)
