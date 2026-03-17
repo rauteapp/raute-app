@@ -16,9 +16,9 @@ import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
 
 const testimonials = [
-    "We tried Raute because of its free trial, and everything just worked for us. There was no reason to check any other optimization tool.",
-    "Raute transformed our dispatch operations completely. The routing algorithms save us hours every single day.",
-    "The real-time tracking and intuitive dashboard make Raute an indispensable part of our daily logistics fleet."
+    { quote: "We used to spend 2 hours every morning planning routes on paper. Now it takes 5 minutes. I wish I found Raute sooner.", name: "Marcus T.", role: "Fleet Manager, 12 drivers" },
+    { quote: "My drivers were constantly calling asking where to go next. Since switching to Raute, my phone barely rings. They just follow the app.", name: "Jennifer R.", role: "Operations Director" },
+    { quote: "We cut our fuel costs by 30% in the first month. The routes are smarter than anything we could plan ourselves.", name: "David K.", role: "Owner, Local Delivery Co." },
 ];
 
 export default function SignupPage() {
@@ -497,9 +497,12 @@ export default function SignupPage() {
                         <div className="w-full h-full bg-[#1c3e8e] text-white pt-16 flex-col relative overflow-hidden rounded-[1.8rem] flex justify-start items-center border-[0.5px] border-blue-900 shadow-xl shadow-[#1e40af]/10">
                             {/* Inner Content limit */}
                             <div className="relative z-10 w-full max-w-lg mt-12 flex flex-col items-center">
-                                <h2 className="text-[1.8rem] tracking-tight font-medium leading-[1.4] mb-8 text-center px-4 text-white/95 min-h-[120px] transition-opacity duration-500">
-                                    &quot;{testimonials[currentTestimonial]}&quot;
+                                <h2 className="text-[1.8rem] tracking-tight font-medium leading-[1.4] mb-4 text-center px-4 text-white/95 min-h-[120px] transition-opacity duration-500">
+                                    &quot;{testimonials[currentTestimonial].quote}&quot;
                                 </h2>
+                                <p className="text-sm text-white/60 mb-6">
+                                    <span className="font-semibold text-white/80">{testimonials[currentTestimonial].name}</span> &mdash; {testimonials[currentTestimonial].role}
+                                </p>
 
                                 {/* Carousel indicators */}
                                 <div className="flex justify-center gap-2.5 mb-16">
