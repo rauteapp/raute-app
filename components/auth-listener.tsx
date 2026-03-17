@@ -220,9 +220,7 @@ export function AuthListener() {
 
                     // Attempt 1: Direct code exchange (verifier should be in Supabase storage)
                     try {
-                        const startTime = Date.now()
                         const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
-                        const elapsed = Date.now() - startTime
                         if (!sessionError && data.session) {
                             await backupSession(data.session.access_token, data.session.refresh_token)
                             await clearCodeVerifierBackup()
@@ -240,9 +238,7 @@ export function AuthListener() {
                     if (restored) {
                         await new Promise(resolve => setTimeout(resolve, 300))
                         try {
-                            const startTime = Date.now()
                             const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
-                            const elapsed = Date.now() - startTime
                             if (!sessionError && data.session) {
                                 await backupSession(data.session.access_token, data.session.refresh_token)
                                 await clearCodeVerifierBackup()

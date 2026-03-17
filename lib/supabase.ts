@@ -126,8 +126,6 @@ function createSupabaseClient() {
                 } catch (err: any) {
                     if (err?.message === 'lock-timeout') {
                         lockTimeoutCount++
-                        if (lockTimeoutCount <= 2) {
-                            }
                         return await fn()
                     }
                     throw err
