@@ -49,7 +49,7 @@ export function HeroSection() {
                             </div>
                             <div className="space-y-2 flex-1 overflow-auto">
                                 {([
-                                    { name: 'Ahmed K.', vehicle: 'Ford Transit', stops: '8/10', pct: 80, color: 'from-blue-600 to-indigo-500' },
+                                    { name: 'Ryan C.', vehicle: 'Ford Transit', stops: '8/10', pct: 80, color: 'from-blue-600 to-indigo-500' },
                                     { name: 'Sarah M.', vehicle: 'Mercedes Sprinter', stops: '12/12', pct: 100, color: 'from-green-500 to-emerald-400' },
                                     { name: 'James L.', vehicle: 'Ram ProMaster', stops: '3/9', pct: 33, color: 'from-amber-500 to-orange-400' },
                                 ]).map((d) => (
@@ -76,7 +76,7 @@ export function HeroSection() {
                             <p className="text-[10px] font-bold text-slate-900 dark:text-white mb-2">Latest Updates</p>
                             <div className="space-y-1.5">
                                 {([
-                                    { dot: 'bg-green-500', text: 'Ahmed K. delivered #ORD-847', time: '2m' },
+                                    { dot: 'bg-green-500', text: 'Ryan C. delivered #ORD-847', time: '2m' },
                                     { dot: 'bg-blue-500', text: 'Sarah M. completed route', time: '8m' },
                                     { dot: 'bg-amber-500', text: 'James L. — traffic delay', time: '15m' },
                                 ]).map((a) => (
@@ -107,7 +107,7 @@ export function HeroSection() {
                         {/* Driver cards list */}
                         <div className="flex-1 overflow-auto p-2.5 space-y-2">
                             {([
-                                { letter: 'A', name: 'Ahmed K.', email: 'ahmed@fleet.co', phone: '+1 555-0101', vehicle: 'Ford Transit', status: 'active', activated: true },
+                                { letter: 'R', name: 'Ryan C.', email: 'ryan@fleet.co', phone: '+1 555-0101', vehicle: 'Ford Transit', status: 'active', activated: true },
                                 { letter: 'S', name: 'Sarah M.', email: 'sarah@fleet.co', phone: '+1 555-0102', vehicle: 'Sprinter', status: 'active', activated: true },
                                 { letter: 'J', name: 'James L.', email: 'james@fleet.co', phone: '+1 555-0103', vehicle: 'ProMaster', status: 'active', activated: false },
                                 { letter: 'M', name: 'Mike R.', email: 'mike@fleet.co', phone: '', vehicle: 'Transit', status: 'active', activated: true },
@@ -304,9 +304,9 @@ export function HeroSection() {
                             className="absolute top-3 right-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 w-44 z-20"
                         >
                             <div className="flex items-center gap-2 mb-2">
-                                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold">AK</div>
+                                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold">RC</div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-800 dark:text-white">Ahmed K.</p>
+                                    <p className="text-[11px] font-bold text-slate-800 dark:text-white">Ryan C.</p>
                                     <p className="text-[9px] text-slate-500">Ford Transit • Active</p>
                                 </div>
                             </div>
