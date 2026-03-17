@@ -71,6 +71,21 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
             resolvedRef.current = true
             sessionConfirmedRef.current = false
             authCheckRunningRef.current = false
+            // CRITICAL: Manually clear ALL auth cookies before redirecting.
+            // signOut({ scope: 'local' }) may not clear them fast enough,
+            // and the Supabase auto-refresh will keep retrying with the stale
+            // refresh token, causing a rate-limit loop.
+            if (typeof document !== 'undefined') {
+                document.cookie.split(';').forEach(c => {
+                    const name = c.trim().split('=')[0]
+                    if (name.startsWith('sb-') && name.includes('auth-token')) {
+                        // Clear with all possible domain/path combos
+                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
+                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.raute.io;`
+                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=raute.io;`
+                    }
+                })
+            }
             window.location.href = '/login'
         }
     }

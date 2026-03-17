@@ -150,15 +150,32 @@ export default function LoginPage() {
                     console.log('🔐 Login page: valid session found, redirecting to dashboard')
                     window.location.href = '/dashboard'
                 } else {
-                    // No valid session despite cookies existing — show login form
-                    // Cookies may be stale/expired fragments
-                    console.log('🔐 Login page: stored auth cookies found but no valid session — showing login form')
+                    // No valid session despite cookies existing — cookies are stale.
+                    // CRITICAL: Clear them NOW to stop auto-refresh retry loop
+                    // (Supabase reads these cookies and retries refresh_token endlessly)
+                    console.log('🔐 Login page: stale auth cookies found, clearing them')
+                    try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                    document.cookie.split(';').forEach(c => {
+                        const name = c.trim().split('=')[0]
+                        if (name.startsWith('sb-') && name.includes('auth-token')) {
+                            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
+                            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.raute.io;`
+                        }
+                    })
                     if (!cancelled) setCheckingSession(false)
                 }
             } catch {
                 if (cancelled) return
                 clearTimeout(timeout)
-                console.log('🔐 Login page: session check failed — showing login form')
+                console.log('🔐 Login page: session check failed — clearing stale cookies')
+                try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                document.cookie.split(';').forEach(c => {
+                    const name = c.trim().split('=')[0]
+                    if (name.startsWith('sb-') && name.includes('auth-token')) {
+                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
+                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.raute.io;`
+                    }
+                })
                 if (!cancelled) setCheckingSession(false)
             }
         }

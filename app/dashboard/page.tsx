@@ -116,6 +116,14 @@ export default function DashboardPage() {
                         if (userError && (userError.status === 403 || userError.status === 401)) {
                             console.error('⛔ Dashboard: Token revoked (403/401). Redirecting to login.')
                             try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                            // Clear stale auth cookies to stop auto-refresh retry loop
+                            document.cookie.split(';').forEach(c => {
+                                const name = c.trim().split('=')[0]
+                                if (name.startsWith('sb-') && name.includes('auth-token')) {
+                                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
+                                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.raute.io;`
+                                }
+                            })
                             window.location.href = '/login'
                             return
                         }
