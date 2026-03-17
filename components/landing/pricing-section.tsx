@@ -314,9 +314,6 @@ function PlanCard({
                             <span className={`text-4xl font-extrabold ${priceColor}`}>{formatPrice(foundingPrice)}</span>
                         </div>
                         <span className="text-sm text-slate-500">{periodLabel}</span>
-                        <button onClick={copyCode} className="text-xs text-blue-600 dark:text-blue-400 font-semibold mt-1 hover:underline cursor-pointer inline-flex items-center gap-1">
-                            {copied ? <><CheckCheck size={12} /> Copied!</> : <>with code <span className="font-mono font-bold">FOUNDER50</span> <Copy size={12} /></>}
-                        </button>
                     </>
                 ) : (
                     <>
