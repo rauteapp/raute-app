@@ -798,22 +798,24 @@ function StatsCard({ title, value, icon: Icon, color, bg }: any) {
 
 function DashboardSkeleton() {
     return (
-        <div className="p-4 space-y-6">
-            <div className="space-y-2">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-4 w-64" />
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-6 p-4">
+            <div className="relative">
+                <div className="h-12 w-12 rounded-full border-4 border-slate-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-400 animate-spin" />
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28 rounded-xl" />)}
+            <div className="text-center space-y-1">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Loading dashboard</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Fetching your data...</p>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Skeleton className="h-64 rounded-2xl lg:col-span-2" />
-                <Skeleton className="h-64 rounded-xl" />
+            <div className="w-48 h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-600 dark:bg-blue-400 rounded-full" style={{ animation: 'loading-bar 2s ease-in-out infinite' }} />
             </div>
-            <div className="space-y-4">
-                <Skeleton className="h-6 w-32" />
-                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
-            </div>
+            <style jsx>{`
+                @keyframes loading-bar {
+                    0% { width: 0%; margin-left: 0; }
+                    50% { width: 60%; margin-left: 20%; }
+                    100% { width: 0%; margin-left: 100%; }
+                }
+            `}</style>
         </div>
     )
 }

@@ -501,37 +501,29 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
         return <>{children}</>
     }
 
-    // Show skeleton while checking auth
+    // Show loading screen while checking auth
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-8">
-                    <div className="space-y-2">
-                        <Skeleton className="h-8 w-48" />
-                        <Skeleton className="h-4 w-32" />
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-6">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="relative">
+                        <div className="h-12 w-12 rounded-full border-4 border-slate-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-400 animate-spin" />
                     </div>
-                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="text-center space-y-1">
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Loading your dashboard</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">Please wait...</p>
+                    </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    {[...Array(4)].map((_, i) => (
-                        <div key={i} className="bg-white dark:bg-slate-900 rounded-lg p-4 space-y-3 ring-1 ring-slate-200 dark:ring-slate-800">
-                            <Skeleton className="h-4 w-20" />
-                            <Skeleton className="h-8 w-16" />
-                        </div>
-                    ))}
+                <div className="w-48 h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-600 dark:bg-blue-400 rounded-full animate-[loading-bar_2s_ease-in-out_infinite]" />
                 </div>
-                <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                        <div key={i} className="bg-white dark:bg-slate-900 rounded-lg p-4 space-y-3 ring-1 ring-slate-200 dark:ring-slate-800">
-                            <div className="flex items-center justify-between">
-                                <Skeleton className="h-5 w-40" />
-                                <Skeleton className="h-6 w-20 rounded-full" />
-                            </div>
-                            <Skeleton className="h-4 w-full" />
-                            <Skeleton className="h-4 w-3/4" />
-                        </div>
-                    ))}
-                </div>
+                <style jsx>{`
+                    @keyframes loading-bar {
+                        0% { width: 0%; margin-left: 0; }
+                        50% { width: 60%; margin-left: 20%; }
+                        100% { width: 0%; margin-left: 100%; }
+                    }
+                `}</style>
             </div>
         )
     }
