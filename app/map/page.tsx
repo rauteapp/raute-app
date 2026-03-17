@@ -351,7 +351,7 @@ export default function MapPage() {
 
                 {/* Info Overlay (Visible when drivers selected) */}
                 {selectedDriverIds.size > 0 && (
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 md:left-6 md:translate-x-0 bg-background/90 backdrop-blur border border-border p-3 rounded-lg shadow-lg z-[500] max-w-[90vw] flex items-center gap-4">
+                    <div className="absolute bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 md:left-6 md:translate-x-0 bg-background/90 backdrop-blur border border-border p-3 rounded-lg shadow-lg z-[500] max-w-[90vw] flex items-center gap-4">
                         <div className="text-sm">
                             <span className="text-muted-foreground mr-1">Tracking:</span>
                             <span className="font-bold">

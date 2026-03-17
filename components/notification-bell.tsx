@@ -1,26 +1,25 @@
 "use client"
 
-import { Bell, Package, Truck, MapPin, AlertCircle, CheckCircle2, UserX, Check, Clock, AlertTriangle, PackageX, X } from "lucide-react"
+import { Bell, Package, Truck, MapPin, AlertCircle, CheckCircle2, UserX, Check, Clock, AlertTriangle, PackageX, X, BellOff } from "lucide-react"
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 
-function getNotificationIcon(type: string) {
-    switch (type) {
-        case 'order_assigned': return <Package size={16} className="text-blue-500" />
-        case 'order_unassigned': return <Package size={16} className="text-slate-400" />
-        case 'route_updated': return <MapPin size={16} className="text-purple-500" />
-        case 'delivery_completed': return <CheckCircle2 size={16} className="text-emerald-500" />
-        case 'driver_offline': return <UserX size={16} className="text-amber-500" />
-        case 'out_of_range': return <AlertCircle size={16} className="text-red-500" />
-        case 'time_window_warning': return <Clock size={16} className="text-orange-500" />
-        case 'time_window_expired': return <AlertTriangle size={16} className="text-red-600" />
-        case 'unassigned_urgent': return <PackageX size={16} className="text-red-500" />
-        default: return <Bell size={16} className="text-slate-400" />
-    }
+const notificationConfig: Record<string, { icon: typeof Bell; color: string; bg: string; darkBg: string }> = {
+    order_assigned: { icon: Package, color: 'text-blue-500', bg: 'bg-blue-50', darkBg: 'dark:bg-blue-950/30' },
+    order_unassigned: { icon: Package, color: 'text-slate-400', bg: 'bg-slate-100', darkBg: 'dark:bg-slate-800' },
+    route_updated: { icon: MapPin, color: 'text-violet-500', bg: 'bg-violet-50', darkBg: 'dark:bg-violet-950/30' },
+    delivery_completed: { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50', darkBg: 'dark:bg-emerald-950/30' },
+    driver_offline: { icon: UserX, color: 'text-amber-500', bg: 'bg-amber-50', darkBg: 'dark:bg-amber-950/30' },
+    out_of_range: { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50', darkBg: 'dark:bg-red-950/30' },
+    time_window_warning: { icon: Clock, color: 'text-orange-500', bg: 'bg-orange-50', darkBg: 'dark:bg-orange-950/30' },
+    time_window_expired: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', darkBg: 'dark:bg-red-950/30' },
+    unassigned_urgent: { icon: PackageX, color: 'text-red-500', bg: 'bg-red-50', darkBg: 'dark:bg-red-950/30' },
 }
+
+const defaultConfig = { icon: Bell, color: 'text-slate-400', bg: 'bg-slate-100', darkBg: 'dark:bg-slate-800' }
 
 function timeAgo(dateString: string): string {
     const now = new Date()
@@ -40,6 +39,8 @@ function NotificationItem({ notification, onRead, onNavigate }: {
     onNavigate: (route: string) => void
 }) {
     const route = notification.data?.route || (notification.type.startsWith('order') || notification.type === 'delivery_completed' || notification.type === 'out_of_range' ? '/orders' : '/dashboard')
+    const config = notificationConfig[notification.type] || defaultConfig
+    const Icon = config.icon
 
     return (
         <button
@@ -47,29 +48,31 @@ function NotificationItem({ notification, onRead, onNavigate }: {
                 if (!notification.is_read) onRead(notification.id)
                 onNavigate(route)
             }}
-            className={`w-full text-left px-4 py-3.5 flex items-start gap-3 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0 ${
+            className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-all rounded-2xl mx-1 ${
                 notification.is_read
-                    ? 'bg-white dark:bg-slate-950'
-                    : 'bg-blue-50/50 dark:bg-blue-950/20'
-            } hover:bg-slate-50 dark:hover:bg-slate-900 active:bg-slate-100 dark:active:bg-slate-800`}
+                    ? 'hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                    : 'bg-blue-50/40 dark:bg-blue-950/15 hover:bg-blue-50/70 dark:hover:bg-blue-950/25'
+            } active:scale-[0.98]`}
         >
-            <div className="mt-0.5 flex-shrink-0">
-                {getNotificationIcon(notification.type)}
+            <div className={`mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${config.bg} ${config.darkBg}`}>
+                <Icon size={16} className={config.color} />
             </div>
-            <div className="flex-1 min-w-0">
-                <p className={`text-sm leading-tight ${notification.is_read ? 'font-medium text-slate-700 dark:text-slate-300' : 'font-bold text-slate-900 dark:text-white'}`}>
-                    {notification.title}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+            <div className="flex-1 min-w-0 py-0.5">
+                <div className="flex items-start justify-between gap-2">
+                    <p className={`text-[13px] leading-snug ${notification.is_read ? 'font-medium text-slate-600 dark:text-slate-300' : 'font-bold text-slate-900 dark:text-white'}`}>
+                        {notification.title}
+                    </p>
+                    {!notification.is_read && (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 shrink-0" />
+                    )}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
                     {notification.body}
                 </p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 font-semibold uppercase tracking-wider">
                     {timeAgo(notification.created_at)}
                 </p>
             </div>
-            {!notification.is_read && (
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />
-            )}
         </button>
     )
 }
@@ -85,56 +88,78 @@ export function NotificationBell({ userId }: { userId: string | null }) {
                 <button className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     <Bell size={22} className="text-slate-600 dark:text-slate-400" />
                     {unreadCount > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1 shadow-sm">
+                        <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1 shadow-sm animate-in zoom-in-50">
                             {unreadCount > 99 ? '99+' : unreadCount}
                         </span>
                     )}
                 </button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-full sm:w-[400px] p-0 flex flex-col" hideClose>
-                <SheetHeader className="px-5 pt-14 pb-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
-                    <div className="flex items-center justify-between mt-2">
-                        <SheetTitle className="text-xl font-black tracking-tight">Notifications</SheetTitle>
-                        <SheetDescription className="sr-only">Your recent notifications</SheetDescription>
-                        <div className="flex items-center gap-1">
-                            {unreadCount > 0 && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={markAllAsRead}
-                                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 h-8 px-3"
-                                >
-                                    <Check size={14} className="mr-1" /> Mark all read
-                                </Button>
-                            )}
+            <SheetContent side="bottom" className="rounded-t-3xl shadow-2xl max-h-[85vh] p-0 flex flex-col" hideClose>
+                {/* Drag handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                    <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
+                </div>
+
+                {/* Header */}
+                <div className="flex-shrink-0 border-b border-slate-100 dark:border-slate-800/60 px-5 pb-4">
+                    <SheetHeader className="p-0">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                                    <Bell size={18} className="text-white" />
+                                </div>
+                                <div>
+                                    <SheetTitle className="text-[17px] font-bold text-slate-900 dark:text-white">Notifications</SheetTitle>
+                                    <SheetDescription className="text-[11px] text-slate-400 dark:text-slate-500">
+                                        {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+                                    </SheetDescription>
+                                </div>
+                            </div>
                             <SheetClose asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
-                                    <X size={18} className="text-slate-500" />
+                                <button className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors active:scale-95">
+                                    <X size={16} className="text-slate-500 dark:text-slate-400" />
                                     <span className="sr-only">Close</span>
-                                </Button>
+                                </button>
                             </SheetClose>
                         </div>
-                    </div>
-                </SheetHeader>
+                    </SheetHeader>
 
-                <div className="flex-1 overflow-y-auto">
+                    {/* Mark all read */}
+                    {unreadCount > 0 && (
+                        <button
+                            onClick={markAllAsRead}
+                            className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 text-[12px] font-bold hover:bg-blue-100 dark:hover:bg-blue-950/30 transition-colors active:scale-[0.98]"
+                        >
+                            <Check size={14} />
+                            Mark all as read
+                        </button>
+                    )}
+                </div>
+
+                {/* Notification list */}
+                <div className="flex-1 overflow-y-auto px-3 py-2">
                     {notifications.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-64 text-slate-400 dark:text-slate-500">
-                            <Bell size={40} className="mb-3 opacity-30" />
-                            <p className="text-sm font-medium">No notifications yet</p>
+                        <div className="flex flex-col items-center justify-center h-full text-center py-20">
+                            <div className="h-16 w-16 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center mb-4 shadow-sm">
+                                <BellOff size={28} className="text-slate-400" />
+                            </div>
+                            <p className="text-[15px] font-semibold text-slate-600 dark:text-slate-300">All clear</p>
+                            <p className="text-[12px] text-slate-400 dark:text-slate-500 mt-1 max-w-[200px]">You have no notifications right now. We&apos;ll let you know when something comes up.</p>
                         </div>
                     ) : (
-                        notifications.map(notification => (
-                            <NotificationItem
-                                key={notification.id}
-                                notification={notification}
-                                onRead={markAsRead}
-                                onNavigate={(route) => {
-                                    setOpen(false)
-                                    router.push(route)
-                                }}
-                            />
-                        ))
+                        <div className="space-y-0.5">
+                            {notifications.map(notification => (
+                                <NotificationItem
+                                    key={notification.id}
+                                    notification={notification}
+                                    onRead={markAsRead}
+                                    onNavigate={(route) => {
+                                        setOpen(false)
+                                        router.push(route)
+                                    }}
+                                />
+                            ))}
+                        </div>
                     )}
                 </div>
             </SheetContent>

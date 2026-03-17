@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity, CheckCircle2, Clock, Package, Truck, AlertCircle, AlertTriangle, TrendingUp, MapPin, ArrowRight, Calendar as CalendarIcon, Filter, X, Sparkles, User } from 'lucide-react'
@@ -25,6 +25,14 @@ import { PushService } from "@/lib/push-service"
 import { NotificationBell } from "@/components/notification-bell"
 
 export default function DashboardPage() {
+    return (
+        <Suspense fallback={<DashboardSkeleton />}>
+            <DashboardContent />
+        </Suspense>
+    )
+}
+
+function DashboardContent() {
     const [isLoading, setIsLoading] = useState(true)
     const [orders, setOrders] = useState<any[]>([])
     const [filteredOrders, setFilteredOrders] = useState<any[]>([])
@@ -34,10 +42,12 @@ export default function DashboardPage() {
     const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
         const from = searchParams.get('from')
         const to = searchParams.get('to')
-        if (from) {
+        if (from && from !== 'undefined' && !isNaN(new Date(from).getTime())) {
+            const parsedFrom = new Date(from)
+            const parsedTo = (to && to !== 'undefined' && !isNaN(new Date(to).getTime())) ? new Date(to) : parsedFrom
             return {
-                from: new Date(from),
-                to: to ? new Date(to) : new Date(from)
+                from: parsedFrom,
+                to: parsedTo
             }
         }
         return { from: new Date(), to: new Date() }
@@ -469,7 +479,7 @@ export default function DashboardPage() {
     // 👔 MANAGER VIEW
     return (
         <PullToRefresh onRefresh={refreshDashboard}>
-            <div className="p-4 pt-12 pb-32 space-y-6 max-w-7xl mx-auto min-h-screen bg-slate-50/50 dark:bg-slate-950 transition-colors">
+            <div className="p-4 pt-12 pb-32 space-y-2 max-w-7xl mx-auto min-h-screen bg-slate-50/50 dark:bg-slate-950 transition-colors">
                 {/* 0. SETUP GUIDE (Conditional - Managers Only) */}
                 {showSetup && userRole === 'manager' && (
                     <div className="relative">
@@ -484,21 +494,56 @@ export default function DashboardPage() {
                 )}
 
 
-                {/* 1. HEADER & CONTROLS */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                                {isToday ? getGreeting() : "Report View"}, {userName.split(' ')[0]} <Sparkles className="h-6 w-6 text-amber-500 animate-pulse drop-shadow-sm" />
-                            </h1>
-                            <NotificationBell userId={userId} />
+                {/* WELCOME BANNER */}
+                {isToday && (
+                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 dark:from-slate-800 dark:via-slate-900 dark:to-indigo-950 p-5 pb-4 -mb-2.5 md:mb-4 shadow-xl animate-in fade-in slide-in-from-bottom-3 duration-700">
+                        {/* Decorative elements */}
+                        <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl -mr-10 -mt-10" />
+                        <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/15 rounded-full blur-3xl -ml-10 -mb-10" />
+                        <div className="absolute top-4 right-6 flex gap-1">
+                            {[0, 1, 2].map(i => (
+                                <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/20" style={{ animationDelay: `${i * 200}ms` }} />
+                            ))}
                         </div>
-                        <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
-                            {isToday ? "Live Operations Overview" :
-                                isRange ? `Period Report: ${format(dateRange?.from!, 'MMM d')} - ${format(dateRange?.to!, 'MMM d, yyyy')}` :
+
+                        <div className="relative z-10 flex items-center justify-between">
+                            <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                    <p className="text-white/60 text-[13px] font-medium tracking-wide">{getGreeting()}</p>
+                                    <span className="text-lg animate-[wave_2s_ease-in-out_infinite]" style={{ display: 'inline-block', transformOrigin: '70% 70%' }}>👋</span>
+                                </div>
+                                <h1 className="text-[26px] font-bold text-white tracking-tight leading-tight">
+                                    {userName.split(' ')[0]}
+                                </h1>
+                                <p className="text-white/50 text-[12px] font-medium flex items-center gap-1.5 mt-0.5">
+                                    <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse ring-2 ring-emerald-400/30" />
+                                    Live Operations Overview
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <NotificationBell userId={userId} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 1. HEADER & CONTROLS */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-0 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="space-y-2">
+                        {!isToday && (
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                    Report View, {userName.split(' ')[0]}
+                                </h1>
+                                <NotificationBell userId={userId} />
+                            </div>
+                        )}
+                        {!isToday && (
+                            <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
+                                {isRange ? `Period Report: ${format(dateRange?.from!, 'MMM d')} - ${format(dateRange?.to!, 'MMM d, yyyy')}` :
                                     `Historical Report for ${format(dateRange?.from || new Date(), 'MMM dd, yyyy')}`}
-                            {isToday && <span className="flex h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse ring-4 ring-green-500/20" />}
-                        </p>
+                            </p>
+                        )}
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
@@ -796,7 +841,7 @@ function StatsCard({ title, value, icon: Icon, color, bg }: any) {
             </div>
 
             <div className="mt-auto">
-                <p className="text-[48px] font-[900] text-[#0f172a] dark:text-white leading-none tracking-tighter">{value}</p>
+                <p className="text-[42px] font-semibold text-[#0f172a] dark:text-white leading-none tracking-tight">{value}</p>
             </div>
         </div>
     )

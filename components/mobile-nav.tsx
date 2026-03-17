@@ -178,7 +178,7 @@ export function MobileNav() {
 
     // Keep navigation callback in ref so the touch overlay always has latest closures
     navigateToTabRef.current = (navId: string) => {
-        const routes: Record<string, string> = { dashboard: '/dashboard', orders: '/orders', planner: '/planner', map: '/map', settings: '/menu' }
+        const routes: Record<string, string> = { dashboard: '/dashboard', orders: '/orders', planner: '/planner', map: '/map', settings: '/settings' }
         const href = routes[navId]
         if (href && !isActive(href)) {
             router.push(href)

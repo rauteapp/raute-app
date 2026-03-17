@@ -27,6 +27,11 @@ export default function Error({
                 <p className="text-muted-foreground mb-6">
                     We encountered an unexpected error. Please try again.
                 </p>
+                <div className="bg-red-50 text-red-900 border border-red-200 p-4 rounded-md text-left text-xs overflow-auto max-h-48 mb-6 break-all">
+                    <strong>Error:</strong> {error.message}
+                    <br/><br/>
+                    <strong>Stack:</strong> {error.stack}
+                </div>
 
                 <Button onClick={reset} className="w-full mb-3">
                     <RefreshCw className="mr-2 h-4 w-4" />

@@ -4,16 +4,13 @@ import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { supabase, type CustomField } from "@/lib/supabase"
-import { isDriverOnline } from "@/lib/driver-status"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet"
-import { User, Mail, Lock, LogOut, Save, Truck, Building2, Camera, Edit2, Upload, X, Info, AlertTriangle, CreditCard, Crown, Users, Package } from "lucide-react"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { Mail, Save, Truck, Building2, Camera, Edit2, Info, AlertTriangle, CreditCard, Crown, Users, Package, ChevronRight } from "lucide-react"
 import { StyledPhoneInput } from "@/components/ui/styled-phone-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/toast-provider"
-import { useConfirm } from "@/hooks/use-confirm"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
 import { markIntentionalLogout } from "@/components/auth-check"
@@ -22,14 +19,11 @@ export default function ProfilePage() {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { toast } = useToast()
-    const confirm = useConfirm()
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [uploadingImage, setUploadingImage] = useState(false)
-    const [changingPassword, setChangingPassword] = useState(false)
     const [isEditSheetOpen, setIsEditSheetOpen] = useState(false)
-    const [isPasswordSheetOpen, setIsPasswordSheetOpen] = useState(false)
 
     // User Info
     const [userId, setUserId] = useState('')
@@ -38,14 +32,12 @@ export default function ProfilePage() {
     const [fullName, setFullName] = useState('')
     const [phone, setPhone] = useState('')
     const [vehicleType, setVehicleType] = useState('')
-    const [companyName, setCompanyName] = useState('')
-    const [isOnline, setIsOnline] = useState(false)
     const [profileImage, setProfileImage] = useState<string | null>(null)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
 
     // Custom Fields
     const [customFields, setCustomFields] = useState<CustomField[]>([])
-    const [customValues, setCustomValues] = useState<Record<string, any>>({})
+    const [customValues, setCustomValues] = useState<Record<string, string>>({})
 
     // Subscription Info (managers only)
     const [subscriptionInfo, setSubscriptionInfo] = useState<{
@@ -59,10 +51,7 @@ export default function ProfilePage() {
         ordersUsedThisMonth: number
     } | null>(null)
 
-    // Password Change
-    const [currentPassword, setCurrentPassword] = useState('')
-    const [newPassword, setNewPassword] = useState('')
-    const [confirmPassword, setConfirmPassword] = useState('')
+
 
     useEffect(() => {
         fetchProfile()
@@ -130,10 +119,6 @@ export default function ProfilePage() {
 
                 // 1. Company Info
                 if (profileData.company_id) {
-                    promises.push(
-                        supabase.from('companies').select('name').eq('id', profileData.company_id).single()
-                            .then(({ data }) => { if (data) setCompanyName(data.name) })
-                    )
 
                     // 2. Custom Fields (only if driver visible)
                     promises.push(
@@ -209,14 +194,13 @@ export default function ProfilePage() {
                 if (profileData.role === 'driver') {
                     promises.push(
                         supabase.from('drivers')
-                            .select('phone, vehicle_type, is_online, last_location_update, custom_values')
+                            .select('phone, vehicle_type, custom_values')
                             .eq('user_id', currentUserId)
                             .single()
                             .then(({ data }) => {
                                 if (data) {
                                     setPhone(data.phone || '')
                                     setVehicleType(data.vehicle_type || '')
-                                    setIsOnline(isDriverOnline(data))
                                     setCustomValues(data.custom_values || {})
                                 }
                             })
@@ -343,64 +327,7 @@ export default function ProfilePage() {
         }
     }
 
-    async function handleChangePassword() {
-        if (!currentPassword) {
-            toast({ title: 'Please enter your current password', type: 'error' })
-            return
-        }
-        if (newPassword !== confirmPassword) {
-            toast({ title: 'Passwords do not match!', type: 'error' })
-            return
-        }
-        if (newPassword.length < 8) {
-            toast({ title: 'Password must be at least 8 characters', type: 'error' })
-            return
-        }
 
-        try {
-            setChangingPassword(true)
-
-            // Verify current password
-            const { error: verifyError } = await supabase.auth.signInWithPassword({
-                email,
-                password: currentPassword,
-            })
-            if (verifyError) {
-                toast({ title: 'Current password is incorrect', type: 'error' })
-                return
-            }
-
-            const { error } = await supabase.auth.updateUser({
-                password: newPassword
-            })
-
-            if (error) throw error
-
-            toast({ title: 'Password changed successfully!', type: 'success' })
-            setCurrentPassword('')
-            setNewPassword('')
-            setConfirmPassword('')
-            setIsPasswordSheetOpen(false)
-        } catch (error) {
-            toast({ title: 'Error changing password', type: 'error' })
-        } finally {
-            setChangingPassword(false)
-        }
-    }
-
-    async function handleLogout() {
-        const ok = await confirm({ title: 'Log out', description: 'Are you sure you want to log out of your account?', confirmText: 'Log out' })
-        if (!ok) return
-
-        try {
-            markIntentionalLogout()
-            await supabase.auth.signOut()
-            router.push('/login')
-        } catch (error) {
-            toast({ title: 'Log out failed', type: 'error' })
-            router.push('/login')
-        }
-    }
 
     if (loading) {
         return (
@@ -431,39 +358,36 @@ export default function ProfilePage() {
 
     return (
         <PullToRefresh onRefresh={fetchProfile}>
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 relative overflow-hidden">
-                {/* Decorative Ambient Backgrounds */}
-                <div className="absolute top-0 inset-x-0 h-[600px] bg-gradient-to-b from-blue-500/10 via-indigo-500/5 to-transparent pointer-events-none" />
-                <div className="fixed -top-32 -right-32 w-[500px] h-[500px] bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-[80px] pointer-events-none" />
-                <div className="fixed top-40 -left-32 w-[400px] h-[400px] bg-indigo-400/20 dark:bg-indigo-600/10 rounded-full blur-[80px] pointer-events-none" />
+            <div className="min-h-screen bg-[#F2F2F7] dark:bg-black relative overflow-hidden pb-32">
+                
+                {/* Header */}
+                <header className="px-5 pt-[max(1.5rem,env(safe-area-inset-top,1.5rem))] pb-3 flex items-center justify-between sticky top-0 z-50 bg-[#F2F2F7]/80 dark:bg-black/80 backdrop-blur-md">
+                    <h1 className="text-[28px] font-bold text-slate-900 dark:text-white tracking-tight">Profile</h1>
+                </header>
 
-                {/* Modern Minimalist Header */}
-                <div className="pb-6 px-4 safe-area-pt relative z-10" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 1.5rem)` }}>
-                    <div className="max-w-lg mx-auto bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/50 dark:border-slate-800/50 shadow-xl shadow-slate-200/50 dark:shadow-none rounded-[2.5rem] p-8 pt-10 relative overflow-hidden">
-                        {/* Inner Gradient Gloss */}
-                        <div className="absolute top-0 left-0 w-full h-[150px] bg-gradient-to-b from-white/60 to-transparent dark:from-white/5 pointer-events-none" />
-
-                        <div className="flex flex-col items-center justify-center text-center space-y-6 relative z-10">
-                            {/* Avatar Container with Glassy Glow */}
-                            <div className="relative group">
-                                <div className="absolute inset-0 bg-blue-500/30 dark:bg-blue-400/20 blur-2xl rounded-full scale-[1.2]" />
-                                <div className="relative h-32 w-32 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-slate-800 overflow-hidden ring-4 ring-white dark:ring-slate-900">
+                <main className="px-5 pt-4 space-y-6 max-w-lg mx-auto relative z-0">
+                    
+                    {/* iOS Style Profile Card (Apple ID style) */}
+                    <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm border border-black/5 dark:border-white/10 overflow-hidden">
+                        <div className="flex items-center p-4 relative group">
+                            {/* Avatar */}
+                            <div className="relative h-16 w-16 shrink-0">
+                                <div className="h-full w-full rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-700">
                                     {imagePreview || profileImage ? (
                                         <img src={imagePreview || profileImage!} alt="Profile" className="h-full w-full object-cover" />
                                     ) : (
-                                        <span className="text-4xl font-bold text-slate-300 dark:text-slate-600">{initials || '👤'}</span>
+                                        <span className="text-xl font-bold text-slate-400 dark:text-slate-500">{initials || 'D'}</span>
                                     )}
                                 </div>
-
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={uploadingImage}
-                                    className="absolute bottom-0 right-0 h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95 border-[3px] border-white dark:border-slate-900 disabled:opacity-50"
+                                    className="absolute -bottom-1 -right-1 z-10 bg-blue-600 hover:bg-blue-700 rounded-full p-1.5 border-[2.5px] border-white dark:border-[#1C1C1E] shadow-sm transition-transform active:scale-95 disabled:opacity-50"
                                 >
                                     {uploadingImage ? (
-                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
                                     ) : (
-                                        <Camera size={18} strokeWidth={2.5} />
+                                        <Camera size={10} className="text-white" fill="currentColor" />
                                     )}
                                 </button>
                                 <input
@@ -473,65 +397,55 @@ export default function ProfilePage() {
                                     onChange={handleImageUpload}
                                     className="hidden"
                                 />
-                                {userRole === 'driver' && (
-                                    <div className={`absolute top-2 right-2 h-5 w-5 rounded-full border-[3px] border-white dark:border-slate-900 shadow-sm ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`}>
-                                        <div className={`h-full w-full rounded-full ${isOnline ? 'animate-pulse bg-emerald-400' : ''}`} />
-                                    </div>
-                                )}
                             </div>
 
-                            {/* User Info Details */}
-                            <div className="space-y-2">
-                                <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                                    {fullName || email.split('@')[0] || userRole || 'User'}
-                                </h1>
-                                <div className="flex items-center justify-center gap-1.5 text-slate-500 dark:text-slate-400 bg-slate-100/50 dark:bg-slate-800/50 py-1 px-3 rounded-full border border-slate-200/50 dark:border-slate-700/50 mx-auto w-fit">
-                                    <Mail size={14} />
-                                    <span className="text-[13px] font-semibold">{email}</span>
+                            {/* Name & Role */}
+                            <div className="ml-4 flex-1">
+                                <h2 className="text-[20px] font-semibold text-slate-900 dark:text-white tracking-tight leading-tight">
+                                    {fullName || email.split('@')[0] || userRole || 'Driver'}
+                                </h2>
+                                <p className="text-[14px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    {email}
+                                </p>
+                                <div className="mt-1.5 flex items-center">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-[800] tracking-widest uppercase px-2 py-0.5 rounded-[6px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400">
+                                        {userRole === 'driver' ? <Truck size={10} /> : <Building2 size={10} />}
+                                        <span className="mt-[1px]">{userRole || 'USER'}</span>
+                                    </span>
                                 </div>
-                            </div>
-
-                            {/* Role Badge - Re-designed */}
-                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white shadow-lg shadow-blue-500/20">
-                                {userRole === 'driver' ? <Truck size={16} /> : <Building2 size={16} />}
-                                <span className="text-[12px] font-black uppercase tracking-widest">{userRole ? userRole : 'No Role'}</span>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                {/* Content Container */}
-                <div className="max-w-lg mx-auto px-4 pb-32 space-y-4 relative z-10">
 
                     {/* Subscription Card (managers only) */}
                     {userRole === 'manager' && subscriptionInfo && (
-                        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 dark:border-slate-800/50 p-5">
-                            <Link href="/subscribe" className="flex items-center gap-3 mb-4 group cursor-pointer active:scale-[0.98] transition-transform">
-                                <div className="h-10 w-10 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
-                                    <CreditCard size={20} />
+                        <div className="bg-white dark:bg-slate-900 rounded-[28px] shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 dark:border-slate-800 p-5">
+                            <Link href="/subscribe" className="flex items-center gap-4 mb-5 group cursor-pointer active:scale-[0.98] transition-transform">
+                                <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center">
+                                    <CreditCard size={22} />
                                 </div>
                                 <div className="flex-1">
-                                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Subscription</p>
-                                    <p className="text-base font-bold text-slate-900 dark:text-white">
+                                    <p className="text-[12px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Subscription</p>
+                                    <p className="text-[16px] font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                                         {subscriptionInfo.planName
-                                            ? <span className="flex items-center gap-1.5"><Crown size={14} className="text-amber-500" />{subscriptionInfo.planName} Plan</span>
+                                            ? <><Crown size={16} className="text-amber-500" />{subscriptionInfo.planName} Plan</>
                                             : subscriptionInfo.isTrialActive
-                                                ? `Free Trial — ${subscriptionInfo.daysRemaining} day${subscriptionInfo.daysRemaining === 1 ? '' : 's'} left`
+                                                ? `Free Trial — ${subscriptionInfo.daysRemaining} days left`
                                                 : 'No Active Plan'
                                         }
                                     </p>
                                 </div>
-                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-3 py-1.5 rounded-lg group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
+                                <span className="text-[12px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-3.5 py-2 rounded-full group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
                                     {subscriptionInfo.planName ? 'Manage' : 'Upgrade'}
                                 </span>
                             </Link>
 
                             {/* Usage bars */}
-                            <div className="space-y-3 mb-4">
+                            <div className="space-y-4 mb-5">
                                 <div>
-                                    <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-slate-500 flex items-center gap-1"><Users size={12} /> Drivers</span>
-                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{subscriptionInfo.driversUsed} / {subscriptionInfo.driverLimit}</span>
+                                    <div className="flex justify-between text-[13px] mb-1.5 font-medium">
+                                        <span className="text-slate-500 flex items-center gap-1.5"><Users size={14} /> Drivers</span>
+                                        <span className="font-bold text-slate-700 dark:text-slate-300">{subscriptionInfo.driversUsed} / {subscriptionInfo.driverLimit}</span>
                                     </div>
                                     <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                         <div
@@ -541,9 +455,9 @@ export default function ProfilePage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-slate-500 flex items-center gap-1"><Package size={12} /> Orders this month</span>
-                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{subscriptionInfo.ordersUsedThisMonth} / {subscriptionInfo.orderLimit}</span>
+                                    <div className="flex justify-between text-[13px] mb-1.5 font-medium">
+                                        <span className="text-slate-500 flex items-center gap-1.5"><Package size={14} /> Orders this month</span>
+                                        <span className="font-bold text-slate-700 dark:text-slate-300">{subscriptionInfo.ordersUsedThisMonth} / {subscriptionInfo.orderLimit}</span>
                                     </div>
                                     <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                         <div
@@ -555,7 +469,7 @@ export default function ProfilePage() {
                             </div>
 
                             <Link href="/subscribe">
-                                <Button variant="outline" className="w-full h-11 rounded-xl border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-semibold">
+                                <Button variant="outline" className="w-full h-12 rounded-2xl border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-bold text-[15px]">
                                     {subscriptionInfo.planName ? 'Manage Plan' : 'View Plans'}
                                 </Button>
                             </Link>
@@ -564,28 +478,30 @@ export default function ProfilePage() {
 
                     {/* Driver/Dispatcher subscription note */}
                     {(userRole === 'driver' || userRole === 'dispatcher') && (
-                        <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
-                            <p className="text-xs text-slate-500 text-center">Your company's subscription is managed by your account administrator.</p>
+                        <div className="bg-white dark:bg-slate-900 rounded-[28px] p-6 shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 dark:border-slate-800 flex items-center justify-center text-center">
+                            <p className="text-[15px] font-semibold text-slate-500 dark:text-slate-400 leading-relaxed px-2">
+                                Your company&apos;s subscription is managed by your account administrator.
+                            </p>
                         </div>
                     )}
 
                     {/* Driver Custom Fields Card */}
                     {userRole === 'driver' && customFields.length > 0 && (
-                        <div className="bg-card text-card-foreground rounded-2xl shadow-lg border border-border p-5">
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="h-12 w-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
-                                    <Info size={24} />
+                        <div className="bg-white dark:bg-slate-900 rounded-[28px] p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-4 mb-5">
+                                <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full flex items-center justify-center">
+                                    <Info size={22} />
                                 </div>
                                 <div>
-                                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Additional Info</p>
-                                    <p className="text-lg font-bold text-foreground">Driver Details</p>
+                                    <p className="text-[12px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Additional Info</p>
+                                    <p className="text-[17px] font-bold text-slate-900 dark:text-white">Driver Details</p>
                                 </div>
                             </div>
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 {customFields.map((field) => (
-                                    <div key={field.id} className="flex justify-between items-center py-2 border-b border-border last:border-0">
-                                        <span className="text-sm text-muted-foreground">{field.field_label}</span>
-                                        <span className="text-sm font-medium text-foreground">
+                                    <div key={field.id} className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800/50 last:border-0 last:pb-0">
+                                        <span className="text-[15px] font-medium text-slate-500">{field.field_label}</span>
+                                        <span className="text-[15px] font-bold text-slate-900 dark:text-white">
                                             {customValues[field.id] || '—'}
                                         </span>
                                     </div>
@@ -593,146 +509,153 @@ export default function ProfilePage() {
                             </div>
                         </div>
                     )}
-
-                    {/* Action Buttons */}
-                    <div className="pt-2">
-                        {/* Edit Profile Sheet */}
-                        <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
-                            <SheetTrigger asChild>
-                                <Button className="w-full h-20 flex items-center justify-between px-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-slate-800/80 text-foreground border border-white/50 dark:border-slate-700/50 shadow-sm shadow-blue-500/5 rounded-3xl transition-all active:scale-[0.98] group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="h-12 w-12 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <Edit2 size={22} strokeWidth={2.5} />
+                              {/* General Section */}
+                    <div className="space-y-2 mt-6">
+                        <h2 className="text-[13px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-4">Account Actions</h2>
+                        <div className="bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                            
+                            {/* Edit Profile Sheet Trigger */}
+                            <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
+                                <SheetTrigger asChild>
+                                    <button className="w-full flex items-center px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100 dark:active:bg-slate-800">
+                                        <div className="h-10 w-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center shrink-0 text-blue-500 dark:text-blue-400">
+                                            <Edit2 size={20} className="stroke-[2.5px]" />
                                         </div>
-                                        <div className="flex flex-col items-start gap-0.5">
-                                            <span className="font-bold text-[17px] text-slate-800 dark:text-white">Edit Profile</span>
-                                            <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">Update your information</span>
+                                        <div className="ml-4 flex-1 text-left">
+                                            <p className="text-[16px] font-semibold text-slate-900 dark:text-white">Edit Profile</p>
+                                            <p className="text-[14px] text-slate-500 dark:text-slate-400">Update your information</p>
                                         </div>
-                                    </div>
-                                    <div className="h-8 w-8 rounded-full bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center">
-                                        <span className="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-                                        </span>
-                                    </div>
-                                </Button>
-                            </SheetTrigger>
-                            <SheetContent side="bottom" className="h-[85vh] overflow-y-auto rounded-t-[32px] safe-area-pt bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl border-t border-slate-200/50 dark:border-slate-800/50 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
-                                <SheetHeader className="mb-8">
-                                    <SheetTitle className="text-2xl font-black tracking-tight text-slate-900 dark:text-white mt-2">Edit Profile</SheetTitle>
-                                </SheetHeader>
-                                <div className="space-y-6 px-2 pb-12">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Full Name</label>
-                                        <Input
-                                            value={fullName}
-                                            onChange={(e) => setFullName(e.target.value)}
-                                            placeholder="Enter your name"
-                                            className="h-14 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-[16px] shadow-sm"
-                                        />
-                                    </div>
+                                        <ChevronRight size={20} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                                    </button>
+                                </SheetTrigger>
+                                <SheetContent side="bottom" className="h-[85vh] overflow-y-auto rounded-t-[32px] safe-area-pt bg-white dark:bg-slate-950 border-t border-slate-200/50 dark:border-slate-800/50 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
+                                    <SheetHeader className="mb-8 mt-2">
+                                        <SheetTitle className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Edit Profile</SheetTitle>
+                                    </SheetHeader>
+                                    <div className="space-y-6 px-2 pb-12">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Full Name</label>
+                                            <Input
+                                                value={fullName}
+                                                onChange={(e) => setFullName(e.target.value)}
+                                                placeholder="Enter your name"
+                                                className="h-14 rounded-[20px] bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-[16px] px-5"
+                                            />
+                                        </div>
 
-                                    {userRole === 'driver' && (
-                                        <>
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Phone Number</label>
-                                                <StyledPhoneInput
-                                                    value={phone}
-                                                    onChange={(val) => setPhone(val || '')}
-                                                    placeholder="e.g. +1 234 567 8900"
-                                                    defaultCountry="US"
-                                                    className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl shadow-sm [&_.PhoneInputInput]:h-14 [&_.PhoneInputInput]:text-[16px]"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Vehicle Type</label>
-                                                <Input
-                                                    value={vehicleType}
-                                                    onChange={(e) => setVehicleType(e.target.value)}
-                                                    placeholder="e.g. Van, Truck"
-                                                    className="h-14 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-[16px] shadow-sm"
-                                                />
-                                            </div>
-
-                                            {/* Dynamic Fields in Edit Sheet */}
-                                            {customFields.length > 0 && (
-                                                <div className="space-y-5 pt-6 border-t border-slate-200 dark:border-slate-800">
-                                                    <h4 className="font-black tracking-tight text-[17px] text-slate-900 dark:text-white">Additional Details</h4>
-                                                    {customFields.map((field) => (
-                                                        <div key={field.id} className="space-y-2">
-                                                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{field.field_label}</label>
-                                                            {field.field_type === 'select' ? (
-                                                                <select
-                                                                    value={customValues[field.id] || ''}
-                                                                    onChange={(e) => setCustomValues({ ...customValues, [field.id]: e.target.value })}
-                                                                    className="flex h-14 w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-4 py-2 text-[16px] ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 shadow-sm"
-                                                                >
-                                                                    <option value="">Select...</option>
-                                                                    {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                                </select>
-                                                            ) : (
-                                                                <Input
-                                                                    value={customValues[field.id] || ''}
-                                                                    onChange={(e) => setCustomValues({ ...customValues, [field.id]: e.target.value })}
-                                                                    placeholder={field.placeholder || ''}
-                                                                    type={field.field_type === 'number' ? 'number' : 'text'}
-                                                                    className="h-14 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-[16px] shadow-sm"
-                                                                />
-                                                            )}
-                                                        </div>
-                                                    ))}
+                                        {userRole === 'driver' && (
+                                            <>
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Phone Number</label>
+                                                    <StyledPhoneInput
+                                                        value={phone}
+                                                        onChange={(val) => setPhone(val || '')}
+                                                        placeholder="e.g. +1 234 567 8900"
+                                                        defaultCountry="US"
+                                                        className="bg-slate-50 dark:bg-slate-900/50 rounded-[20px] [&_.PhoneInputInput]:h-14 [&_.PhoneInputInput]:text-[16px] [&_.PhoneInputInput]:px-5 [&_.PhoneInputCountry]:pl-5"
+                                                    />
                                                 </div>
-                                            )}
-                                        </>
-                                    )}
 
-                                    <Button
-                                        onClick={handleUpdateProfile}
-                                        disabled={saving}
-                                        className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-2xl shadow-md shadow-blue-500/20 mt-8"
-                                    >
-                                        <Save size={20} className="mr-2" />
-                                        {saving ? 'Saving...' : 'Save Changes'}
-                                    </Button>
-                                </div>
-                            </SheetContent>
-                        </Sheet>
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Vehicle Type</label>
+                                                    <Input
+                                                        value={vehicleType}
+                                                        onChange={(e) => setVehicleType(e.target.value)}
+                                                        placeholder="e.g. Van, Truck"
+                                                        className="h-14 rounded-[20px] bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-[16px] px-5"
+                                                    />
+                                                </div>
+
+                                                {/* Dynamic Fields in Edit Sheet */}
+                                                {customFields.length > 0 && (
+                                                    <div className="space-y-5 pt-8 mt-4 border-t border-slate-100 dark:border-slate-800">
+                                                        <h4 className="font-black tracking-tight text-[18px] text-slate-900 dark:text-white ml-1">Additional Details</h4>
+                                                        {customFields.map((field) => (
+                                                            <div key={field.id} className="space-y-2">
+                                                                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">{field.field_label}</label>
+                                                                {field.field_type === 'select' ? (
+                                                                    <select
+                                                                        value={customValues[field.id] || ''}
+                                                                        onChange={(e) => setCustomValues({ ...customValues, [field.id]: e.target.value })}
+                                                                        className="flex h-14 w-full rounded-[20px] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-5 py-2 text-[16px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                                                    >
+                                                                        <option value="">Select...</option>
+                                                                        {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                                    </select>
+                                                                ) : (
+                                                                    <Input
+                                                                        value={customValues[field.id] || ''}
+                                                                        onChange={(e) => setCustomValues({ ...customValues, [field.id]: e.target.value })}
+                                                                        placeholder={field.placeholder || ''}
+                                                                        type={field.field_type === 'number' ? 'number' : 'text'}
+                                                                        className="h-14 rounded-[20px] bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-[16px] px-5"
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                        <div className="pt-4 pb-8">
+                                            <Button
+                                                onClick={handleUpdateProfile}
+                                                disabled={saving}
+                                                className="w-full h-[60px] text-[18px] font-bold rounded-[20px] bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all"
+                                            >
+                                                {saving ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="h-5 w-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                                                        Saving...
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2">
+                                                        <Save size={22} className="stroke-[2.5px]" />
+                                                        Save Changes
+                                                    </div>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </SheetContent>
+                            </Sheet>
+                        </div>
                     </div>
 
-                    {/* DANGER ZONE */}
-                    <div className="pt-12 pb-4">
-                        <div className="flex flex-col items-center">
-                            <p className="text-[11px] font-black text-rose-500/80 uppercase tracking-[0.15em] mb-4">Danger Zone</p>
-
+                    {/* Danger Zone */}
+                    <div className="space-y-2 pt-4">
+                        <div className="pl-4">
+                            <h2 className="text-[12px] font-[900] text-[#FF4C51] uppercase tracking-[0.22em] mb-3 text-center">Danger Zone</h2>
+                        </div>
+                        <div className="bg-transparent rounded-[24px]">
                             <Sheet>
                                 <SheetTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        className="w-[85%] mx-auto h-14 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-[15px] font-bold rounded-2xl border border-dashed border-rose-200 dark:border-rose-900/50 shadow-sm"
+                                    <button
+                                        className="w-full flex items-center justify-center py-4 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-950/20 text-[#FF4C51] text-[16px] font-[800] rounded-[22px] border-[1.5px] border-dashed border-[#FFB2B4] dark:border-rose-900/50 transition-colors"
                                     >
                                         Delete My Account
-                                    </Button>
+                                    </button>
                                 </SheetTrigger>
-                                <SheetContent side="bottom" className="rounded-t-[32px] safe-area-pt bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl border-t border-rose-200/50 dark:border-rose-900/50 shadow-[0_-10px_40px_rgba(225,29,72,0.1)]">
-                                    <SheetHeader className="mb-6 space-y-3">
-                                        <div className="w-16 h-16 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-2">
+                                <SheetContent side="bottom" className="rounded-t-[32px] safe-area-pt bg-white dark:bg-slate-950 border-t border-rose-200/50 dark:border-rose-900/50 shadow-[0_-10px_40px_rgba(225,50,50,0.1)]">
+                                    <SheetHeader className="mb-6 space-y-4">
+                                        <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 text-[#FF4C51] rounded-full flex items-center justify-center mx-auto mb-2 mt-2">
                                             <AlertTriangle size={32} strokeWidth={2.5} />
                                         </div>
-                                        <SheetTitle className="text-2xl font-black tracking-tight text-slate-900 dark:text-white text-center">Delete Account</SheetTitle>
-                                        <SheetDescription className="text-center text-slate-500 dark:text-slate-400 text-[15px]">
-                                            This action is <span className="font-bold text-rose-600 dark:text-rose-400">permanent and cannot be undone</span>. All your data, drivers, and settings will be wiped.
+                                        <SheetTitle className="text-[24px] font-[900] tracking-tight text-slate-900 dark:text-white text-center">Delete Account</SheetTitle>
+                                        <SheetDescription className="text-center text-slate-500 dark:text-slate-400 text-[15.5px] leading-relaxed max-w-[280px] mx-auto">
+                                            This action is <span className="font-bold text-[#FF4C51] dark:text-rose-400">permanent and cannot be undone</span>. All your data, drivers, and settings will be wiped.
                                         </SheetDescription>
                                     </SheetHeader>
 
-                                    <div className="space-y-6 px-2 pb-32">
-                                        <div className="bg-rose-50/50 dark:bg-rose-950/20 p-4 rounded-2xl border border-rose-100 dark:border-rose-900/30 space-y-3">
-                                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 text-center block">
-                                                Please type <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded text-rose-600 select-all border border-rose-200 dark:border-rose-800">DELETE</span> to confirm
+                                    <div className="space-y-6 px-2 pb-12">
+                                        <div className="bg-rose-50/50 dark:bg-rose-950/20 p-5 rounded-[20px] border border-rose-100 dark:border-rose-900/30 space-y-3">
+                                            <label className="text-[14px] font-bold text-slate-700 dark:text-slate-300 text-center block">
+                                                Please type <span className="font-mono bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg text-[#FF4C51] select-all border border-rose-200 dark:border-rose-800/50 ml-1 shadow-sm">DELETE</span> to confirm
                                             </label>
                                             <Input
                                                 id="delete-confirm-input"
                                                 placeholder="Type DELETE here..."
-                                                className="h-14 rounded-xl bg-white dark:bg-slate-900 border-rose-200 dark:border-rose-800 text-[16px] shadow-sm text-center font-bold focus-visible:ring-rose-500 font-mono tracking-widest uppercase"
+                                                className="h-[52px] rounded-[16px] bg-white dark:bg-slate-900 border-rose-200 dark:border-rose-800 text-[16px] shadow-sm text-center font-bold focus-visible:ring-[#FF4C51] font-mono tracking-widest uppercase mt-4"
                                                 onChange={(e) => {
                                                     const btn = document.getElementById('confirm-delete-btn') as HTMLButtonElement;
                                                     if (btn) {
@@ -763,7 +686,7 @@ export default function ProfilePage() {
                                                     setLoading(false);
                                                 }
                                             }}
-                                            className="w-full h-14 bg-rose-600 hover:bg-rose-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-rose-500/20 transition-all disabled:opacity-50 disabled:bg-slate-300 dark:disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none"
+                                            className="w-full h-14 bg-[#FF4C51] hover:bg-rose-600 text-white font-[800] text-[17px] rounded-full shadow-lg shadow-rose-500/20 transition-all active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 disabled:shadow-none mt-4"
                                         >
                                             Permanently Delete
                                         </Button>
@@ -774,17 +697,17 @@ export default function ProfilePage() {
                     </div>
 
                     {/* Legal Footer */}
-                    <div className="text-center pt-8 pb-4 space-y-2">
-                        <div className="flex items-center justify-center gap-4 text-xs font-medium text-blue-600 dark:text-blue-400">
-                            <a href="/privacy" className="hover:underline">Privacy Policy</a>
-                            <span>•</span>
-                            <a href="/terms" className="hover:underline">Terms of Service</a>
+                    <div className="text-center pt-4 space-y-3 pb-8">
+                        <div className="flex items-center justify-center gap-4 text-[13px] font-bold text-blue-600 dark:text-blue-400">
+                            <a href="/privacy" className="hover:underline opacity-80 hover:opacity-100">Privacy Policy</a>
+                            <span className="opacity-40">•</span>
+                            <a href="/terms" className="hover:underline opacity-80 hover:opacity-100">Terms of Service</a>
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[12px] font-medium text-slate-400">
                             Raute v1.0.0 • Image max 2MB 📸
                         </p>
                     </div>
-                </div>
+                </main>
             </div>
         </PullToRefresh>
     )

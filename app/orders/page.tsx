@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, Database, Activity } from "lucide-react"
+import { Plus, Search, Filter, Package, MapPin, Calendar, User as UserIcon, Truck, Navigation2, CheckCircle2, Power, Sparkles, Camera, Loader2, ArrowRight, Edit, Settings, List, Clock, X, AlertTriangle, AlertCircle, WifiOff, Database, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase, type Order } from "@/lib/supabase"
@@ -11,7 +11,7 @@ import { parseOrderAI, type ParsedOrder } from "@/lib/grok"
 import { smartGeocode, batchSmartGeocode } from "@/lib/smart-geocoder"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
 import { reverseGeocode } from "@/lib/geocoding"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import LocationPicker from "@/components/location-picker"
 import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -36,6 +36,7 @@ import { DateRange } from "react-day-picker"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { PullToRefresh } from "@/components/pull-to-refresh"
+import { motion, AnimatePresence } from "framer-motion"
 
 const statusColors = {
     pending: "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
@@ -1039,152 +1040,290 @@ export default function OrdersPage() {
             return d.toDateString() === new Date().toDateString()
         }).length
 
+        // Animation variants
+        const containerVariants = {
+            hidden: { opacity: 0 },
+            show: {
+                opacity: 1,
+                transition: {
+                    staggerChildren: 0.1
+                }
+            }
+        }
+
+        const itemVariants = {
+            hidden: { opacity: 0, y: 20 },
+            show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
+        }
+
         return (
             <PullToRefresh onRefresh={fetchData}>
-                <div className="px-5 pt-[calc(env(safe-area-inset-top,0px)+2rem)] pb-[calc(140px+env(safe-area-inset-bottom,0px))] space-y-7 max-w-lg mx-auto bg-[#f8fafc] dark:bg-[#020617] min-h-screen">
-                    {driverId && userId && <DriverTracker driverId={driverId} companyId={companyId || ""} isOnline={isOnline} userId={userId} />}
+                <motion.div 
+                   initial="hidden" 
+                   animate="show" 
+                   variants={containerVariants}
+                   className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-32 pt-12 p-4 space-y-6 overflow-x-hidden selection:bg-blue-200"
+                >
+                    {driverId && userId && <DriverTracker driverId={driverId} companyId={companyId || undefined} isOnline={isOnline} userId={userId} />}
 
                     {/* OFFLINE / CACHE INDICATOR */}
                     {(!isOnline || isLoading) && (
-                        <div className="flex items-center justify-center -mt-2 mb-2">
-                            {/* Only show if we have data (cached) but might be offline */}
-                            {orders.length > 0 && !isOnline && (
-                                <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500 bg-white shadow-sm border border-slate-200 dark:border-slate-800 dark:text-slate-400 dark:bg-slate-900 px-3 py-1 rounded-full flex items-center gap-1.5">
-                                    <WifiOff size={12} strokeWidth={2.5} /> Offline Mode
+                        <div className="flex items-center justify-center p-1">
+                            {orders.length > 0 && typeof navigator !== 'undefined' && !navigator.onLine && (
+                                <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <WifiOff size={10} /> Offline Mode
                                 </span>
                             )}
                         </div>
                     )}
 
                     {/* Driver Header with Toggle */}
-                    <div className="flex items-center justify-between">
+                    <motion.div variants={itemVariants} className="flex items-start justify-between mb-4">
                         <div>
-                            <p className="text-sm text-slate-500 font-semibold tracking-wide uppercase">Good Morning,</p>
-                            <h1 className="text-[32px] font-black text-slate-900 dark:text-white tracking-tight leading-none mt-1">{userName.split(' ')[0]} <span className="text-[28px]">👋</span></h1>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Good Morning,</p>
+                            <h1 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">
+                                {userName.split(' ')[0]} 👋
+                            </h1>
                         </div>
 
-                        {/* Status Toggle Buttons */}
-                        <div className="flex items-center gap-3">
-                            <Sheet>
-                                <SheetTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-11 w-11 p-0 rounded-full border-dashed border-2 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                                        <Calendar size={18} className="text-slate-400" />
-                                    </Button>
-                                </SheetTrigger>
-                                <SheetContent side={isDesktop ? "right" : "bottom"} className={cn("flex flex-col p-0", isDesktop ? "w-full sm:max-w-md" : "h-[85vh] rounded-t-[32px] bg-white dark:bg-slate-950")}>
-                                    {!isDesktop && (
-                                        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full" />
-                                    )}
-                                    <div className="px-6 pt-8 pb-4 bg-white dark:bg-slate-900 border-b border-slate-200/60 dark:border-slate-800 shrink-0">
-                                        <SheetHeader className="text-left space-y-1">
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300">
-                                                    <Activity size={20} strokeWidth={2.5} />
+                        {/* Status Toggle Button & History */}
+                        <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-2">
+                                <Sheet>
+                                    <SheetTrigger asChild>
+                                        <Button variant="outline" size="sm" className="h-10 w-10 p-0 rounded-full border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 hover:bg-slate-50 transition-all active:scale-95">
+                                            <Calendar size={18} className="text-slate-500" />
+                                        </Button>
+                                    </SheetTrigger>
+                                    <SheetContent side="bottom" className="rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col p-0" hideClose>
+                                        {/* Drag handle */}
+                                        <div className="flex justify-center pt-3 pb-1">
+                                            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
+                                        </div>
+                                        <SheetHeader className="px-5 pb-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                                        <Clock size={18} className="text-white" />
+                                                    </div>
+                                                    <div>
+                                                        <SheetTitle className="text-[17px] font-bold text-slate-900 dark:text-white">Activity</SheetTitle>
+                                                        <SheetDescription className="text-[12px] text-slate-400 dark:text-slate-500">Shift history & status logs</SheetDescription>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <SheetTitle className="text-xl font-black text-slate-900 dark:text-white leading-none">Activity</SheetTitle>
-                                                </div>
+                                                <SheetClose asChild>
+                                                    <button className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors active:scale-95">
+                                                        <X size={16} className="text-slate-500 dark:text-slate-400" />
+                                                    </button>
+                                                </SheetClose>
                                             </div>
-                                            <SheetDescription className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                                                Your recent online/offline activity logs.
-                                            </SheetDescription>
                                         </SheetHeader>
-                                    </div>
-                                    <div className="flex-1 overflow-y-auto w-full p-6 pb-36 space-y-4">
-                                        <DriverActivityHistory driverId={driverId} />
-                                    </div>
-                                </SheetContent>
-                            </Sheet>
+                                        <div className="flex-1 overflow-hidden px-5 pb-6">
+                                            <DriverActivityHistory driverId={driverId} />
+                                        </div>
+                                    </SheetContent>
+                                </Sheet>
 
-                            <button
-                                onClick={toggleOnlineStatus}
-                                className={cn(
-                                    "flex items-center gap-2.5 px-5 py-2.5 rounded-full border transition-all text-[13px] font-bold tracking-wide",
-                                    isOnline
-                                        ? "bg-green-50 text-green-700 border-green-200 shadow-[0_4px_12px_rgba(34,197,94,0.1)] dark:bg-green-950/30 dark:border-green-800/50 dark:text-green-400"
-                                        : "bg-white text-slate-500 border-slate-200 dark:bg-slate-900 dark:border-slate-800/60 dark:text-slate-400 hover:bg-slate-50"
-                                )}
-                            >
-                                <div className={cn("w-2 h-2 rounded-full transition-colors", isOnline ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse" : "bg-slate-400")} />
-                                {isOnline ? "ONLINE" : "OFFLINE"}
-                            </button>
+                                <button
+                                    onClick={toggleOnlineStatus}
+                                    className={cn(
+                                        "relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 rounded-full shadow-sm transition-all duration-300 active:scale-[0.98] outline-none",
+                                        isOnline
+                                            ? "bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/30"
+                                            : "bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-800"
+                                    )}
+                                >
+                                    {isOnline && (
+                                        <div className="absolute inset-0 bg-green-400/10 animate-[pulse_2s_ease-in-out_infinite]" />
+                                    )}
+                                    <div className="relative flex items-center justify-center">
+                                        {isOnline && <span className="absolute animate-ping inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>}
+                                        <span className={cn(
+                                            "relative inline-flex rounded-full h-2.5 w-2.5 transition-colors",
+                                            isOnline ? "bg-green-500" : "bg-slate-300 dark:bg-slate-600"
+                                        )}></span>
+                                    </div>
+                                    <span className="font-bold text-sm tracking-wide uppercase relative z-10">
+                                        {isOnline ? "Online" : "Offline"}
+                                    </span>
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    </motion.div>
 
                     {/* Offline Warning Banner */}
-                    {!isOnline && (
-                        <div className="bg-slate-900 text-white p-3.5 rounded-[16px] text-center text-sm font-medium shadow-xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 border border-slate-800">
-                            You are currently offline. You won't receive new tasks.
-                        </div>
-                    )}
+                    <AnimatePresence>
+                        {!isOnline && (
+                            <motion.div 
+                                initial={{ opacity: 0, height: 0, y: -10 }}
+                                animate={{ opacity: 1, height: 'auto', y: 0 }}
+                                exit={{ opacity: 0, height: 0, y: -10 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="bg-slate-900 dark:bg-slate-800 text-white p-3.5 rounded-2xl text-center text-sm font-medium shadow-lg flex items-center justify-center gap-2 mb-2">
+                                    <WifiOff size={16} className="text-slate-400" />
+                                    You are currently offline. You won&apos;t receive new tasks.
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
-                    <DriverSetupGuide
-                        isOnline={isOnline}
-                        hasTasks={activeCount > 0}
-                        onToggleOnline={toggleOnlineStatus}
-                        onViewAssignments={() => {
-                            const el = document.getElementById('orders-list')
-                            if (el) el.scrollIntoView({ behavior: 'smooth' })
-                        }}
-                    />
-
-                    {/* Quick Stats (dimmed if offline) */}
-                    <div className={cn("grid grid-cols-2 gap-4 transition-opacity", !isOnline && "opacity-60")}>
-                        <div className="bg-[#0f172a] text-white p-5 rounded-[20px] shadow-[0_8px_20px_rgba(15,23,42,0.15)] relative overflow-hidden flex flex-col justify-between">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -translate-y-16 translate-x-12"></div>
-                            <div>
-                                <p className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mb-2">Active Tasks</p>
-                                <p className="text-[38px] font-black leading-none mb-1.5">{activeCount}</p>
+                    {/* Animated Delivery Banner */}
+                    <motion.div
+                        variants={itemVariants}
+                        className="relative w-full overflow-hidden bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 dark:from-slate-900 dark:via-indigo-950/30 dark:to-slate-900 rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-indigo-500/20 dark:border-slate-800 mb-4 flex items-center justify-between group cursor-default"
+                    >
+                        <div className="z-10 max-w-[65%]">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Sparkles size={14} className="text-yellow-400 animate-pulse" />
+                                <h3 className="font-black text-sm tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white to-indigo-200">
+                                    ON THE ROAD
+                                </h3>
                             </div>
-                            <p className="text-[13px] text-slate-300 font-medium">Ready to deliver</p>
-                        </div>
-                        <div className="bg-white dark:bg-slate-900 p-5 rounded-[20px] border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-                            <div>
-                                <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest mb-2">Completed</p>
-                                <p className="text-[38px] font-black text-slate-900 dark:text-white leading-none mb-1.5">{completedCount}</p>
-                            </div>
-                            <p className="text-[13px] text-green-600 font-bold flex items-center gap-1.5">
-                                <CheckCircle2 size={14} strokeWidth={3} /> Today
+                            <p className="text-indigo-100/70 dark:text-slate-400 text-xs font-medium leading-relaxed">
+                                Drive safely! Your routes are optimized and ready for delivery.
                             </p>
                         </div>
-                    </div>
+                        
+                        {/* Animated Driver Car/Truck */}
+                        <div className="relative z-10 w-20 h-16 flex items-center justify-center -mr-2">
+                            <motion.div
+                                animate={{ 
+                                    y: [0, -4, 0],
+                                    rotate: [0, -3, 2, 0]
+                                }}
+                                transition={{ 
+                                    duration: 3, 
+                                    repeat: Infinity,
+                                    ease: "easeInOut" 
+                                }}
+                                className="text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] relative z-10"
+                            >
+                                <Truck size={46} strokeWidth={1.5} className="transform scale-x-[-1]" />
+                            </motion.div>
+                            
+                            {/* Speed lines behind the truck */}
+                            <motion.div
+                                animate={{ opacity: [0, 1, 0], x: [20, -10] }}
+                                transition={{ duration: 0.8, repeat: Infinity, delay: 0.1 }}
+                                className="absolute bottom-3 left-0 w-4 h-[2px] bg-indigo-200/60 rounded-full"
+                            />
+                            <motion.div
+                                animate={{ opacity: [0, 1, 0], x: [15, -15] }}
+                                transition={{ duration: 1.1, repeat: Infinity, delay: 0.4 }}
+                                className="absolute bottom-6 -left-2 w-3 h-[2px] bg-indigo-300/60 rounded-full"
+                            />
+                             <motion.div
+                                animate={{ opacity: [0, 1, 0], x: [10, -20] }}
+                                transition={{ duration: 0.9, repeat: Infinity, delay: 0.7 }}
+                                className="absolute top-4 -left-4 w-6 h-[2px] bg-indigo-100/40 rounded-full"
+                            />
+                        </div>
 
-                    {/* View Toggle (List vs Map) */}
-                    <div className="flex bg-slate-100/80 dark:bg-slate-800/50 p-1.5 rounded-2xl shadow-inner mb-2 border border-slate-200/50 dark:border-slate-800 backdrop-blur-sm">
-                        <button onClick={() => setViewMode('list')} className={cn("flex-1 py-3 text-[13px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2", viewMode === 'list' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-[0_2px_10px_rgba(0,0,0,0.06)]" : "text-slate-500 hover:text-slate-700 dark:text-slate-400")}>
-                            <List size={16} strokeWidth={2.5} /> List
-                        </button>
-                        <button onClick={() => setViewMode('map')} className={cn("flex-1 py-3 text-[13px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2", viewMode === 'map' ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-[0_2px_10px_rgba(0,0,0,0.06)]" : "text-slate-500 hover:text-slate-700 dark:text-slate-400")}>
-                            <MapPin size={16} strokeWidth={2.5} /> Route Map
-                        </button>
-                    </div>
+                        {/* Background Road Lines Animation */}
+                        <div 
+                            className="absolute bottom-0 left-0 right-0 h-10 overflow-hidden pointer-events-none opacity-40"
+                            style={{ maskImage: "linear-gradient(to right, transparent, black 20%, black 80%, transparent)", WebkitMaskImage: "linear-gradient(to right, transparent, black 20%, black 80%, transparent)" }}
+                        >
+                            <motion.div 
+                                animate={{ x: ["0%", "-50%"] }} 
+                                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                                className="flex gap-4 min-w-[200%] h-full items-end pb-2.5 pl-2"
+                            >
+                                {[...Array(20)].map((_, i) => (
+                                    <div key={i} className="h-[3px] w-10 bg-indigo-300/50 rounded-full shrink-0"></div>
+                                ))}
+                            </motion.div>
+                        </div>
 
-                    {/* Date Range Picker */}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <button className="flex items-center gap-2.5 w-full px-4 py-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-[0_2px_10px_rgba(0,0,0,0.02)] text-sm text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700 transition-all font-medium">
-                                <Calendar size={18} className="text-primary/70" />
-                                {dateRange?.from ? (
-                                    dateRange.to && dateRange.from.toDateString() !== dateRange.to.toDateString() ? (
-                                        <span className="text-[13px] font-bold text-slate-900 dark:text-white">{format(dateRange!.from!, "MMM dd")} - {format(dateRange!.to!, "MMM dd")}</span>
-                                    ) : (
-                                        <span className="text-[13px] font-bold text-slate-900 dark:text-white">{format(dateRange!.from!, "MMM dd, yyyy")}</span>
-                                    )
-                                ) : (
-                                    <span className="text-[13px]">Select delivery date</span>
-                                )}
-                            </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 rounded-2xl border-slate-200 dark:border-slate-800 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] overflow-hidden" align="start">
-                            <div className="p-3 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900">
-                                <div className="flex gap-2 flex-wrap">
-                                    <Button size="sm" variant="outline" className="text-xs h-8 rounded-lg bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm font-semibold" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-8 rounded-lg bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm font-semibold" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-8 rounded-lg bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm font-semibold" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
-                                    <Button size="sm" variant="ghost" className="text-xs h-8 text-slate-500 font-medium hover:bg-slate-200 dark:hover:bg-slate-800" onClick={() => setDateRange(undefined)}>Reset</Button>
-                                </div>
+                        {/* Background glowing effects */}
+                        <div className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/30 rounded-full blur-3xl pointer-events-none"></div>
+                        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+                    </motion.div>
+
+                    {/* Quick Stats Grid */}
+                    <motion.div variants={itemVariants} className={cn("grid grid-cols-2 gap-4 transition-all duration-500", !isOnline && "opacity-60 grayscale-[0.3]")}>
+                        {/* Active Tasks Card */}
+                        <div className="relative overflow-hidden bg-slate-900 rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-800">
+                            <div className="absolute -top-12 -right-12 h-32 w-32 bg-blue-500/20 rounded-full blur-2xl" />
+                            <div className="relative z-10">
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                    <Package size={14} /> Active Tasks
+                                </p>
+                                <p className="text-4xl font-black text-white mb-1 tracking-tight">{activeCount}</p>
+                                <p className="text-xs text-slate-400 font-medium">Ready to deliver</p>
                             </div>
-                            <div className="bg-white dark:bg-slate-950">
+                        </div>
+
+                        {/* Completed Card */}
+                        <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-sm border border-slate-200 dark:border-slate-800">
+                            <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <CheckCircle2 size={14} /> Completed
+                            </p>
+                            <p className="text-4xl font-black text-slate-900 dark:text-white mb-1 tracking-tight">{completedCount}</p>
+                            <p className="text-xs text-green-600 dark:text-green-500 font-bold flex items-center gap-1">
+                                <Sparkles size={12} /> Today
+                            </p>
+                        </div>
+                    </motion.div>
+
+                    {/* View Toggle (List vs Map) Modern Pills */}
+                    <motion.div variants={itemVariants} className="bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl shadow-inner flex relative border border-slate-200/50 dark:border-slate-800">
+                        {['list', 'map'].map((mode) => (
+                            <button
+                                key={mode}
+                                onClick={() => setViewMode(mode)}
+                                className={cn(
+                                    "flex-1 relative z-10 py-3 text-xs font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2",
+                                    viewMode === mode ? "text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                                )}
+                            >
+                                {viewMode === mode && (
+                                    <motion.div
+                                        layoutId="viewModeTab"
+                                        className="absolute inset-0 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200/50 dark:border-slate-700 -z-10"
+                                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                    />
+                                )}
+                                {mode === 'list' ? <List size={16} /> : <MapPin size={16} />} 
+                                {mode === 'list' ? 'List' : 'Route Map'}
+                            </button>
+                        ))}
+                    </motion.div>
+
+                    {/* Date Range Picker Modern Button */}
+                    <motion.div variants={itemVariants}>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <button className="flex items-center justify-between w-full px-4 py-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-sm text-slate-700 dark:text-slate-300 active:scale-[0.99] transition-all hover:bg-slate-50 dark:hover:bg-slate-800/80">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg text-slate-500">
+                                            <Calendar size={16} />
+                                        </div>
+                                        <span className="font-semibold">
+                                            {dateRange?.from ? (
+                                                dateRange.to && dateRange.from.toDateString() !== dateRange.to.toDateString() ? (
+                                                    `${format(dateRange.from, "MMM dd")} - ${format(dateRange.to, "MMM dd")}`
+                                                ) : (
+                                                    format(dateRange.from, "MMM dd, yyyy")
+                                                )
+                                            ) : (
+                                                "Filter by Date"
+                                            )}
+                                        </span>
+                                    </div>
+                                    <ChevronRight size={16} className="text-slate-400" />
+                                </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 rounded-2xl border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden" align="center">
+                                <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Button size="sm" variant="outline" className="text-xs h-9 rounded-xl" onClick={() => setDateRange({ from: new Date(), to: new Date() })}>Today</Button>
+                                        <Button size="sm" variant="outline" className="text-xs h-9 rounded-xl" onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}>Last 7 Days</Button>
+                                        <Button size="sm" variant="outline" className="text-xs h-9 rounded-xl col-span-2" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
+                                        <Button size="sm" variant="ghost" className="text-xs h-9 rounded-xl col-span-2 text-slate-500" onClick={() => setDateRange(undefined)}>Clear Filter</Button>
+                                    </div>
+                                </div>
                                 <CalendarPicker
                                     mode="range"
                                     selected={dateRange}
@@ -1193,105 +1332,137 @@ export default function OrdersPage() {
                                     initialFocus
                                     className="p-3"
                                 />
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                            </PopoverContent>
+                        </Popover>
+                    </motion.div>
 
-                    {/* Status Filter */}
-                    <div className="flex bg-slate-100/80 dark:bg-slate-800/40 p-1.5 rounded-2xl shadow-inner border border-slate-200/50 dark:border-slate-800/80 overflow-x-auto scrollbar-hide">
-                        <div className="flex gap-1 min-w-max w-full">
-                            {["all", "assigned", "delivered", "cancelled"].map((status) => (
-                                <button key={status} onClick={() => setStatusFilter(status)} className={cn("flex-1 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest rounded-xl transition-all", statusFilter === status ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]" : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200")}>
-                                    {status === 'all' ? 'All' : status}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Incomplete Orders from Previous Days */}
-                    {incompleteOrders.length > 0 && (
-                        <div className="rounded-[24px] border border-amber-200/60 dark:border-amber-900/40 bg-gradient-to-br from-amber-50 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10 overflow-hidden shadow-sm">
-                            <button
-                                onClick={() => setShowIncomplete(!showIncomplete)}
-                                className="w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-amber-100/30 dark:hover:bg-amber-900/20"
+                    {/* Status Filter (modern pills) */}
+                    <motion.div variants={itemVariants} className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl shadow-inner gap-1 border border-slate-200/50 dark:border-slate-800 overflow-x-auto no-scrollbar">
+                        {["all", "assigned", "delivered", "cancelled"].map((status) => (
+                            <button 
+                                key={status} 
+                                onClick={() => setStatusFilter(status)} 
+                                className={cn(
+                                    "flex-1 relative py-2.5 px-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-xl transition-colors min-w-[70px] flex justify-center whitespace-nowrap z-10",
+                                    statusFilter === status ? "text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                                )}
                             >
-                                <div className="flex items-center gap-2.5">
-                                    <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
-                                        <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400" strokeWidth={2.5} />
-                                    </div>
-                                    <span className="text-[13px] font-bold text-amber-900 dark:text-amber-200 uppercase tracking-widest mt-0.5">
-                                        Previous Incomplete ({incompleteOrders.length})
-                                    </span>
-                                </div>
-                                <span className="text-[12px] font-bold text-amber-600 bg-amber-100/50 dark:bg-amber-900/30 px-3 py-1 rounded-full">{showIncomplete ? 'Hide' : 'Review'}</span>
+                                {statusFilter === status && (
+                                    <motion.div
+                                        layoutId="statusFilterTab"
+                                        className="absolute inset-0 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200/50 dark:border-slate-700 -z-10"
+                                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                    />
+                                )}
+                                {status === 'all' ? 'All' : status}
                             </button>
-                            {showIncomplete && (
-                                <div className="px-3 pb-3 space-y-2.5 pt-1">
-                                    {incompleteOrders.map(order => {
-                                        const content = (
-                                            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-4 rounded-[18px] border border-amber-100 dark:border-amber-800/30 shadow-[0_4px_12px_rgba(0,0,0,0.02)] flex items-center gap-3.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] transition-all">
-                                                {isSelectionMode && (
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedOrders.includes(order.id)}
-                                                        onChange={(e) => { e.preventDefault(); toggleOrderSelection(order.id) }}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="w-5 h-5 rounded-md border-amber-300 text-amber-600 shrink-0"
-                                                    />
-                                                )}
-                                                <div className={cn("w-3 h-3 rounded-full shrink-0 shadow-sm",
-                                                    order.status === 'in_progress' ? 'bg-purple-500 shadow-purple-500/40' : order.status === 'assigned' ? 'bg-blue-500 shadow-blue-500/40' : 'bg-yellow-500 shadow-yellow-500/40'
-                                                )} />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[15px] font-bold text-slate-900 dark:text-white truncate leading-tight mb-1">{order.customer_name}</p>
-                                                    <p className="text-[12px] text-slate-500 truncate">{order.address}</p>
-                                                </div>
-                                                <div className="text-right shrink-0">
-                                                    <span className={cn("text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border text-slate-700 bg-white", statusColors[order.status as keyof typeof statusColors])}>
-                                                        {order.status.replace('_', ' ')}
-                                                    </span>
-                                                    <p className="text-[11px] font-medium text-slate-400 mt-1.5 flex justify-end">
-                                                        {format(new Date(order.delivery_date || order.created_at), "MMM dd, yyyy")}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )
-                                        return isSelectionMode ? (
-                                            <div key={order.id} className="block cursor-pointer" onClick={() => toggleOrderSelection(order.id)}>
-                                                {content}
-                                            </div>
-                                        ) : (
-                                            <Link key={order.id} href={`/my-editor?id=${order.id}`} className="block">
-                                                {content}
-                                            </Link>
-                                        )
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        ))}
+                    </motion.div>
 
+                    {/* Incomplete Orders - Modern Alert Style */}
+                    <AnimatePresence>
+                        {incompleteOrders.length > 0 && (
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="rounded-3xl border border-amber-200/50 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 shadow-sm overflow-hidden"
+                            >
+                                <button
+                                    onClick={() => setShowIncomplete(!showIncomplete)}
+                                    className="w-full flex items-center justify-between p-4 text-left active:bg-amber-100/50 dark:active:bg-amber-900/30 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+                                            <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400" />
+                                        </div>
+                                        <span className="text-sm font-bold text-amber-800 dark:text-amber-200 tracking-wide">
+                                            PREVIOUS INCOMPLETE ({incompleteOrders.length})
+                                        </span>
+                                    </div>
+                                    <span className="text-xs font-bold text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-900/50 px-3 py-1.5 rounded-full">
+                                        {showIncomplete ? 'Hide' : 'Show'}
+                                    </span>
+                                </button>
+                                
+                                <AnimatePresence>
+                                    {showIncomplete && (
+                                        <motion.div 
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: 'auto', opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="px-4 pb-4 space-y-3"
+                                        >
+                                            {incompleteOrders.map(order => {
+                                                const content = (
+                                                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/50 shadow-sm flex items-center gap-4 transition-transform active:scale-[0.98]">
+                                                        {isSelectionMode && (
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedOrders.includes(order.id)}
+                                                                onChange={(e) => { e.preventDefault(); toggleOrderSelection(order.id) }}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="w-5 h-5 rounded-md border-amber-300 text-amber-600 shrink-0 focus:ring-amber-500"
+                                                            />
+                                                        )}
+                                                        <div className={cn("w-3 h-3 rounded-full shrink-0 shadow-sm",
+                                                            order.status === 'in_progress' ? 'bg-purple-500 shadow-purple-500/50' : order.status === 'assigned' ? 'bg-blue-500 shadow-blue-500/50' : 'bg-yellow-500 shadow-yellow-500/50'
+                                                        )} />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-base font-bold text-slate-800 dark:text-slate-100 truncate">{order.customer_name}</p>
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{order.address}</p>
+                                                        </div>
+                                                        <div className="flex flex-col items-end shrink-0 gap-1.5">
+                                                            <span className={cn("text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-wider inline-flex", statusColors[order.status as keyof typeof statusColors])}>
+                                                                {order.status.replace('_', ' ')}
+                                                            </span>
+                                                            <p className="text-[10px] font-medium text-slate-400">
+                                                                {format(new Date(order.delivery_date || order.created_at), "MMM dd")}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )
+                                                return isSelectionMode ? (
+                                                    <div key={order.id} className="block cursor-pointer" onClick={() => toggleOrderSelection(order.id)}>
+                                                        {content}
+                                                    </div>
+                                                ) : (
+                                                    <Link key={order.id} href={`/my-editor?id=${order.id}`} className="block outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-2xl">
+                                                        {content}
+                                                    </Link>
+                                                )
+                                            })}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* MAIN CONTENT AREA */}
                     {viewMode === 'list' ? (
                         // LIST VIEW
-                        <div className="space-y-4" id="orders-list">
-                            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest pl-1">
-                                {dateRange?.from && isToday(dateRange!.from!) && (!dateRange.to || isToday(dateRange!.to!)) ? "Today's Route" : "Orders"}
+                        <motion.div variants={containerVariants} className="space-y-4" id="orders-list">
+                            <h2 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-2">
+                                {dateRange?.from && isToday(dateRange.from) && (!dateRange.to || isToday(dateRange.to)) ? "Today's Route" : "Records"}
                             </h2>
+                            
                             {filteredOrders.length === 0 ? (
-                                <div className="text-center py-12 bg-muted/30 rounded-2xl border border-dashed border-border">
-                                    <Package className="mx-auto h-12 w-12 text-muted-foreground mb-3 opacity-50" />
-                                    <p className="text-muted-foreground font-medium">No orders found</p>
-                                </div>
+                                <motion.div variants={itemVariants} className="text-center py-16 bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm">
+                                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Package className="h-10 w-10 text-slate-300 dark:text-slate-600" />
+                                    </div>
+                                    <p className="text-slate-500 dark:text-slate-400 font-bold text-lg">No orders found</p>
+                                    <p className="text-sm text-slate-400 mt-1">Try adjusting your filters above.</p>
+                                </motion.div>
                             ) : (
                                 (() => {
                                     // 1. Prepare Sorted List
                                     const sortedOrders = [...filteredOrders].sort((a, b) => {
-                                        // Primary: Route Index (Optimized vs Unoptimized)
                                         const idxA = a.route_index ?? 999
                                         const idxB = b.route_index ?? 999
                                         if (idxA !== idxB) return idxA - idxB
 
-                                        // Secondary: Priority (Critical > High > Normal)
                                         const pMap: Record<string, number> = { critical: 3, high: 2, normal: 1 }
                                         const pA = pMap[a.priority_level as string] || 1
                                         const pB = pMap[b.priority_level as string] || 1
@@ -1301,127 +1472,156 @@ export default function OrdersPage() {
                                     // 2. Identify NEXT Active Order
                                     const nextOrder = sortedOrders.find(o => o.status === 'assigned' || o.status === 'pending' || o.status === 'in_progress')
 
-                                    return sortedOrders.map((order) => {
+                                    return sortedOrders.map((order, index) => {
                                         const isNext = nextOrder?.id === order.id
+                                        const isCompleted = order.status === 'delivered' || order.status === 'cancelled'
+                                        
+                                        const cardBg = isNext 
+                                            ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.15)]" 
+                                            : isCompleted
+                                                ? "bg-slate-50 border-slate-100 dark:bg-slate-900/30 dark:border-slate-800/50 opacity-80"
+                                                : "bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800 shadow-sm"
 
-                                        // Safe Status Color Lookup
-                                        const statusColorClass = statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-500 border-gray-200"
+                                        const accentColors = {
+                                            delivered: 'bg-green-500',
+                                            cancelled: 'bg-red-500',
+                                            in_progress: 'bg-purple-500',
+                                            assigned: 'bg-blue-500',
+                                            pending: 'bg-yellow-500'
+                                        }
 
                                         return (
-                                            <Link key={order.id} href={`/my-editor?id=${order.id}`} className="block group">
-                                                <div className={cn(
-                                                    "bg-card p-5 rounded-2xl shadow-sm border transition-all relative overflow-hidden",
-                                                    isNext ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border hover:shadow-md hover:border-primary/50",
-                                                    (order.status === 'delivered' || order.status === 'cancelled') && "opacity-75 bg-slate-50 dark:bg-slate-900/50" // Dim completed/cancelled
-                                                )}>
-                                                    {/* Status Stripe */}
-                                                    <div className={cn("absolute left-0 top-0 bottom-0 w-1.5",
-                                                        order.status === 'delivered' ? 'bg-green-500' :
-                                                            order.status === 'cancelled' ? 'bg-red-500' :
-                                                                order.status === 'in_progress' ? 'bg-purple-500' : 'bg-blue-500'
-                                                    )} />
+                                            <motion.div key={order.id} variants={itemVariants} custom={index}>
+                                                <Link href={`/my-editor?id=${order.id}`} className="block group outline-none">
+                                                    <div className={cn(
+                                                        "p-4 rounded-[24px] border transition-all duration-300 relative overflow-hidden active:scale-[0.98]",
+                                                        cardBg,
+                                                        !isCompleted && "hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 hover:-translate-y-0.5"
+                                                    )}>
+                                                        {/* Status Stripe */}
+                                                        <div className={cn("absolute left-0 top-0 bottom-0 w-2", accentColors[order.status as keyof typeof accentColors] || 'bg-slate-200')} />
 
-                                                    <div className="flex justify-between items-start mb-3 pl-3">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            {/* Route Sequence Badge */}
-                                                            {order.route_index && (
-                                                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold shadow-sm">
-                                                                    {order.route_index}
-                                                                </span>
-                                                            )}
-                                                            <span className="font-mono text-xs text-muted-foreground">#{order.order_number}</span>
+                                                        {/* Subtle Hover Gradient */}
+                                                        {!isCompleted && (
+                                                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 dark:via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                                                        )}
 
-                                                            {/* PRIORITY BADGE */}
-                                                            {order.priority_level === 'critical' && (
-                                                                <span className="text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 animate-pulse">
-                                                                    <AlertCircle size={10} /> CRITICAL
+                                                        <div className="flex justify-between items-start mb-3 pl-3 relative z-10">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                {/* Route Sequence Badge */}
+                                                                {order.route_index && (
+                                                                    <span className={cn(
+                                                                        "flex items-center justify-center w-6 h-6 rounded-lg text-[11px] font-black shadow-sm",
+                                                                        isNext ? "bg-blue-600 text-white" : "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900"
+                                                                    )}>
+                                                                        {order.route_index}
+                                                                    </span>
+                                                                )}
+                                                                <span className="font-mono text-[10px] text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">
+                                                                    #{order.order_number}
                                                                 </span>
-                                                            )}
-                                                            {order.priority_level === 'high' && (
-                                                                <span className="text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                                                    HIGH
-                                                                </span>
-                                                            )}
-                                                        </div>
 
-                                                        {/* Time Window Badge */}
-                                                        {order.time_window_start ? (
-                                                            <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-1 rounded-md border border-orange-100 dark:border-orange-900/50 text-[10px] font-bold uppercase">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-                                                                {order.time_window_start.slice(0, 5)} - {order.time_window_end?.slice(0, 5)}
+                                                                {/* PRIORITY BADGE */}
+                                                                {order.priority_level === 'critical' && (
+                                                                    <span className="text-[9px] font-black bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1 shadow-sm shadow-red-500/10">
+                                                                        <AlertCircle size={10} className="animate-pulse" /> CRITICAL
+                                                                    </span>
+                                                                )}
+                                                                {order.priority_level === 'high' && (
+                                                                    <span className="text-[9px] font-black bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-500/30 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                                        HIGH
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                        ) : (
-                                                            <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border",
-                                                                statusColorClass
-                                                                    .replace('bg-', 'bg-opacity-10 bg-')
-                                                                    .replace('border-', 'border-opacity-20 border-')
-                                                            )}>
-                                                                {order.status.replace('_', ' ')}
-                                                            </span>
-                                                        )}
-                                                        {order.was_out_of_range && (
-                                                            <span className="flex items-center gap-1 text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">
-                                                                <AlertCircle size={10} /> Out of Range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters * 3.281)} ft)` : ''}
-                                                            </span>
-                                                        )}
-                                                    </div>
 
-                                                    <div className="pl-3 mb-4">
-                                                        <h3 className="font-bold text-foreground text-lg mb-1 leading-tight">{order.customer_name}</h3>
-                                                        <div className="flex items-start gap-2 text-muted-foreground">
-                                                            <MapPin size={16} className="mt-0.5 text-muted-foreground/70 shrink-0" />
-                                                            <p className="text-sm leading-relaxed">{order.address}, {order.city}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="pl-3 pt-3 border-t border-border flex items-center justify-between">
-                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                                                            {isNext ? (
-                                                                <span className="text-primary font-bold flex items-center gap-1 animate-pulse">
-                                                                    🚀 NEXT STOP
-                                                                </span>
-                                                            ) : order.status === 'delivered' ? (
-                                                                <span className="text-green-600 font-bold flex items-center gap-1">
-                                                                    <CheckCircle2 size={12} /> COMPLETED
-                                                                </span>
-                                                            ) : order.status === 'cancelled' ? (
-                                                                <span className="text-red-600 font-bold flex items-center gap-1">
-                                                                    <XCircle size={12} /> CANCELLED
-                                                                </span>
+                                                            {/* Time Window or Status Badge */}
+                                                            {order.time_window_start ? (
+                                                                <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2.5 py-1 rounded-lg border border-orange-100 dark:border-orange-900/50 text-[10px] font-bold uppercase shadow-sm">
+                                                                    <Clock size={12} className="text-orange-500" />
+                                                                    {order.time_window_start.slice(0, 5)} - {order.time_window_end?.slice(0, 5)}
+                                                                </div>
                                                             ) : (
-                                                                <span>Tap for details</span>
+                                                                <span className={cn("px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm border",
+                                                                    statusColors[order.status as keyof typeof statusColors]
+                                                                        .replace('bg-', 'bg-opacity-10 bg-')
+                                                                        .replace('border-', 'border-opacity-30 border-')
+                                                                )}>
+                                                                    {order.status.replace('_', ' ')}
+                                                                </span>
                                                             )}
                                                         </div>
-                                                        <div className={cn(
-                                                            "h-8 w-8 rounded-full flex items-center justify-center transition-colors",
-                                                            isNext ? "bg-primary text-primary-foreground" : "bg-muted group-hover:bg-primary group-hover:text-primary-foreground"
-                                                        )}>
-                                                            <ArrowRight size={16} />
+
+                                                        {/* Main Content */}
+                                                        <div className="pl-3 mb-4 relative z-10 pr-2">
+                                                            <h3 className="font-bold text-slate-900 dark:text-white text-lg sm:text-xl mb-1.5 tracking-tight line-clamp-1">{order.customer_name}</h3>
+                                                            <div className="flex items-start gap-2.5 text-slate-500 dark:text-slate-400">
+                                                                <MapPin size={16} className="mt-0.5 text-slate-400 shrink-0" />
+                                                                <p className="text-sm font-medium leading-snug line-clamp-2">{order.address}, {order.city}</p>
+                                                            </div>
+                                                            {order.was_out_of_range && (
+                                                                <div className="mt-2 flex items-center gap-1 text-[10px] bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-1 rounded-md font-bold w-fit">
+                                                                    <AlertCircle size={12} /> Drop-off was out of range{order.delivery_distance_meters ? ` (${Math.round(order.delivery_distance_meters * 3.281)} ft)` : ''}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Bottom Bar */}
+                                                        <div className="pl-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between relative z-10">
+                                                            <div className="flex items-center gap-2 text-xs font-bold">
+                                                                {isNext ? (
+                                                                    <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/50 px-2.5 py-1 rounded-lg shadow-sm">
+                                                                        <Navigation2 size={14} className="animate-pulse" /> NEXT DESTINATION
+                                                                    </span>
+                                                                ) : order.status === 'delivered' ? (
+                                                                    <span className="text-green-600 dark:text-green-500 flex items-center gap-1.5">
+                                                                        <CheckCircle2 size={16} /> DELIVERED
+                                                                    </span>
+                                                                ) : order.status === 'cancelled' ? (
+                                                                    <span className="text-red-600 dark:text-red-500 flex items-center gap-1.5">
+                                                                        <XCircle size={16} /> CANCELLED
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                                                        Details <ArrowRight size={12} />
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className={cn(
+                                                                "h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm",
+                                                                isNext ? "bg-blue-600 text-white group-hover:scale-105" : "bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-slate-900 group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-slate-900"
+                                                            )}>
+                                                                <ChevronRight size={18} className={cn(!isCompleted && "group-hover:translate-x-0.5 transition-transform")} />
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            </Link>
+                                                </Link>
+                                            </motion.div>
                                         )
                                     })
                                 })()
                             )}
-                        </div>
+                        </motion.div>
                     ) : (
-                        // MAP VIEW — include incomplete orders so the map shows all relevant stops
-                        <div className="h-[600px] rounded-2xl overflow-hidden border border-border shadow-md">
+                        // MAP VIEW
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="h-[600px] sm:h-[70vh] rounded-[32px] overflow-hidden border border-slate-200 dark:border-slate-800 shadow-lg relative"
+                        >
+                            <div className="absolute inset-0 bg-slate-100 dark:bg-slate-900 animate-pulse -z-10" />
                             <DriverRouteMap orders={[...filteredOrders, ...(showIncomplete ? incompleteOrders : [])].filter(o => o.latitude != null && o.longitude != null)} />
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* Load More (Pagination) */}
                     {hasMore && userRole !== 'driver' && (
                         <div className="flex justify-center pt-4">
-                            <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMore} className="w-full max-w-xs">
-                                {loadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More Orders'}
+                            <Button variant="outline" onClick={loadMoreOrders} disabled={loadingMore} className="w-full max-w-xs rounded-xl shadow-sm border-slate-200 dark:border-slate-800">
+                                {loadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Fetching...</> : 'Load Extra Records'}
                             </Button>
                         </div>
                     )}
-                </div>
+                </motion.div>
             </PullToRefresh>
         )
     }
@@ -1553,7 +1753,7 @@ export default function OrdersPage() {
                                             <div className="p-3 space-y-4">
                                                 <div className="text-center space-y-2 mb-2">
                                                     <h3 className="font-bold text-indigo-900 dark:text-indigo-100">Magically Extract Orders</h3>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400 px-4">Paste unstructured text (chats, emails) or upload screenshots. We'll extract details automatically.</p>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 px-4">Paste unstructured text (chats, emails) or upload screenshots. We&apos;ll extract details automatically.</p>
                                                 </div>
 
                                                 <div className="mx-4 mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg text-[11px] text-yellow-800 dark:text-yellow-200 flex items-start gap-2 text-left">
@@ -1777,7 +1977,7 @@ export default function OrdersPage() {
                                                                     Could not find exact location for this address.
                                                                 </p>
                                                                 <div className="text-xs bg-orange-100/50 dark:bg-orange-900/40 p-2 rounded-lg text-orange-900 dark:text-orange-200 font-mono mt-2 shadow-inner">
-                                                                    Using {verificationResult.confidence} location: "{verificationResult.foundAddress}"
+                                                                    Using {verificationResult.confidence} location: &quot;{verificationResult.foundAddress}&quot;
                                                                 </div>
                                                                 <p className="text-[11px] text-orange-700 dark:text-orange-500 mt-2 font-medium">
                                                                     Please verify the pin on the map above.
@@ -1982,7 +2182,7 @@ export default function OrdersPage() {
                         </button>
                         {showIncomplete && (
                             <div className="px-3 pb-3 space-y-2">
-                                <p className="text-[11px] text-amber-700 dark:text-amber-300 px-1 mb-2">Orders from previous days that haven't been completed yet.</p>
+                                <p className="text-[11px] text-amber-700 dark:text-amber-300 px-1 mb-2">Orders from previous days that haven&apos;t been completed yet.</p>
                                 {incompleteOrders.map(order => {
                                     const content = (
                                         <div className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-amber-200/50 dark:border-amber-800/30 flex items-center gap-3 hover:shadow-sm transition-shadow">
@@ -2172,7 +2372,7 @@ export default function OrdersPage() {
                                                 <div className="shrink-0 text-right">
                                                     {order.status === 'delivered' && order.delivered_at ? (
                                                         <p className="text-green-600 dark:text-green-500 text-[13px] font-black tracking-tight bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-md">
-                                                            {format(new Date(order.delivered_at), 'h:mm a')}
+                                                            {!isNaN(new Date(order.delivered_at).getTime()) ? format(new Date(order.delivered_at), 'h:mm a') : '—'}
                                                         </p>
                                                     ) : (order.time_window_start) && (
                                                         <p className="text-slate-500 dark:text-slate-400 text-[12px] font-bold tracking-tight bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-700">
@@ -2297,7 +2497,7 @@ export default function OrdersPage() {
                                         <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold">
                                             {order.status === 'delivered' && order.delivered_at ? (
                                                 <span className="text-green-600 dark:text-green-500">
-                                                    {format(new Date(order.delivered_at), 'h:mm a')}
+                                                    {!isNaN(new Date(order.delivered_at).getTime()) ? format(new Date(order.delivered_at), 'h:mm a') : '—'}
                                                 </span>
                                             ) : (order.time_window_start) ? (
                                                 <span className="text-slate-500">

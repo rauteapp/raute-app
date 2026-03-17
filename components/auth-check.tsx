@@ -382,12 +382,16 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                 }
 
             } catch (error: any) {
-                console.error("❌ Auth check failed:", error)
-
                 // AbortError or getSession timeout from navigator.locks — lock held by token refresh
                 const isLockTimeout = error?.name === 'AbortError' ||
                     error?.message?.includes('aborted') ||
-                    error?.message?.includes('getSession timeout')
+                    error?.message?.includes('timeout')
+
+                if (!isLockTimeout) {
+                    console.error("❌ Auth check failed:", error)
+                } else {
+                    console.warn("⚠️ Auth check timeout:", error?.message)
+                }
 
                 if (isLockTimeout) {
                     getSessionTimeoutCount++
