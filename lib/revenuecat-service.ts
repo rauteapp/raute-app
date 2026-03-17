@@ -18,7 +18,7 @@ export const RevenueCatService = {
         try {
             const { Purchases, LOG_LEVEL } = await import('@revenuecat/purchases-capacitor');
 
-            await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
+            await Purchases.setLogLevel({ level: LOG_LEVEL.INFO });
             await Purchases.configure({ apiKey });
 
             // Link RevenueCat user to Supabase user ID
