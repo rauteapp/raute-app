@@ -25,71 +25,94 @@ export function HeroSection() {
         switch (activeTab) {
             case 'Dashboard':
                 return (
-                    <div className="p-6 space-y-6 animate-in fade-in zoom-in-95 duration-300">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                                <p className="text-xs text-slate-500 mb-1">Completed Orders</p>
-                                <p className="text-xl font-bold text-slate-900 dark:text-white">1,248</p>
-                                <div className="mt-2 h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div className="p-4 space-y-4 animate-in fade-in zoom-in-95 duration-300 h-full flex flex-col">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                                <p className="text-[10px] text-slate-500 mb-1">Completed Orders</p>
+                                <p className="text-lg font-bold text-slate-900 dark:text-white">1,248</p>
+                                <div className="mt-1.5 h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                     <div className="h-full w-[92%] bg-green-500 rounded-full" />
                                 </div>
                             </div>
-                            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                                <p className="text-xs text-slate-500 mb-1">Pending Orders</p>
-                                <p className="text-xl font-bold text-slate-900 dark:text-white">12</p>
-                                <div className="mt-2 h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                                <p className="text-[10px] text-slate-500 mb-1">Pending Orders</p>
+                                <p className="text-lg font-bold text-slate-900 dark:text-white">12</p>
+                                <div className="mt-1.5 h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                     <div className="h-full w-[15%] bg-amber-500 rounded-full" />
                                 </div>
                             </div>
                         </div>
-                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col gap-3">
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Recent Driver Activity</p>
-                            {[1, 2].map((i) => (
-                                <div key={i} className="flex items-center gap-3 text-sm">
-                                    <div className={`w-2 h-2 rounded-full ${i === 1 ? 'bg-green-500' : 'bg-blue-500'}`} />
-                                    <span className="text-slate-700 dark:text-slate-300 flex-1">
-                                        {i === 1 ? 'Driver #4 completed delivery' : 'Driver #7 started route'}
-                                    </span>
-                                    <span className="text-slate-400 text-xs">{i === 1 ? '2m ago' : '15m ago'}</span>
+                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col gap-2">
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Recent Driver Activity</p>
+                            {([
+                                { dot: 'bg-green-500', text: 'Ahmed K. completed delivery', time: '2m ago' },
+                                { dot: 'bg-blue-500', text: 'Sarah M. started route', time: '15m ago' },
+                                { dot: 'bg-amber-500', text: 'James L. delayed — traffic', time: '22m ago' },
+                            ]).map((a) => (
+                                <div key={a.text} className="flex items-center gap-2 text-xs">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${a.dot}`} />
+                                    <span className="text-slate-700 dark:text-slate-300 flex-1 truncate">{a.text}</span>
+                                    <span className="text-slate-400 text-[10px] shrink-0">{a.time}</span>
                                 </div>
                             ))}
+                        </div>
+                        <div className="flex-1 grid grid-cols-3 gap-3 min-h-0">
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center">
+                                <p className="text-lg font-bold text-blue-600">5</p>
+                                <p className="text-[10px] text-slate-500">Active</p>
+                            </div>
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center">
+                                <p className="text-lg font-bold text-green-600">98%</p>
+                                <p className="text-[10px] text-slate-500">On Time</p>
+                            </div>
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center">
+                                <p className="text-lg font-bold text-purple-600">47</p>
+                                <p className="text-[10px] text-slate-500">Today</p>
+                            </div>
                         </div>
                     </div>
                 )
             case 'Drivers':
                 return (
-                    <div className="p-4 space-y-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="p-3 space-y-2 animate-in fade-in slide-in-from-right-4 duration-300 h-full overflow-auto">
                         {([
                             { initials: 'AK', name: 'Ahmed K.', route: 'Route 101', status: 'On Time', color: 'bg-green-500' },
                             { initials: 'SM', name: 'Sarah M.', route: 'Route 102', status: 'On Time', color: 'bg-green-500' },
                             { initials: 'JL', name: 'James L.', route: 'Route 103', status: 'Delayed', color: 'bg-amber-500' },
+                            { initials: 'MR', name: 'Mike R.', route: 'Route 104', status: 'On Time', color: 'bg-green-500' },
+                            { initials: 'LD', name: 'Lisa D.', route: 'Route 105', status: 'Offline', color: 'bg-slate-400' },
                         ]).map((driver) => (
-                            <div key={driver.initials} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
-                                <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500">
+                            <div key={driver.initials} className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
+                                <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500">
                                     {driver.initials}
                                 </div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-medium text-slate-900 dark:text-white">{driver.name}</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-slate-900 dark:text-white">{driver.name}</p>
                                     <p className="text-[10px] text-slate-500">{driver.route} • {driver.status}</p>
                                 </div>
-                                <div className={`w-2 h-2 rounded-full ${driver.color}`} />
+                                <div className={`w-2 h-2 rounded-full ${driver.color} shrink-0`} />
                             </div>
                         ))}
                     </div>
                 )
             case 'Orders':
                 return (
-                    <div className="p-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="space-y-2">
+                    <div className="p-3 animate-in fade-in slide-in-from-bottom-4 duration-300 h-full overflow-auto">
+                        <div className="space-y-1">
                             {([
-                                { id: '#ORD-001', status: 'Delivered', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-600 dark:text-green-400' },
-                                { id: '#ORD-002', status: 'In Transit', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' },
-                                { id: '#ORD-003', status: 'Processing', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400' },
-                                { id: '#ORD-004', status: 'Pending', bg: 'bg-slate-100 dark:bg-slate-700/50', text: 'text-slate-500 dark:text-slate-400' },
+                                { id: '#ORD-001', customer: 'Alex P.', status: 'Delivered', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-600 dark:text-green-400' },
+                                { id: '#ORD-002', customer: 'Maria S.', status: 'In Transit', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' },
+                                { id: '#ORD-003', customer: 'Tom H.', status: 'Processing', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400' },
+                                { id: '#ORD-004', customer: 'Nina K.', status: 'Pending', bg: 'bg-slate-100 dark:bg-slate-700/50', text: 'text-slate-500 dark:text-slate-400' },
+                                { id: '#ORD-005', customer: 'David L.', status: 'Delivered', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-600 dark:text-green-400' },
+                                { id: '#ORD-006', customer: 'Sara W.', status: 'In Transit', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' },
                             ]).map((order) => (
-                                <div key={order.id} className="flex items-center justify-between p-2 text-sm border-b border-slate-100 dark:border-slate-700 pb-2">
-                                    <span className="font-medium text-slate-700 dark:text-slate-300">{order.id}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${order.bg} ${order.text}`}>{order.status}</span>
+                                <div key={order.id} className="flex items-center justify-between p-2 text-xs border-b border-slate-100 dark:border-slate-700">
+                                    <div className="flex-1 min-w-0">
+                                        <span className="font-medium text-slate-700 dark:text-slate-300">{order.id}</span>
+                                        <span className="text-slate-400 ml-2">{order.customer}</span>
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${order.bg} ${order.text} shrink-0`}>{order.status}</span>
                                 </div>
                             ))}
                         </div>
@@ -134,11 +157,13 @@ export function HeroSection() {
                                 </div>
                             </motion.div>
 
-                            {/* Animated Driver */}
-                            <motion.div
-                                className="absolute"
-                                animate={{ x: [20, 250], y: [180, 250] }}
-                                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                            {/* Animated Driver - follows route path */}
+                            <div
+                                className="absolute w-6 h-6 z-10 animate-drive-path"
+                                style={{
+                                    offsetPath: 'path("M -20 180 Q 150 160, 250 250 T 500 300")',
+                                    offsetRotate: '0deg',
+                                }}
                             >
                                 <div className="relative -ml-3 -mt-3">
                                     <div className="w-6 h-6 bg-slate-900 border-2 border-white rounded-full flex items-center justify-center shadow-xl z-10 relative">
@@ -146,7 +171,7 @@ export function HeroSection() {
                                     </div>
                                     <div className="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-20" />
                                 </div>
-                            </motion.div>
+                            </div>
                         </div>
                     </div>
                 )
