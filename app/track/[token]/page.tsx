@@ -129,12 +129,14 @@ export default function TrackingPage() {
 
     const fetchOrder = useCallback(async () => {
         const { data, error } = await supabase.rpc('get_order_by_tracking_token', { token })
-        if (error || !data) {
+        // RPC returns a TABLE (array of rows), not a single object
+        const row = Array.isArray(data) ? data[0] : data
+        if (error || !row) {
             setNotFound(true)
             setLoading(false)
             return
         }
-        setOrder(data as OrderData)
+        setOrder(row as OrderData)
         setLoading(false)
     }, [token])
 
