@@ -121,56 +121,128 @@ export function HeroSection() {
             case 'Live Map':
             default:
                 return (
-                    <div className="absolute inset-0">
-                        {/* Map Grid/Pattern */}
-                        <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-                        <div className="absolute inset-0">
-                            {/* Streets */}
-                            <div className="absolute top-[20%] left-0 right-0 h-4 bg-white dark:bg-slate-700 shadow-sm transform -skew-y-3" />
-                            <div className="absolute top-0 bottom-0 left-[40%] w-4 bg-white dark:bg-slate-700 shadow-sm transform skew-x-6" />
+                    <div className="absolute inset-0 bg-[#e8e4da] dark:bg-[#1a2332]">
+                        {/* Realistic Map Background */}
+                        <svg className="absolute inset-0 w-full h-full dark:brightness-[0.35] dark:saturate-50 dark:contrast-125" viewBox="0 0 500 380" preserveAspectRatio="xMidYMid slice">
+                            {/* Water body */}
+                            <ellipse cx="440" cy="60" rx="120" ry="80" fill="#a8d5e2" opacity="0.5" />
+                            <ellipse cx="460" cy="50" rx="90" ry="60" fill="#91c8d8" opacity="0.4" />
 
-                            {/* Route Line */}
-                            <svg className="absolute inset-0 w-full h-full pointer-events-none drop-shadow-lg">
-                                <path d="M -20 180 Q 150 160, 250 250 T 500 300" fill="none" stroke="#3b82f6" strokeWidth="4" strokeLinecap="round" />
-                                <circle cx="250" cy="250" r="6" fill="#3b82f6" stroke="white" strokeWidth="2" />
-                            </svg>
+                            {/* Parks / green areas */}
+                            <rect x="30" y="40" width="70" height="50" rx="8" fill="#b8d8a0" opacity="0.7" />
+                            <rect x="320" y="260" width="60" height="45" rx="6" fill="#b8d8a0" opacity="0.6" />
+                            <circle cx="50" cy="340" r="30" fill="#c4dda8" opacity="0.5" />
+                            <rect x="180" y="10" width="40" height="30" rx="4" fill="#b8d8a0" opacity="0.5" />
 
-                            {/* Driver Card Overlay - Moved Down */}
-                            <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="absolute top-20 right-4 bg-white dark:bg-slate-900 p-3 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 w-48 z-20"
-                            >
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">JD</div>
-                                    <div>
-                                        <p className="text-xs font-bold text-slate-800 dark:text-white">John Doe</p>
-                                        <p className="text-[10px] text-slate-500">Ford Transit • Active</p>
-                                    </div>
-                                </div>
-                                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                    <div className="h-full w-2/3 bg-blue-500 rounded-full" />
-                                </div>
-                                <div className="flex justify-between mt-2 text-[10px] text-slate-400">
-                                    <span>ETA: 10:45 AM</span>
-                                    <span>6 stops left</span>
-                                </div>
-                            </motion.div>
+                            {/* Major roads */}
+                            <path d="M 0 150 L 500 130" stroke="#ffffff" strokeWidth="12" fill="none" opacity="0.9" />
+                            <path d="M 0 150 L 500 130" stroke="#f0ece3" strokeWidth="10" fill="none" />
+                            <path d="M 200 0 L 180 380" stroke="#ffffff" strokeWidth="12" fill="none" opacity="0.9" />
+                            <path d="M 200 0 L 180 380" stroke="#f0ece3" strokeWidth="10" fill="none" />
+                            <path d="M 0 280 L 500 260" stroke="#ffffff" strokeWidth="10" fill="none" opacity="0.9" />
+                            <path d="M 0 280 L 500 260" stroke="#f0ece3" strokeWidth="8" fill="none" />
+                            <path d="M 380 0 L 360 380" stroke="#ffffff" strokeWidth="8" fill="none" opacity="0.9" />
+                            <path d="M 380 0 L 360 380" stroke="#f0ece3" strokeWidth="6" fill="none" />
 
-                            {/* Animated Driver - follows route path */}
-                            <div
-                                className="absolute w-6 h-6 z-10 animate-drive-path"
-                                style={{
-                                    offsetPath: 'path("M -20 180 Q 150 160, 250 250 T 500 300")',
-                                    offsetRotate: '0deg',
-                                }}
-                            >
-                                <div className="relative -ml-3 -mt-3">
-                                    <div className="w-6 h-6 bg-slate-900 border-2 border-white rounded-full flex items-center justify-center shadow-xl z-10 relative">
-                                        <Truck size={12} className="text-white" />
-                                    </div>
-                                    <div className="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-20" />
+                            {/* Secondary roads */}
+                            <path d="M 0 80 L 500 70" stroke="#f5f1e8" strokeWidth="5" fill="none" />
+                            <path d="M 0 210 L 500 200" stroke="#f5f1e8" strokeWidth="5" fill="none" />
+                            <path d="M 0 340 L 500 330" stroke="#f5f1e8" strokeWidth="5" fill="none" />
+                            <path d="M 80 0 L 70 380" stroke="#f5f1e8" strokeWidth="5" fill="none" />
+                            <path d="M 280 0 L 270 380" stroke="#f5f1e8" strokeWidth="5" fill="none" />
+                            <path d="M 450 0 L 440 380" stroke="#f5f1e8" strokeWidth="4" fill="none" />
+
+                            {/* Building blocks */}
+                            <rect x="90" y="90" width="80" height="45" rx="3" fill="#d9d3c7" opacity="0.8" />
+                            <rect x="95" y="95" width="30" height="18" rx="2" fill="#cec7b8" />
+                            <rect x="130" y="95" width="35" height="35" rx="2" fill="#c8c0af" />
+                            <rect x="210" y="25" width="55" height="40" rx="3" fill="#d5cfc3" opacity="0.8" />
+                            <rect x="215" y="30" width="22" height="15" rx="1" fill="#cac3b4" />
+                            <rect x="240" y="30" width="20" height="30" rx="1" fill="#c5bead" />
+                            <rect x="210" y="160" width="60" height="35" rx="3" fill="#d9d3c7" opacity="0.8" />
+                            <rect x="285" y="80" width="65" height="50" rx="3" fill="#d5cfc3" opacity="0.7" />
+                            <rect x="290" y="85" width="25" height="20" rx="2" fill="#cec7b8" />
+                            <rect x="320" y="85" width="25" height="40" rx="2" fill="#c8c0af" />
+                            <rect x="90" y="165" width="70" height="35" rx="3" fill="#d2ccbf" opacity="0.8" />
+                            <rect x="95" y="170" width="28" height="25" rx="2" fill="#c5bead" />
+                            <rect x="128" y="170" width="27" height="15" rx="1" fill="#cac3b4" />
+                            <rect x="395" y="145" width="50" height="40" rx="3" fill="#d9d3c7" opacity="0.7" />
+                            <rect x="285" y="210" width="45" height="35" rx="3" fill="#d5cfc3" opacity="0.7" />
+                            <rect x="90" y="290" width="75" height="35" rx="3" fill="#d2ccbf" opacity="0.8" />
+                            <rect x="210" y="290" width="50" height="30" rx="3" fill="#d9d3c7" opacity="0.7" />
+                            <rect x="390" y="280" width="55" height="40" rx="3" fill="#d5cfc3" opacity="0.7" />
+                            <rect x="395" y="210" width="60" height="35" rx="3" fill="#d2ccbf" opacity="0.6" />
+
+                            {/* Road labels (tiny) */}
+                            <text x="250" y="127" fontSize="5" fill="#999" fontFamily="sans-serif" opacity="0.7">Main St</text>
+                            <text x="172" y="100" fontSize="4.5" fill="#999" fontFamily="sans-serif" opacity="0.6" transform="rotate(-88, 172, 100)">Oak Ave</text>
+                            <text x="250" y="257" fontSize="5" fill="#999" fontFamily="sans-serif" opacity="0.6">2nd Ave</text>
+                            <text x="352" y="180" fontSize="4.5" fill="#999" fontFamily="sans-serif" opacity="0.6" transform="rotate(-88, 352, 180)">Elm St</text>
+
+                            {/* Delivery stop pins */}
+                            <g opacity="0.9">
+                                <circle cx="120" cy="150" r="4" fill="#ef4444" stroke="white" strokeWidth="1.5" />
+                                <circle cx="270" cy="200" r="4" fill="#ef4444" stroke="white" strokeWidth="1.5" />
+                                <circle cx="350" cy="270" r="4" fill="#ef4444" stroke="white" strokeWidth="1.5" />
+                                <circle cx="420" cy="300" r="4" fill="#22c55e" stroke="white" strokeWidth="1.5" />
+                            </g>
+
+                            {/* Route Line - thicker with glow */}
+                            <path d="M 20 180 Q 120 150, 180 195 T 350 270 Q 400 290, 470 310" fill="none" stroke="#3b82f6" strokeWidth="5" strokeLinecap="round" opacity="0.3" />
+                            <path d="M 20 180 Q 120 150, 180 195 T 350 270 Q 400 290, 470 310" fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeDasharray="0" />
+
+                            {/* Completed stops checkmarks */}
+                            <circle cx="250" cy="250" r="6" fill="#3b82f6" stroke="white" strokeWidth="2" />
+                        </svg>
+
+                        {/* Driver Card Overlay */}
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="absolute top-3 right-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 w-44 z-20"
+                        >
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold">AK</div>
+                                <div>
+                                    <p className="text-[11px] font-bold text-slate-800 dark:text-white">Ahmed K.</p>
+                                    <p className="text-[9px] text-slate-500">Ford Transit • Active</p>
                                 </div>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div className="h-full w-2/3 bg-blue-500 rounded-full" />
+                            </div>
+                            <div className="flex justify-between mt-1.5 text-[9px] text-slate-400">
+                                <span>ETA: 10:45 AM</span>
+                                <span>3/6 stops</span>
+                            </div>
+                        </motion.div>
+
+                        {/* Map controls (zoom) */}
+                        <div className="absolute bottom-3 right-3 flex flex-col gap-1 z-20">
+                            <div className="w-7 h-7 bg-white/90 dark:bg-slate-800/90 rounded shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 text-xs font-bold">+</div>
+                            <div className="w-7 h-7 bg-white/90 dark:bg-slate-800/90 rounded shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 text-xs font-bold">−</div>
+                        </div>
+
+                        {/* Legend */}
+                        <div className="absolute bottom-3 left-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-2 py-1.5 rounded shadow-sm border border-slate-200 dark:border-slate-700 z-20 flex items-center gap-3">
+                            <span className="flex items-center gap-1 text-[8px] text-slate-500"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Pending</span>
+                            <span className="flex items-center gap-1 text-[8px] text-slate-500"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Done</span>
+                            <span className="flex items-center gap-1 text-[8px] text-slate-500"><span className="w-1.5 h-0.5 bg-blue-500 inline-block rounded" /> Route</span>
+                        </div>
+
+                        {/* Animated Driver - follows route path */}
+                        <div
+                            className="absolute w-6 h-6 z-10 animate-drive-path"
+                            style={{
+                                offsetPath: 'path("M 20 180 Q 120 150, 180 195 T 350 270 Q 400 290, 470 310")',
+                                offsetRotate: '0deg',
+                            }}
+                        >
+                            <div className="relative -ml-3 -mt-3">
+                                <div className="w-6 h-6 bg-slate-900 border-2 border-white rounded-full flex items-center justify-center shadow-xl z-10 relative">
+                                    <Truck size={12} className="text-white" />
+                                </div>
+                                <div className="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-20" />
                             </div>
                         </div>
                     </div>
