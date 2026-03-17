@@ -87,15 +87,11 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
             lastRedirectRef.current = now
             resolvedRef.current = true
             sessionConfirmedRef.current = false
-            if (isMountedRef.current) setIsLoading(false)
             authCheckRunningRef.current = false
-            // Hard redirect for timeout/error — router.push gets stuck when
-            // navigator.locks are deadlocked (getSession blocks Next.js router)
-            if (reason === 'timeout' || reason === 'error') {
-                window.location.href = '/login'
-            } else {
-                router.push('/login')
-            }
+            // Keep loading spinner visible during redirect — don't flash empty content
+            // Always use hard redirect — router.push can get stuck when
+            // navigator.locks are deadlocked or RSC prefetch hangs
+            window.location.href = '/login'
         }
     }
 
