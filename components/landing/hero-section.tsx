@@ -107,11 +107,11 @@ export function HeroSection() {
                         {/* Driver cards list */}
                         <div className="flex-1 overflow-auto p-2.5 space-y-2">
                             {([
-                                { letter: 'R', name: 'Ryan C.', email: 'ryan@fleet.co', phone: '+1 555-0101', vehicle: 'Ford Transit', status: 'active', activated: true },
-                                { letter: 'S', name: 'Sarah M.', email: 'sarah@fleet.co', phone: '+1 555-0102', vehicle: 'Sprinter', status: 'active', activated: true },
-                                { letter: 'J', name: 'James L.', email: 'james@fleet.co', phone: '+1 555-0103', vehicle: 'ProMaster', status: 'active', activated: false },
-                                { letter: 'M', name: 'Mike R.', email: 'mike@fleet.co', phone: '', vehicle: 'Transit', status: 'active', activated: true },
-                                { letter: 'L', name: 'Lisa D.', email: 'lisa@fleet.co', phone: '+1 555-0105', vehicle: '', status: 'suspended', activated: true },
+                                { letter: 'R', name: 'Ryan C.', email: 'ryan@raute.io', phone: '+1 555-0101', vehicle: 'Ford Transit', status: 'active', activated: true },
+                                { letter: 'S', name: 'Sarah M.', email: 'sarah@raute.io', phone: '+1 555-0102', vehicle: 'Sprinter', status: 'active', activated: true },
+                                { letter: 'J', name: 'James L.', email: 'james@raute.io', phone: '+1 555-0103', vehicle: 'ProMaster', status: 'active', activated: false },
+                                { letter: 'M', name: 'Mike R.', email: 'mike@raute.io', phone: '', vehicle: 'Transit', status: 'active', activated: true },
+                                { letter: 'L', name: 'Lisa D.', email: 'lisa@raute.io', phone: '+1 555-0105', vehicle: '', status: 'suspended', activated: true },
                             ]).map((d) => (
                                 <div key={d.letter} className="group relative flex items-center gap-2.5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-lg transition-all rounded-[16px] p-2.5 cursor-pointer">
                                     {/* Left accent */}
