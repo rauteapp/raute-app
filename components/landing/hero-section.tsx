@@ -92,39 +92,43 @@ export function HeroSection() {
                 )
             case 'Drivers':
                 return (
-                    <div className="p-3 animate-in fade-in slide-in-from-right-4 duration-300 h-full flex flex-col gap-3 bg-slate-50/50 dark:bg-slate-950/50">
-                        {/* Header with count */}
-                        <div className="flex items-center justify-between">
+                    <div className="animate-in fade-in slide-in-from-right-4 duration-300 h-full flex flex-col bg-slate-50/50 dark:bg-slate-950/50">
+                        {/* Sticky header - matches real app */}
+                        <div className="px-3 py-2.5 flex items-center justify-between bg-white/70 dark:bg-slate-950/70 backdrop-blur-2xl border-b border-slate-200/50 dark:border-slate-800/50">
                             <div>
-                                <p className="text-[10px] font-bold text-slate-900 dark:text-white">Active Drivers</p>
-                                <p className="text-[8px] text-slate-400">5 drivers assigned today</p>
+                                <p className="text-[11px] font-black text-slate-900 dark:text-white tracking-tight">Driver Management</p>
+                                <p className="text-[8px] font-semibold text-slate-500 mt-0.5">Manage your fleet and assignments.</p>
                             </div>
-                            <span className="text-[8px] text-blue-600 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">+ Add Driver</span>
+                            <div className="flex items-center gap-1.5 h-6 rounded-[10px] px-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[8px] font-bold shadow-sm">
+                                + Add <span className="text-[7px] opacity-60">5/10</span>
+                            </div>
                         </div>
 
-                        {/* Driver cards */}
-                        <div className="flex-1 space-y-2 overflow-auto">
+                        {/* Driver cards list */}
+                        <div className="flex-1 overflow-auto p-2.5 space-y-2">
                             {([
-                                { initials: 'AK', name: 'Ahmed K.', vehicle: 'Ford Transit', stops: '8/10', pct: 80, status: 'On Route', statusColor: 'text-blue-600 dark:text-blue-400', statusBg: 'bg-blue-50 dark:bg-blue-900/20', barColor: 'from-blue-600 to-indigo-500' },
-                                { initials: 'SM', name: 'Sarah M.', vehicle: 'Mercedes Sprinter', stops: '12/12', pct: 100, status: 'Complete', statusColor: 'text-green-600 dark:text-green-400', statusBg: 'bg-green-50 dark:bg-green-900/20', barColor: 'from-green-500 to-emerald-400' },
-                                { initials: 'JL', name: 'James L.', vehicle: 'Ram ProMaster', stops: '3/9', pct: 33, status: 'Delayed', statusColor: 'text-amber-600 dark:text-amber-400', statusBg: 'bg-amber-50 dark:bg-amber-900/20', barColor: 'from-amber-500 to-orange-400' },
-                                { initials: 'MR', name: 'Mike R.', vehicle: 'Ford Transit', stops: '5/8', pct: 62, status: 'On Route', statusColor: 'text-blue-600 dark:text-blue-400', statusBg: 'bg-blue-50 dark:bg-blue-900/20', barColor: 'from-blue-600 to-indigo-500' },
-                                { initials: 'LD', name: 'Lisa D.', vehicle: 'Nissan NV200', stops: '0/6', pct: 0, status: 'Offline', statusColor: 'text-slate-400', statusBg: 'bg-slate-100 dark:bg-slate-800', barColor: 'from-slate-300 to-slate-400' },
+                                { letter: 'A', name: 'Ahmed K.', email: 'ahmed@fleet.co', phone: '+1 555-0101', vehicle: 'Ford Transit', status: 'active', activated: true },
+                                { letter: 'S', name: 'Sarah M.', email: 'sarah@fleet.co', phone: '+1 555-0102', vehicle: 'Sprinter', status: 'active', activated: true },
+                                { letter: 'J', name: 'James L.', email: 'james@fleet.co', phone: '+1 555-0103', vehicle: 'ProMaster', status: 'active', activated: false },
+                                { letter: 'M', name: 'Mike R.', email: 'mike@fleet.co', phone: '', vehicle: 'Transit', status: 'active', activated: true },
+                                { letter: 'L', name: 'Lisa D.', email: 'lisa@fleet.co', phone: '+1 555-0105', vehicle: '', status: 'suspended', activated: true },
                             ]).map((d) => (
-                                <div key={d.initials} className="bg-white dark:bg-slate-900 rounded-[14px] border border-slate-100 dark:border-slate-800 p-2.5 hover:shadow-md transition-shadow cursor-pointer">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{d.initials}</span>
+                                <div key={d.letter} className="group relative flex items-center gap-2.5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-lg transition-all rounded-[16px] p-2.5 cursor-pointer">
+                                    {/* Left accent */}
+                                    <div className="absolute inset-y-0 left-0 w-0.5 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-20 rounded-l-full" />
+                                    {/* Avatar */}
+                                    <div className="h-9 w-9 rounded-[10px] bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 shadow-sm flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700/60 text-blue-600 dark:text-blue-400 font-black text-sm">
+                                        {d.letter}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-[10px] font-black text-slate-900 dark:text-white tracking-tight truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{d.name}</p>
+                                            <span className={`px-1.5 py-0 text-[6px] font-black tracking-wider uppercase rounded-full border ${d.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/60' : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'}`}>{d.status}</span>
+                                            {!d.activated && <span className="px-1.5 py-0 text-[6px] font-black tracking-wider uppercase rounded-full border bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/60">Pending</span>}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between">
-                                                <p className="text-[10px] font-semibold text-slate-800 dark:text-white truncate">{d.name}</p>
-                                                <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded-full ${d.statusBg} ${d.statusColor} shrink-0`}>{d.status}</span>
-                                            </div>
-                                            <p className="text-[8px] text-slate-400 mb-1.5">{d.vehicle} &bull; {d.stops} stops</p>
-                                            <div className="h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                <div className={`h-full rounded-full bg-gradient-to-r ${d.barColor}`} style={{ width: `${d.pct}%` }} />
-                                            </div>
+                                        <div className="flex gap-2 text-[8px] font-semibold text-slate-400 mt-0.5">
+                                            <span className="truncate">{d.email}</span>
+                                            {d.vehicle && <span>&bull; {d.vehicle}</span>}
                                         </div>
                                     </div>
                                 </div>
@@ -134,55 +138,67 @@ export function HeroSection() {
                 )
             case 'Orders':
                 return (
-                    <div className="p-3 animate-in fade-in slide-in-from-bottom-4 duration-300 h-full flex flex-col gap-3 bg-slate-50/50 dark:bg-slate-950/50">
-                        {/* Summary stats row */}
-                        <div className="grid grid-cols-4 gap-2">
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 h-full flex flex-col bg-slate-50/50 dark:bg-slate-950/50">
+                        {/* Sticky header - matches real app */}
+                        <div className="px-3 py-2.5 flex items-center justify-between bg-white/70 dark:bg-slate-950/70 backdrop-blur-2xl border-b border-slate-200/50 dark:border-slate-800/50">
+                            <div>
+                                <p className="text-[11px] font-black text-slate-900 dark:text-white tracking-tight">All Orders</p>
+                                <p className="text-[8px] font-semibold text-slate-500 mt-0.5">Manage company deliveries</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 h-6 rounded-[10px] px-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[8px] font-bold shadow-sm">
+                                + Add Order
+                            </div>
+                        </div>
+
+                        {/* Quick stat cards - matches real app */}
+                        <div className="px-2.5 pt-2.5 grid grid-cols-4 gap-1.5">
                             {([
-                                { label: 'ALL', value: '47', color: 'text-slate-800 dark:text-white' },
-                                { label: 'TRANSIT', value: '12', color: 'text-blue-600 dark:text-blue-400' },
-                                { label: 'DONE', value: '31', color: 'text-green-600 dark:text-green-400' },
-                                { label: 'PENDING', value: '4', color: 'text-amber-600 dark:text-amber-400' },
+                                { label: 'Total', value: '47', icon: '📦', border: 'border-slate-200 dark:border-slate-800' },
+                                { label: 'Pending', value: '4', icon: '⏳', border: 'border-amber-200 dark:border-amber-900/60' },
+                                { label: 'Active', value: '12', icon: '🚛', border: 'border-blue-200 dark:border-blue-900/60' },
+                                { label: 'Delivered', value: '31', icon: '✓', border: 'border-emerald-200 dark:border-emerald-900/60' },
                             ]).map((s) => (
-                                <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-2 text-center">
-                                    <p className={`text-sm font-black leading-none ${s.color}`}>{s.value}</p>
-                                    <p className="text-[6px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">{s.label}</p>
+                                <div key={s.label} className={`bg-white dark:bg-slate-900 rounded-xl border ${s.border} p-1.5 text-center`}>
+                                    <p className="text-xs font-black leading-none text-slate-900 dark:text-white">{s.value}</p>
+                                    <p className="text-[6px] font-bold text-slate-400 mt-0.5">{s.label}</p>
                                 </div>
                             ))}
                         </div>
 
-                        {/* Orders list */}
-                        <div className="flex-1 bg-white dark:bg-slate-900 rounded-[14px] border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col min-h-0">
-                            {/* Table header */}
-                            <div className="flex items-center px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[7px] font-bold uppercase tracking-wider text-slate-400">
-                                <span className="w-16">Order</span>
-                                <span className="flex-1">Customer</span>
-                                <span className="w-10 text-center">Driver</span>
-                                <span className="w-16 text-right">Status</span>
-                            </div>
-                            <div className="flex-1 overflow-auto">
-                                {([
-                                    { id: '#847', customer: 'Alex P.', driver: 'AK', status: 'Delivered', dot: 'bg-green-500', statusColor: 'text-green-600 dark:text-green-400', statusBg: 'bg-green-50 dark:bg-green-900/20' },
-                                    { id: '#848', customer: 'Maria S.', driver: 'SM', status: 'In Transit', dot: 'bg-blue-500', statusColor: 'text-blue-600 dark:text-blue-400', statusBg: 'bg-blue-50 dark:bg-blue-900/20' },
-                                    { id: '#849', customer: 'Tom H.', driver: 'JL', status: 'Delayed', dot: 'bg-amber-500', statusColor: 'text-amber-600 dark:text-amber-400', statusBg: 'bg-amber-50 dark:bg-amber-900/20' },
-                                    { id: '#850', customer: 'Nina K.', driver: '—', status: 'Pending', dot: 'bg-slate-300', statusColor: 'text-slate-500 dark:text-slate-400', statusBg: 'bg-slate-100 dark:bg-slate-700/30' },
-                                    { id: '#851', customer: 'David L.', driver: 'MR', status: 'Delivered', dot: 'bg-green-500', statusColor: 'text-green-600 dark:text-green-400', statusBg: 'bg-green-50 dark:bg-green-900/20' },
-                                    { id: '#852', customer: 'Sara W.', driver: 'AK', status: 'In Transit', dot: 'bg-blue-500', statusColor: 'text-blue-600 dark:text-blue-400', statusBg: 'bg-blue-50 dark:bg-blue-900/20' },
-                                ]).map((o) => (
-                                    <div key={o.id} className="flex items-center px-3 py-2 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer">
-                                        <span className="w-16 text-[10px] font-semibold text-slate-700 dark:text-slate-300">{o.id}</span>
-                                        <span className="flex-1 text-[10px] text-slate-500 dark:text-slate-400 truncate">{o.customer}</span>
-                                        <span className="w-10 text-center">
-                                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 text-[7px] font-bold text-slate-500">{o.driver}</span>
-                                        </span>
-                                        <span className="w-16 text-right">
-                                            <span className={`inline-flex items-center gap-1 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${o.statusBg} ${o.statusColor}`}>
-                                                <span className={`w-1 h-1 rounded-full ${o.dot}`} />
-                                                {o.status}
-                                            </span>
-                                        </span>
+                        {/* Status filter tabs - matches real app */}
+                        <div className="px-2.5 pt-2 flex gap-1 overflow-x-auto">
+                            {(['All', 'Pending', 'Assigned', 'In Progress', 'Delivered']).map((tab, i) => (
+                                <span key={tab} className={`px-2 py-0.5 text-[7px] font-bold rounded-full border whitespace-nowrap ${i === 0 ? 'bg-[#0f172a] text-white border-[#0f172a] dark:bg-white dark:text-slate-900 dark:border-white shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'}`}>{tab}</span>
+                            ))}
+                        </div>
+
+                        {/* Order cards - mobile style from real app */}
+                        <div className="flex-1 overflow-auto p-2.5 space-y-2">
+                            {([
+                                { id: '847', customer: 'Alex P.', address: '123 Oak Ave, Brooklyn', status: 'delivered', statusLabel: 'Delivered', time: '10:30 AM', accent: 'bg-green-500', statusStyle: 'bg-green-50 text-green-700 border-green-200/50 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' },
+                                { id: '848', customer: 'Maria S.', address: '456 Main St, Queens', status: 'in_progress', statusLabel: 'In Progress', time: '11:15 AM', accent: 'bg-purple-500', statusStyle: 'bg-purple-50 text-purple-700 border-purple-200/50 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800' },
+                                { id: '849', customer: 'Tom H.', address: '789 Elm St, Bronx', status: 'assigned', statusLabel: 'Assigned', time: '12:00 PM', accent: 'bg-blue-500', statusStyle: 'bg-blue-50 text-blue-700 border-blue-200/50 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' },
+                                { id: '850', customer: 'Nina K.', address: '321 2nd Ave, Manhattan', status: 'pending', statusLabel: 'Pending', time: '01:30 PM', accent: 'bg-amber-500', statusStyle: 'bg-yellow-50 text-yellow-700 border-yellow-200/50 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800' },
+                                { id: '851', customer: 'David L.', address: '654 Park Blvd, Staten Island', status: 'delivered', statusLabel: 'Delivered', time: '09:45 AM', accent: 'bg-green-500', statusStyle: 'bg-green-50 text-green-700 border-green-200/50 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' },
+                            ]).map((o) => (
+                                <div key={o.id} className="relative bg-white dark:bg-slate-900 rounded-[14px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-100 dark:border-slate-800 p-2.5 cursor-pointer hover:shadow-lg transition-all">
+                                    {/* Left accent */}
+                                    <div className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full ${o.accent}`} />
+                                    {/* Header row */}
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <p className="text-[11px] font-black text-slate-900 dark:text-white tracking-tight">#{o.id}</p>
+                                        <span className={`px-1.5 py-0.5 text-[6px] font-black rounded-[6px] uppercase tracking-widest border shadow-sm ${o.statusStyle}`}>{o.statusLabel}</span>
                                     </div>
-                                ))}
-                            </div>
+                                    {/* Details */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-semibold text-slate-700 dark:text-slate-300 truncate">{o.customer}</p>
+                                            <p className="text-[8px] text-slate-400 truncate mt-0.5">{o.address}</p>
+                                        </div>
+                                        <span className="text-[8px] font-semibold text-slate-400 shrink-0 ml-2">{o.time}</span>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )
