@@ -442,13 +442,20 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                             }
                         }
 
-                        // Clear any stale cached session data
+                        // Clear any stale cached session data and redirect
                         try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
-                        router.push('/login')
+                        window.location.href = '/login'
                     } catch {
-                        // If all checks fail (timeout, network error), redirect to be safe
+                        // Network error or timeout — on native, do NOT wipe session.
+                        // The user may just have spotty connectivity. Keep session in
+                        // storage so they can recover when back online.
+                        if (isNative) {
+                            // Stay on current page — session might still be valid
+                            return
+                        }
+                        // On web, redirect to login (cookies persist independently)
                         try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
-                        router.push('/login')
+                        window.location.href = '/login'
                     }
                 }
             } else if (event === 'INITIAL_SESSION') {
