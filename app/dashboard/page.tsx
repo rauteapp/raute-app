@@ -128,10 +128,19 @@ export default function DashboardPage() {
                     }
 
                     if (!currentUserId && userResult.status === 'fulfilled') {
-                        const u = (userResult.value as any)?.data?.user
+                        const userVal = userResult.value as any
+                        const u = userVal?.data?.user
                         if (u?.id) {
-                                currentUserId = u.id
+                            currentUserId = u.id
                             userMeta = u.user_metadata ?? {}
+                        }
+                        // If getUser returned 403/401, session is dead (e.g. password changed)
+                        const userError = userVal?.error
+                        if (!u && userError && (userError.status === 403 || userError.status === 401)) {
+                            console.error('⛔ Dashboard: Session invalidated (403/401). Redirecting to login.')
+                            try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                            window.location.href = '/login'
+                            return
                         }
                     }
                 } catch {
@@ -139,13 +148,10 @@ export default function DashboardPage() {
                 }
 
                 if (!currentUserId) {
-                    const cachedRole = typeof window !== 'undefined' ? localStorage.getItem('raute_user_role') : null
-                    if (cachedRole) {
-                        if (isMountedRef.current) setIsLoading(false)
-                        return
-                    }
-                    console.error('⛔ Dashboard: No session, no cache. Redirecting to login.')
-                    router.replace('/login?error=no_session')
+                    // No valid session — clear stale cookies and redirect
+                    console.error('⛔ Dashboard: No session. Redirecting to login.')
+                    try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                    window.location.href = '/login'
                     return
                 }
 

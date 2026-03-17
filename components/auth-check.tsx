@@ -275,6 +275,29 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                         }
                     }
 
+                    // Verify the token is actually valid server-side.
+                    // getSession() only reads cached data — the token may have been
+                    // revoked (e.g. password changed on another device) but still has
+                    // time left on expires_at. getUser() makes a real API call to check.
+                    if (!isExpired) {
+                        try {
+                            const { error: verifyError } = await Promise.race([
+                                supabase.auth.getUser(),
+                                new Promise<{ data: { user: null }, error: { status: number } }>((resolve) =>
+                                    setTimeout(() => resolve({ data: { user: null }, error: { status: 408 } }), 4000)
+                                ),
+                            ])
+                            if (verifyError && (verifyError.status === 403 || verifyError.status === 401)) {
+                                try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                                clearTimeout(maxTimeout)
+                                redirectToLogin('token_revoked')
+                                return
+                            }
+                        } catch {
+                            // Network error or timeout — let them through, dashboard will handle it
+                        }
+                    }
+
                     // Check email verification
                     if (!data.session.user.email_confirmed_at && pathname !== '/verify-email') {
                         const now = Date.now()
