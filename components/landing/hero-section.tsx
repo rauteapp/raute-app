@@ -1,13 +1,25 @@
 'use client'
 
-import { ArrowRight, CheckCircle2, Play, Truck, LayoutDashboard, Map, Users, Package } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Play, Truck, LayoutDashboard, Map, Users, Package, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export function HeroSection() {
     const [activeTab, setActiveTab] = useState('Live Map')
+    const [foundingActive, setFoundingActive] = useState(false)
+
+    useEffect(() => {
+        supabase.from('app_config').select('value').eq('key', 'founding_members').single()
+            .then(({ data }) => {
+                if (data?.value) {
+                    const v = data.value as any
+                    setFoundingActive(v.active && v.count < v.limit)
+                }
+            })
+    }, [])
 
     const renderContent = () => {
         switch (activeTab) {
@@ -152,9 +164,15 @@ export function HeroSection() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5 }}
                         >
-                            <span className="inline-block px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-bold mb-6 border border-blue-100 dark:border-blue-800">
-                                🚀 The Future of Fleet Management
-                            </span>
+                            {foundingActive ? (
+                                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold mb-6 shadow-lg shadow-blue-500/20 animate-pulse">
+                                    <Sparkles size={14} /> Founding Member Offer — 50% OFF
+                                </span>
+                            ) : (
+                                <span className="inline-block px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-bold mb-6 border border-blue-100 dark:border-blue-800">
+                                    The Future of Fleet Management
+                                </span>
+                            )}
                             <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.1]">
                                 Master Your <br />
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
@@ -193,6 +211,7 @@ export function HeroSection() {
                         >
                             <span className="flex items-center gap-1.5"><CheckCircle2 size={16} className="text-green-500" /> No credit card needed</span>
                             <span className="flex items-center gap-1.5"><CheckCircle2 size={16} className="text-green-500" /> 7-day free trial</span>
+                            <span className="flex items-center gap-1.5"><CheckCircle2 size={16} className="text-green-500" /> Setup in 5 min</span>
                         </motion.div>
                     </div>
 

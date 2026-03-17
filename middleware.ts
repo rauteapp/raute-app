@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Skip middleware entirely for landing page and marketing pages
-    const marketingPages = ['/', '/privacy', '/terms']
+    const marketingPages = ['/', '/privacy', '/terms', '/cookies', '/about', '/careers', '/blog', '/contact', '/acceptable-use', '/cancellation-policy', '/dpa', '/legal-restrictions', '/promotional-terms', '/refund-policy']
     if (marketingPages.includes(request.nextUrl.pathname)) {
         return NextResponse.next()
     }
@@ -72,6 +72,6 @@ export const config = {
          * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
          * - api routes (protected separately)
          */
-        '/((?!_next/static|_next/image|favicon.ico|api|privacy|terms|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|ico|xml|txt)$).*)',
+        '/((?!_next/static|_next/image|favicon.ico|api|privacy|terms|cookies|about|careers|blog|contact|acceptable-use|cancellation-policy|dpa|legal-restrictions|promotional-terms|refund-policy|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|ico|xml|txt)$).*)',
     ],
 }

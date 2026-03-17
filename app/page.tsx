@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { Navbar } from '@/components/landing/navbar'
 import { HeroSection } from '@/components/landing/hero-section'
 import { FeaturesGrid } from '@/components/landing/features-grid'
-import { PricingSection } from '@/components/landing/pricing-section'
-import { ContactForm } from '@/components/landing/contact-form'
-import { DownloadSection } from '@/components/landing/download-section'
-import { Footer } from '@/components/landing/footer'
+import { CtaBanner } from '@/components/landing/cta-banner'
 import { HowItWorks } from '@/components/landing/how-it-works'
+import { PricingSection } from '@/components/landing/pricing-section'
+import { FAQSection } from '@/components/landing/faq-section'
+import { DownloadSection } from '@/components/landing/download-section'
+import { ContactForm } from '@/components/landing/contact-form'
+import { Footer } from '@/components/landing/footer'
 
 export default function LandingPage() {
   const router = useRouter()
@@ -62,16 +64,22 @@ export default function LandingPage() {
         {/* 2. Features Showcase */}
         <FeaturesGrid />
 
-        {/* 3. How It Works */}
+        {/* 4. CTA Banner (conversion nudge) */}
+        <CtaBanner />
+
+        {/* 5. How It Works */}
         <HowItWorks />
 
-        {/* 4. Pricing Plans */}
+        {/* 6. Pricing Plans */}
         <PricingSection />
 
-        {/* 5. Download App */}
+        {/* 7. FAQ */}
+        <FAQSection />
+
+        {/* 8. Download App */}
         <DownloadSection />
 
-        {/* 6. Contact Form */}
+        {/* 9. Contact Form */}
         <ContactForm />
       </main>
 

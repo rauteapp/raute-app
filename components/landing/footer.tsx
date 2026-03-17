@@ -1,7 +1,23 @@
 'use client'
 
-import { Instagram, Twitter, Linkedin, Facebook } from 'lucide-react'
+import { Instagram, Linkedin } from 'lucide-react'
 import Link from 'next/link'
+
+function XIcon({ size = 20 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+        </svg>
+    )
+}
+
+function TikTokIcon({ size = 20 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15.2a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.73a8.19 8.19 0 0 0 4.76 1.52v-3.4a4.85 4.85 0 0 1-1-.16z" />
+        </svg>
+    )
+}
 
 export function Footer() {
     return (
@@ -17,9 +33,10 @@ export function Footer() {
                             The intelligent route planning platform for modern fleets. Optimizing the last mile, one delivery at a time.
                         </p>
                         <div className="flex gap-4">
-                            <a href="#" className="text-slate-400 hover:text-blue-600 transition-colors"><Twitter size={20} /></a>
+                            <a href="#" className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><XIcon size={20} /></a>
                             <a href="#" className="text-slate-400 hover:text-blue-600 transition-colors"><Linkedin size={20} /></a>
-                            <a href="#" className="text-slate-400 hover:text-blue-600 transition-colors"><Instagram size={20} /></a>
+                            <a href="#" className="text-slate-400 hover:text-pink-600 transition-colors"><Instagram size={20} /></a>
+                            <a href="#" className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><TikTokIcon size={20} /></a>
                         </div>
                     </div>
 
@@ -37,9 +54,9 @@ export function Footer() {
                     <div>
                         <h4 className="font-bold text-slate-900 dark:text-white mb-4">Company</h4>
                         <ul className="space-y-3 text-sm text-slate-500 dark:text-slate-400">
-                            <li><a href="#" className="hover:text-blue-600 transition-colors">About Us</a></li>
-                            <li><a href="#" className="hover:text-blue-600 transition-colors">Careers</a></li>
-                            <li><a href="#" className="hover:text-blue-600 transition-colors">Blog</a></li>
+                            <li><Link href="/about" className="hover:text-blue-600 transition-colors">About Us</Link></li>
+                            <li><Link href="/careers" className="hover:text-blue-600 transition-colors">Careers</Link></li>
+                            <li><Link href="/blog" className="hover:text-blue-600 transition-colors">Blog</Link></li>
                             <li><a href="#contact" className="hover:text-blue-600 transition-colors">Contact</a></li>
                         </ul>
                     </div>
