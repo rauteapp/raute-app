@@ -82,11 +82,16 @@ function createSupabaseClient() {
     // Without this, createBrowserClient sets session cookies (no maxAge) via document.cookie,
     // which get cleared when the browser closes — even if the middleware sets maxAge on the
     // server side, the client overwrites them without it.
+    // Set domain to .raute.io so cookies work on both raute.io and www.raute.io.
+    // Without this, logging in on raute.io sets cookies only for that exact host,
+    // and visiting www.raute.io sends no cookies — causing session loss.
+    const isRaute = typeof window !== 'undefined' && window.location.hostname.endsWith('raute.io')
     const client = createBrowserClient(supabaseUrl, supabaseAnonKey, {
         cookieOptions: {
             maxAge: 365 * 24 * 60 * 60, // 1 year — let Supabase Auth control session validity
             path: '/',
             sameSite: 'lax' as const,
+            ...(isRaute ? { domain: '.raute.io' } : {}),
         }
     })
 
