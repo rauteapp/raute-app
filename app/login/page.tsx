@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,7 +18,6 @@ import { backupCodeVerifier } from '@/lib/pkce-backup'
 import { capacitorStorage } from '@/lib/capacitor-storage'
 
 export default function LoginPage() {
-    const router = useRouter()
     const [showPassword, setShowPassword] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [checkingSession, setCheckingSession] = useState(true)
@@ -150,7 +148,7 @@ export default function LoginPage() {
 
                 if (data?.session) {
                     console.log('🔐 Login page: valid session found, redirecting to dashboard')
-                    router.push('/dashboard')
+                    window.location.href = '/dashboard'
                 } else {
                     // No valid session despite cookies existing — show login form
                     // Cookies may be stale/expired fragments
@@ -170,7 +168,7 @@ export default function LoginPage() {
         return () => {
             cancelled = true
         }
-    }, [router])
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -214,7 +212,7 @@ export default function LoginPage() {
                 if (authError.message.includes('Email not confirmed')) {
                     // Email exists but not verified — redirect to verify-email page
                     sessionStorage.setItem('pending_verification_email', email)
-                    router.push('/verify-email')
+                    window.location.href = '/verify-email'
                     return
                 } else if (authError.message.includes('Invalid login credentials')) {
                     setApiError("Incorrect email or password")
@@ -266,13 +264,16 @@ export default function LoginPage() {
             // 7. Handle Redirection
             if (!isEmailVerified) {
                 console.log('📧 Email NOT verified - redirecting to /verify-email')
-                router.push('/verify-email')
+                window.location.href = '/verify-email'
                 return
             }
 
             // Success - redirect to dashboard
+            // Use hard navigation so the browser sends cookies with the fresh request
+            // router.push() causes a race condition where middleware checks cookies
+            // before they're fully written to the cookie store
             console.log('✅ Email verified - redirecting to /dashboard')
-            router.push('/dashboard')
+            window.location.href = '/dashboard'
 
         } catch (err: any) {
             console.error('❌ Login failed:', err)

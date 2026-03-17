@@ -111,6 +111,14 @@ export default function DashboardPage() {
                             supabase.auth.getUser(),
                             new Promise((_, reject) => setTimeout(() => reject(new Error('getUser timeout')), 5000))
                         ])
+                        const userError = result.error
+                        // Token revoked (password changed, etc.) — redirect immediately
+                        if (userError && (userError.status === 403 || userError.status === 401)) {
+                            console.error('⛔ Dashboard: Token revoked (403/401). Redirecting to login.')
+                            try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                            window.location.href = '/login'
+                            return
+                        }
                         const userData = result.data
                         if (userData?.user) {
                             console.log('✅ Dashboard: session null but getUser() succeeded')
@@ -148,7 +156,8 @@ export default function DashboardPage() {
                         }
                         // No cached role either — user is genuinely not logged in
                         console.error('⛔ Dashboard: No session, no cache. Redirecting to login.')
-                        router.replace('/login?error=no_session')
+                        try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                        window.location.href = '/login'
                         return
                     }
                 }
