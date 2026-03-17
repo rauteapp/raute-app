@@ -518,7 +518,9 @@ export default function SettingsPage() {
                                     />
                                     <button
                                         onClick={() => {
-                                            supabase.auth.resetPasswordForEmail(userEmail || '')
+                                            supabase.auth.resetPasswordForEmail(userEmail || '', {
+                                                redirectTo: 'https://raute.io/update-password',
+                                            })
                                             toast({ title: "Password reset email sent", description: "Check your inbox", type: "success" })
                                         }}
                                         className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline mt-1"

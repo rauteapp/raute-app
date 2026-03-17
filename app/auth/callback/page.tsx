@@ -134,6 +134,14 @@ export default function AuthCallback() {
 
     // === APPROACH 1: Listen for auth state changes ===
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Password recovery flow — redirect to update-password page
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        if (!hasRedirected.current) {
+          hasRedirected.current = true
+          window.location.href = '/update-password'
+        }
+        return
+      }
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
         syncRoleAndRedirect(session.user.id, session.user.email_confirmed_at)
       }

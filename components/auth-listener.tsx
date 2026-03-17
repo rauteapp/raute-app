@@ -182,8 +182,39 @@ export function AuthListener() {
             return false
         }
 
-        // Listen for deep links (e.g. io.raute.app://auth/callback?code=...)
+        // Listen for deep links (auth callback, password reset, email verification)
         const listener = App.addListener('appUrlOpen', async ({ url }) => {
+            // Handle password reset deep links (update-password?code=...)
+            if (url.includes('update-password')) {
+                try { await Browser.close() } catch (e) {}
+                const parsedUrl = new URL(url)
+                const code = parsedUrl.searchParams.get('code')
+                if (code) {
+                    // Full page reload so update-password page captures the code at module level
+                    window.location.href = `/update-password?code=${code}`
+                } else {
+                    // Hash fragment flow (e.g. #access_token=...&type=recovery)
+                    const hash = url.split('#')[1]
+                    if (hash) {
+                        window.location.href = `/update-password#${hash}`
+                    } else {
+                        router.push('/update-password')
+                    }
+                }
+                return
+            }
+
+            // Handle email verification deep links (verify-email?code=...)
+            if (url.includes('verify-email')) {
+                try { await Browser.close() } catch (e) {}
+                const parsedUrl = new URL(url)
+                const code = parsedUrl.searchParams.get('code')
+                if (code) {
+                    window.location.href = `/auth/callback?code=${code}`
+                }
+                return
+            }
+
             if (url.includes('auth/callback')) {
                 try {
                     await Browser.close()
