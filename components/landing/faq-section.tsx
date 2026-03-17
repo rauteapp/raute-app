@@ -17,6 +17,10 @@ const faqs = [
         a: 'Your 50% founding member discount is locked to the plan you originally subscribed to. If you switch to a different plan, the discount will not carry over. This encourages you to pick the right plan from the start.',
     },
     {
+        q: 'Can I get the founding member discount from the mobile app?',
+        a: 'No. The 50% founding member discount is exclusive to website signups. If you subscribe through the iOS or Android app, you\'ll pay the standard price. To lock in the discount, sign up and subscribe here on our website first — then download the app to manage your fleet on the go.',
+    },
+    {
         q: 'Do my drivers need a separate account?',
         a: 'Drivers download the free Raute mobile app and are invited by you through the dashboard. They get their own login with access to their routes, navigation, and proof of delivery — all managed by you.',
     },

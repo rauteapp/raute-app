@@ -131,7 +131,8 @@ export function PricingSection() {
                                     </span>
                                     <p className="text-sm font-bold uppercase tracking-widest">Limited Founding Member Offer</p>
                                 </div>
-                                <p className="text-2xl sm:text-3xl font-extrabold mb-2">50% OFF for 12 Months</p>
+                                <p className="text-2xl sm:text-3xl font-extrabold mb-1">50% OFF for 12 Months</p>
+                                <p className="text-sm text-blue-200 mb-3">Exclusive to website signups — not available in-app</p>
 
                                 {/* Progress bar for scarcity */}
                                 <div className="max-w-xs mx-auto mb-3">
@@ -145,7 +146,7 @@ export function PricingSection() {
                                             style={{ width: `${Math.max(percentTaken, 2)}%` }}
                                         />
                                     </div>
-                                    <p className="text-xs text-blue-200 mt-1">{spotsRemaining} of {spotsTotal} spots remaining</p>
+                                    <p className="text-xs text-blue-200 mt-1">First {spotsTotal} subscribers from the website get 50% off</p>
                                 </div>
 
                                 <button
@@ -237,11 +238,16 @@ export function PricingSection() {
                 </div>
 
                 {/* Feature comparison note */}
-                <div className="text-center mt-12">
+                <div className="text-center mt-12 space-y-2">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                         All plans include a 7-day free trial. Route Optimization, Real-time GPS Tracking, AI Order Parsing,
                         AI Address Cleaning, Proof of Delivery, Push Notifications, Drag &amp; Drop Planner, and Offline Mode.
                     </p>
+                    {isFoundingActive && (
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                            Founding member pricing is exclusive to website signups. In-app subscriptions are at full price.
+                        </p>
+                    )}
                 </div>
             </div>
         </section>

@@ -358,7 +358,7 @@ export function HeroSection() {
                         >
                             {foundingActive ? (
                                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold mb-6 shadow-lg shadow-blue-500/20 animate-pulse">
-                                    <Sparkles size={14} /> Founding Member Offer — 50% OFF
+                                    <Sparkles size={14} /> Founding Member — 50% OFF (Website Only)
                                 </span>
                             ) : (
                                 <span className="inline-block px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-bold mb-6 border border-blue-100 dark:border-blue-800">
