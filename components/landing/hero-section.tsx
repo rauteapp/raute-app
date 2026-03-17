@@ -59,16 +59,20 @@ export function HeroSection() {
             case 'Drivers':
                 return (
                     <div className="p-4 space-y-3 animate-in fade-in slide-in-from-right-4 duration-300">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
+                        {([
+                            { initials: 'AK', name: 'Ahmed K.', route: 'Route 101', status: 'On Time', color: 'bg-green-500' },
+                            { initials: 'SM', name: 'Sarah M.', route: 'Route 102', status: 'On Time', color: 'bg-green-500' },
+                            { initials: 'JL', name: 'James L.', route: 'Route 103', status: 'Delayed', color: 'bg-amber-500' },
+                        ]).map((driver) => (
+                            <div key={driver.initials} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
                                 <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500">
-                                    D{i}
+                                    {driver.initials}
                                 </div>
                                 <div className="flex-1">
-                                    <p className="text-sm font-medium text-slate-900 dark:text-white">Driver Name {i}</p>
-                                    <p className="text-[10px] text-slate-500">Route {100 + i} • On Time</p>
+                                    <p className="text-sm font-medium text-slate-900 dark:text-white">{driver.name}</p>
+                                    <p className="text-[10px] text-slate-500">{driver.route} • {driver.status}</p>
                                 </div>
-                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                <div className={`w-2 h-2 rounded-full ${driver.color}`} />
                             </div>
                         ))}
                     </div>
@@ -77,10 +81,15 @@ export function HeroSection() {
                 return (
                     <div className="p-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div className="space-y-2">
-                            {[1, 2, 3, 4].map((i) => (
-                                <div key={i} className="flex items-center justify-between p-2 text-sm border-b border-slate-100 dark:border-slate-700 pb-2">
-                                    <span className="font-medium text-slate-700 dark:text-slate-300">#ORD-00{i}</span>
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">Processing</span>
+                            {([
+                                { id: '#ORD-001', status: 'Delivered', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-600 dark:text-green-400' },
+                                { id: '#ORD-002', status: 'In Transit', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' },
+                                { id: '#ORD-003', status: 'Processing', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400' },
+                                { id: '#ORD-004', status: 'Pending', bg: 'bg-slate-100 dark:bg-slate-700/50', text: 'text-slate-500 dark:text-slate-400' },
+                            ]).map((order) => (
+                                <div key={order.id} className="flex items-center justify-between p-2 text-sm border-b border-slate-100 dark:border-slate-700 pb-2">
+                                    <span className="font-medium text-slate-700 dark:text-slate-300">{order.id}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${order.bg} ${order.text}`}>{order.status}</span>
                                 </div>
                             ))}
                         </div>
