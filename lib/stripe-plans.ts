@@ -10,7 +10,7 @@
  * STRIPE_PRICE_PIONEER_MONTHLY=price_xxx
  * STRIPE_PRICE_PIONEER_ANNUAL=price_xxx
  *
- * For founding member pricing, a Stripe coupon is used (50% off forever).
+ * For founding member pricing, a Stripe coupon is used (50% off for 12 months).
  * The coupon is applied at checkout — no separate founding price IDs needed.
  *
  * STRIPE_FOUNDING_COUPON_ID=bKlrEpZr (live) or oa2b4KLK (test)
