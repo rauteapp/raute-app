@@ -257,13 +257,13 @@ export default function SubscribePage() {
                 {isFoundingActive && (
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-center text-white shadow-lg shadow-blue-500/20">
                         <p className="text-xs font-bold uppercase tracking-wide mb-1 text-blue-100">Founding Member Offer</p>
-                        <p className="text-xl font-extrabold">50% off for your first 12 months</p>
+                        <p className="text-xl font-extrabold">50% off forever as a Founding Member</p>
                         <p className="text-blue-100 text-sm mt-1">
                             <span className="font-bold text-white">{spotsRemaining}</span> of {foundingMember?.limit} spots remaining
                         </p>
                         {!promoApplied && (
                             <p className="text-blue-200 text-xs mt-2">
-                                Use code <span className="font-bold text-white bg-white/20 px-2 py-0.5 rounded">FOUNDER50</span> at checkout
+                                Use code <span className="font-bold text-white bg-white/20 px-2 py-0.5 rounded">FOUNDING50</span> at checkout
                             </p>
                         )}
                     </div>
