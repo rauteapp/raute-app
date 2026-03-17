@@ -25,49 +25,67 @@ export function HeroSection() {
         switch (activeTab) {
             case 'Dashboard':
                 return (
-                    <div className="p-4 space-y-4 animate-in fade-in zoom-in-95 duration-300 h-full flex flex-col">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                                <p className="text-[10px] text-slate-500 mb-1">Completed Orders</p>
-                                <p className="text-lg font-bold text-slate-900 dark:text-white">1,248</p>
-                                <div className="mt-1.5 h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                    <div className="h-full w-[92%] bg-green-500 rounded-full" />
-                                </div>
-                            </div>
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                                <p className="text-[10px] text-slate-500 mb-1">Pending Orders</p>
-                                <p className="text-lg font-bold text-slate-900 dark:text-white">12</p>
-                                <div className="mt-1.5 h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                    <div className="h-full w-[15%] bg-amber-500 rounded-full" />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col gap-2">
-                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Recent Driver Activity</p>
+                    <div className="p-3 animate-in fade-in zoom-in-95 duration-300 h-full flex flex-col gap-3 bg-slate-50/50 dark:bg-slate-950/50">
+                        {/* Top stat cards - matching real dashboard style */}
+                        <div className="grid grid-cols-4 gap-2">
                             {([
-                                { dot: 'bg-green-500', text: 'Ahmed K. completed delivery', time: '2m ago' },
-                                { dot: 'bg-blue-500', text: 'Sarah M. started route', time: '15m ago' },
-                                { dot: 'bg-amber-500', text: 'James L. delayed — traffic', time: '22m ago' },
-                            ]).map((a) => (
-                                <div key={a.text} className="flex items-center gap-2 text-xs">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${a.dot}`} />
-                                    <span className="text-slate-700 dark:text-slate-300 flex-1 truncate">{a.text}</span>
-                                    <span className="text-slate-400 text-[10px] shrink-0">{a.time}</span>
+                                { label: 'TOTAL', value: '1,248', icon: '📦', color: 'text-slate-800 dark:text-white' },
+                                { label: 'ACTIVE', value: '18', icon: '🚛', color: 'text-blue-600 dark:text-blue-400' },
+                                { label: 'DONE', value: '1,192', icon: '✓', color: 'text-green-600 dark:text-green-400' },
+                                { label: 'ISSUES', value: '3', icon: '⚠', color: 'text-red-600 dark:text-red-400' },
+                            ]).map((s) => (
+                                <div key={s.label} className="bg-white dark:bg-slate-900 rounded-[14px] border border-slate-100 dark:border-slate-800 p-2.5 hover:shadow-md transition-shadow">
+                                    <p className="text-[7px] font-extrabold uppercase tracking-[0.15em] text-slate-400 mb-1">{s.label}</p>
+                                    <p className={`text-base font-black tracking-tight leading-none ${s.color}`}>{s.value}</p>
                                 </div>
                             ))}
                         </div>
-                        <div className="flex-1 grid grid-cols-3 gap-3 min-h-0">
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center">
-                                <p className="text-lg font-bold text-blue-600">5</p>
-                                <p className="text-[10px] text-slate-500">Active</p>
+
+                        {/* Fleet Performance section */}
+                        <div className="flex-1 bg-white dark:bg-slate-900 rounded-[14px] border border-slate-100 dark:border-slate-800 p-3 flex flex-col min-h-0">
+                            <div className="flex items-center justify-between mb-2.5">
+                                <p className="text-[10px] font-bold text-slate-900 dark:text-white">Fleet Performance</p>
+                                <span className="text-[8px] text-blue-600 dark:text-blue-400 font-semibold">View All</span>
                             </div>
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center">
-                                <p className="text-lg font-bold text-green-600">98%</p>
-                                <p className="text-[10px] text-slate-500">On Time</p>
+                            <div className="space-y-2 flex-1 overflow-auto">
+                                {([
+                                    { name: 'Ahmed K.', vehicle: 'Ford Transit', stops: '8/10', pct: 80, color: 'from-blue-600 to-indigo-500' },
+                                    { name: 'Sarah M.', vehicle: 'Mercedes Sprinter', stops: '12/12', pct: 100, color: 'from-green-500 to-emerald-400' },
+                                    { name: 'James L.', vehicle: 'Ram ProMaster', stops: '3/9', pct: 33, color: 'from-amber-500 to-orange-400' },
+                                ]).map((d) => (
+                                    <div key={d.name} className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                            <Truck size={14} className="text-slate-500 dark:text-slate-400" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <p className="text-[10px] font-semibold text-slate-800 dark:text-white truncate">{d.name}</p>
+                                                <span className="text-[8px] font-bold text-slate-500 shrink-0">{d.stops} Stops</span>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full bg-gradient-to-r ${d.color}`} style={{ width: `${d.pct}%` }} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center">
-                                <p className="text-lg font-bold text-purple-600">47</p>
-                                <p className="text-[10px] text-slate-500">Today</p>
+                        </div>
+
+                        {/* Recent Activity feed */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[14px] border border-slate-100 dark:border-slate-800 p-3">
+                            <p className="text-[10px] font-bold text-slate-900 dark:text-white mb-2">Latest Updates</p>
+                            <div className="space-y-1.5">
+                                {([
+                                    { dot: 'bg-green-500', text: 'Ahmed K. delivered #ORD-847', time: '2m' },
+                                    { dot: 'bg-blue-500', text: 'Sarah M. completed route', time: '8m' },
+                                    { dot: 'bg-amber-500', text: 'James L. — traffic delay', time: '15m' },
+                                ]).map((a) => (
+                                    <div key={a.text} className="flex items-center gap-2 text-[10px]">
+                                        <div className={`w-1.5 h-1.5 rounded-full ${a.dot} shrink-0`} />
+                                        <span className="text-slate-600 dark:text-slate-300 flex-1 truncate">{a.text}</span>
+                                        <span className="text-slate-400 text-[8px] shrink-0">{a.time}</span>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -193,6 +211,24 @@ export function HeroSection() {
 
                             {/* Completed stops checkmarks */}
                             <circle cx="250" cy="250" r="6" fill="#3b82f6" stroke="white" strokeWidth="2" />
+
+                            {/* Animated Truck - moves along route inside SVG */}
+                            <g>
+                                <circle r="8" fill="#1e293b" stroke="white" strokeWidth="2.5">
+                                    <animateMotion dur="6s" repeatCount="indefinite" path="M 20 180 Q 120 150, 180 195 T 350 270 Q 400 290, 470 310" />
+                                </circle>
+                                {/* Truck icon inside circle */}
+                                <g fill="white" transform="translate(-5,-5) scale(0.4)">
+                                    <animateMotion dur="6s" repeatCount="indefinite" path="M 20 180 Q 120 150, 180 195 T 350 270 Q 400 290, 470 310" />
+                                    <path d="M5 17h2a2 2 0 0 0 4 0h2a2 2 0 0 0 4 0h3V6a2 2 0 0 0-2-2H2v11h1a2 2 0 0 0 2 2zm10-7V6h4l3 4h-7zM7 17a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm8 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+                                </g>
+                                {/* Ping effect */}
+                                <circle r="8" fill="#3b82f6" opacity="0.3">
+                                    <animateMotion dur="6s" repeatCount="indefinite" path="M 20 180 Q 120 150, 180 195 T 350 270 Q 400 290, 470 310" />
+                                    <animate attributeName="r" values="8;16;8" dur="1.5s" repeatCount="indefinite" />
+                                    <animate attributeName="opacity" values="0.3;0;0.3" dur="1.5s" repeatCount="indefinite" />
+                                </circle>
+                            </g>
                         </svg>
 
                         {/* Driver Card Overlay */}
@@ -220,7 +256,7 @@ export function HeroSection() {
                         {/* Map controls (zoom) */}
                         <div className="absolute bottom-3 right-3 flex flex-col gap-1 z-20">
                             <div className="w-7 h-7 bg-white/90 dark:bg-slate-800/90 rounded shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 text-xs font-bold">+</div>
-                            <div className="w-7 h-7 bg-white/90 dark:bg-slate-800/90 rounded shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 text-xs font-bold">−</div>
+                            <div className="w-7 h-7 bg-white/90 dark:bg-slate-800/90 rounded shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 text-xs font-bold">&minus;</div>
                         </div>
 
                         {/* Legend */}
@@ -228,22 +264,6 @@ export function HeroSection() {
                             <span className="flex items-center gap-1 text-[8px] text-slate-500"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Pending</span>
                             <span className="flex items-center gap-1 text-[8px] text-slate-500"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Done</span>
                             <span className="flex items-center gap-1 text-[8px] text-slate-500"><span className="w-1.5 h-0.5 bg-blue-500 inline-block rounded" /> Route</span>
-                        </div>
-
-                        {/* Animated Driver - follows route path */}
-                        <div
-                            className="absolute w-6 h-6 z-10 animate-drive-path"
-                            style={{
-                                offsetPath: 'path("M 20 180 Q 120 150, 180 195 T 350 270 Q 400 290, 470 310")',
-                                offsetRotate: '0deg',
-                            }}
-                        >
-                            <div className="relative -ml-3 -mt-3">
-                                <div className="w-6 h-6 bg-slate-900 border-2 border-white rounded-full flex items-center justify-center shadow-xl z-10 relative">
-                                    <Truck size={12} className="text-white" />
-                                </div>
-                                <div className="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-20" />
-                            </div>
                         </div>
                     </div>
                 )
