@@ -140,8 +140,8 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
         const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform()
 
         // TIMEOUT: Force resolve after timeout
-        // On web: 8s is enough. On native: 15s for Capacitor bridge delays.
-        const maxTimeoutMs = isNative ? 15000 : 8000
+        // On web: 15s (3s init delay + retries + buffer). On native: 15s for Capacitor bridge delays.
+        const maxTimeoutMs = 15000
         const maxTimeout = setTimeout(async () => {
             if (resolvedRef.current) return
 
@@ -522,9 +522,17 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                     if (isMountedRef.current && !resolvedRef.current) checkAuth(4)
                 }, 300)
             } else {
-                // Web: retry up to 3 times with 500ms delay between attempts.
-                // After login, cookies may not be immediately readable by getSession().
-                checkAuth(3)
+                // Web: Wait 3s before starting checkAuth to give Supabase's _initialize()
+                // time to complete. _initialize() reads cookies and fires INITIAL_SESSION
+                // (caught by onAuthStateChange above). If it fires with a session,
+                // finishLoading() is called and checkAuth never needs to run.
+                //
+                // Starting checkAuth immediately causes getSession() to compete with
+                // _initialize() for navigator.locks, leading to timeouts and false
+                // "no session" redirects — especially after OAuth redirects.
+                setTimeout(() => {
+                    if (isMountedRef.current && !resolvedRef.current) checkAuth(3)
+                }, 3000)
             }
         }
 
