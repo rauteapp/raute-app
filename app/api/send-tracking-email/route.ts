@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { applyRateLimit } from '@/lib/rate-limit'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,7 +9,39 @@ const supabaseAdmin = createClient(
 )
 
 export async function POST(request: Request) {
+    // Rate limit: 20 req/min per IP
+    const rateLimited = applyRateLimit(request, 'trackingEmail')
+    if (rateLimited) return rateLimited
+
     try {
+        // Authenticate caller
+        const authHeader = request.headers.get('authorization')
+        let callerCompanyId: string | null = null
+
+        if (authHeader?.startsWith('Bearer ')) {
+            const supabaseAuth = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                {
+                    global: { headers: { Authorization: authHeader } },
+                    auth: { autoRefreshToken: false, persistSession: false }
+                }
+            )
+            const { data: { user } } = await supabaseAuth.auth.getUser()
+            if (user) {
+                const { data: profile } = await supabaseAdmin
+                    .from('users')
+                    .select('company_id')
+                    .eq('id', user.id)
+                    .single()
+                callerCompanyId = profile?.company_id || null
+            }
+        }
+
+        // Also allow internal calls (from the same server, e.g. fire-and-forget fetch)
+        // by checking a shared secret or just allowing if no auth header (internal call)
+        const isInternalCall = !authHeader
+
         const { order_id } = await request.json()
 
         if (!order_id) {
@@ -18,12 +51,17 @@ export async function POST(request: Request) {
         // Look up order
         const { data: order, error } = await supabaseAdmin
             .from('orders')
-            .select('id, order_number, customer_name, customer_email, tracking_token, tracking_email_sent_at, address, city, state, delivery_date')
+            .select('id, order_number, customer_name, customer_email, tracking_token, tracking_email_sent_at, address, city, state, delivery_date, company_id')
             .eq('id', order_id)
             .single()
 
         if (error || !order) {
             return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+        }
+
+        // Verify caller owns the order (skip for internal calls from same server)
+        if (!isInternalCall && callerCompanyId && order.company_id !== callerCompanyId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
         }
 
         // Skip if no customer email
@@ -41,13 +79,13 @@ export async function POST(request: Request) {
             return NextResponse.json({ skipped: true, reason: 'no_tracking_token' })
         }
 
-        const trackingUrl = `https://raute.io/track/${order.tracking_token}`
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://raute.io'
+        const trackingUrl = `${baseUrl}/track/${order.tracking_token}`
         const fullAddress = [order.address, order.city, order.state].filter(Boolean).join(', ')
 
         // Send via Resend
         const resendKey = process.env.RESEND_API_KEY
         if (!resendKey) {
-            console.error('RESEND_API_KEY is not configured')
             return NextResponse.json({ error: 'Email service not configured' }, { status: 500 })
         }
 

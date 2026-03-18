@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { applyRateLimit } from '@/lib/rate-limit'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost'
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
+if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing SUPABASE_URL or SERVICE_ROLE_KEY for send-welcome')
+}
+
+const supabaseAdmin = createClient(supabaseUrl || '', supabaseKey || '')
 
 /**
  * POST /api/auth/send-welcome
@@ -14,6 +19,9 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
  * a secure recovery token, then sends it via Resend with custom branding.
  */
 export async function POST(request: NextRequest) {
+    const rateLimited = applyRateLimit(request, 'authEmail')
+    if (rateLimited) return rateLimited
+
     try {
         const { email, name, role, userId } = await request.json()
 

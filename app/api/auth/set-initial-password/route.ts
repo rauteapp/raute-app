@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { applyRateLimit } from '@/lib/rate-limit'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +18,9 @@ const supabaseAdmin = createClient(
  * Requires: a valid access_token from the recovery session (proves identity).
  */
 export async function POST(request: NextRequest) {
+    const rateLimited = applyRateLimit(request, 'authEmail')
+    if (rateLimited) return rateLimited
+
     try {
         const { access_token, password } = await request.json()
 

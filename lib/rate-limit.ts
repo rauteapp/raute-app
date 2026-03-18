@@ -105,6 +105,10 @@ export const RATE_LIMITS = {
     checkout: { limit: 10, windowMs: 60 * 1000 },
     /** Account deletion — 3 req/hour per IP */
     deleteAccount: { limit: 3, windowMs: 60 * 60 * 1000 },
+    /** Tracking email — 20 req/min per IP */
+    trackingEmail: { limit: 20, windowMs: 60 * 1000 },
+    /** Auth emails (welcome, password reset) — 5 req/min per IP */
+    authEmail: { limit: 5, windowMs: 60 * 1000 },
 } as const
 
 /**
