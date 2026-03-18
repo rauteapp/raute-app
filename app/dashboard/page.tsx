@@ -104,72 +104,83 @@ function DashboardContent() {
             }
         }, 15000)
 
-        // Session-aware init — run getSession() and getUser() in parallel for speed.
-        // getSession() may hang due to navigator.locks, but getUser() bypasses locks.
+        // Session-aware init — try multiple approaches to get the session.
+        // AuthCheck already verifies auth before rendering this page, so we
+        // just need to read the session for data fetching. Be patient with
+        // navigator.locks — the session IS there, it just takes time to read.
         const initDashboard = async (): Promise<void> => {
             try {
                 let currentUserId: string | null = null
                 let userMeta: Record<string, any> = {}
                 let session: any = null
 
+                // Attempt 1: Try getUser() first (bypasses navigator.locks, makes direct API call)
                 try {
-                    const [sessionResult, userResult] = await Promise.allSettled([
-                        Promise.race([
-                            supabase.auth.getSession(),
-                            new Promise<{ data: { session: null } }>((resolve) =>
-                                setTimeout(() => resolve({ data: { session: null } }), 4000)
-                            ),
-                        ]),
-                        Promise.race([
-                            supabase.auth.getUser(),
-                            new Promise<{ data: { user: null } }>((resolve) =>
-                                setTimeout(() => resolve({ data: { user: null } }), 4000)
-                            ),
-                        ]),
+                    const { data: userData, error: userError } = await Promise.race([
+                        supabase.auth.getUser(),
+                        new Promise<{ data: { user: null }, error: { status: number, message: string } }>((resolve) =>
+                            setTimeout(() => resolve({ data: { user: null }, error: { status: 408, message: 'timeout' } }), 6000)
+                        ),
                     ])
 
-                    if (sessionResult.status === 'fulfilled') {
-                        const s = (sessionResult.value as any)?.data?.session
-                        if (s?.user?.id) {
-                            session = s
-                            currentUserId = s.user.id
-                            userMeta = s.user.user_metadata ?? {}
-                        }
+                    if (userError && (userError.status === 403 || userError.status === 401)) {
+                        console.error('⛔ Dashboard: Session invalidated (403/401). Redirecting to login.')
+                        try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                        document.cookie.split(';').forEach(c => {
+                            const name = c.trim().split('=')[0]
+                            if (name.startsWith('sb-') && name.includes('auth-token')) {
+                                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
+                                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.raute.io;`
+                            }
+                        })
+                        window.location.href = '/login'
+                        return
                     }
 
-                    if (!currentUserId && userResult.status === 'fulfilled') {
-                        const userVal = userResult.value as any
-                        const u = userVal?.data?.user
-                        if (u?.id) {
-                            currentUserId = u.id
-                            userMeta = u.user_metadata ?? {}
-                        }
-                        // If getUser returned 403/401, session is dead (e.g. password changed)
-                        const userError = userVal?.error
-                        if (!u && userError && (userError.status === 403 || userError.status === 401)) {
-                            console.error('⛔ Dashboard: Session invalidated (403/401). Redirecting to login.')
-                            try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
-                            // Clear stale auth cookies to stop auto-refresh retry loop
-                            document.cookie.split(';').forEach(c => {
-                                const name = c.trim().split('=')[0]
-                                if (name.startsWith('sb-') && name.includes('auth-token')) {
-                                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
-                                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.raute.io;`
-                                }
-                            })
-                            window.location.href = '/login'
-                            return
-                        }
+                    if (!userError && userData?.user?.id) {
+                        currentUserId = userData.user.id
+                        userMeta = userData.user.user_metadata ?? {}
                     }
-                } catch {
-                    // Both failed
+                } catch {}
+
+                // Attempt 2: If getUser didn't work, try getSession (may be slower due to locks)
+                if (!currentUserId) {
+                    try {
+                        const { data } = await Promise.race([
+                            supabase.auth.getSession(),
+                            new Promise<{ data: { session: null } }>((resolve) =>
+                                setTimeout(() => resolve({ data: { session: null } }), 6000)
+                            ),
+                        ])
+                        if (data?.session?.user?.id) {
+                            session = data.session
+                            currentUserId = data.session.user.id
+                            userMeta = data.session.user.user_metadata ?? {}
+                        }
+                    } catch {}
+                }
+
+                // Attempt 3: Wait a bit and retry getUser (session may still be initializing)
+                if (!currentUserId) {
+                    await new Promise(resolve => setTimeout(resolve, 2000))
+                    try {
+                        const { data: retryData } = await Promise.race([
+                            supabase.auth.getUser(),
+                            new Promise<{ data: { user: null } }>((resolve) =>
+                                setTimeout(() => resolve({ data: { user: null } }), 5000)
+                            ),
+                        ])
+                        if (retryData?.user?.id) {
+                            currentUserId = retryData.user.id
+                            userMeta = retryData.user.user_metadata ?? {}
+                        }
+                    } catch {}
                 }
 
                 if (!currentUserId) {
-                    // No valid session — clear stale cookies and redirect
-                    console.error('⛔ Dashboard: No session. Redirecting to login.')
-                    try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
-                    window.location.href = '/login'
+                    // All attempts failed — let auth-check handle the redirect
+                    // Do NOT clear cookies here (auth-check will do it if needed)
+                    console.warn('⚠️ Dashboard: Could not read session after retries.')
                     return
                 }
 
