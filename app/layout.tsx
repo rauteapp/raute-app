@@ -6,7 +6,7 @@ import AuthCheck from "@/components/auth-check";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ToastProvider } from "@/components/toast-provider";
 import { NetworkStatusBanner } from "@/components/network-status-banner";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { WebSpeedInsights } from "@/components/web-speed-insights";
 import { AuthListener } from "@/components/auth-listener";
 import { StatusBarManager } from "@/components/status-bar-manager";
 import { TrialGate } from "@/components/trial-gate";
@@ -71,7 +71,7 @@ export default function RootLayout({
           </ConfirmProvider>
           </ToastProvider>
         </ThemeProvider>
-        {typeof window === 'undefined' || !(window as any).Capacitor ? <SpeedInsights /> : null}
+        <WebSpeedInsights />
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator && !window.Capacitor) {
             window.addEventListener('load', function() {
