@@ -100,36 +100,10 @@ export async function POST(request: Request) {
             },
         }
 
-        // Apply founding member coupon if promo code provided and founding is still active
-        if (promoCode && isFoundingAvailable && foundingCouponId) {
-            // Validate the promo code against Stripe
-            try {
-                const promoCodes = await stripe.promotionCodes.list({
-                    code: promoCode,
-                    active: true,
-                    limit: 1,
-                })
-
-                if (promoCodes.data.length > 0) {
-                    const stripePromo = promoCodes.data[0] as any
-                    // Verify this promo code belongs to our founding member coupon
-                    const couponId = stripePromo.coupon?.id
-                    if (couponId && couponId === foundingCouponId) {
-                        sessionConfig.discounts = [{ promotion_code: stripePromo.id }]
-                        sessionConfig.metadata!.is_founding = 'true'
-                        sessionConfig.subscription_data!.metadata!.is_founding = 'true'
-                    }
-                }
-            } catch (e) {
-                console.error('Promo code validation error:', e)
-                // Continue without discount — don't block checkout
-            }
-        }
-
-        // Allow promo code input in Stripe Checkout if no discount was pre-applied
-        if (!sessionConfig.discounts) {
-            sessionConfig.allow_promotion_codes = true
-        }
+        // Always allow promo code input in Stripe Checkout.
+        // Users can enter FOUNDING50 or any other promo code directly.
+        // This prevents double-apply issues and lets Stripe handle validation.
+        sessionConfig.allow_promotion_codes = true
 
         // Create Stripe Checkout Session
         const session = await stripe.checkout.sessions.create(sessionConfig)
