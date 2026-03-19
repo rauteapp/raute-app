@@ -32,7 +32,6 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  interactiveWidget: 'resizes-content', // Handles virtual keyboard gracefully
 };
 
 import PwaElementsLoader from "@/components/pwa-elements-loader";
@@ -72,7 +71,7 @@ export default function RootLayout({
           </ConfirmProvider>
           </ToastProvider>
         </ThemeProvider>
-        <SpeedInsights />
+        {typeof window === 'undefined' || !(window as any).Capacitor ? <SpeedInsights /> : null}
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator && !window.Capacitor) {
             window.addEventListener('load', function() {
