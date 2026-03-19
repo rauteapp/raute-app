@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +25,7 @@ const testimonials = [
 ];
 
 export default function LoginPage() {
+    const router = useRouter()
     const [showPassword, setShowPassword] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [currentTestimonial, setCurrentTestimonial] = useState(0)
@@ -150,7 +152,7 @@ export default function LoginPage() {
             // (waitForSession + native recovery) will verify and bootstrap the session.
             if (isNative && hasStoredAuth) {
                 console.log('🔐 Login page: native has stored auth — redirecting to dashboard')
-                window.location.href = '/dashboard'
+                router.push('/dashboard')
                 return
             }
 
@@ -174,7 +176,7 @@ export default function LoginPage() {
                 clearTimeout(timeout)
 
                 if (data?.session) {
-                    window.location.href = '/dashboard'
+                    router.push('/dashboard')
                 } else {
                     // No valid session despite cookies existing — cookies are stale.
                     // CRITICAL: Clear them NOW to stop auto-refresh retry loop
@@ -247,7 +249,7 @@ export default function LoginPage() {
                 })
                 if (error) throw error
 
-                window.location.href = '/dashboard'
+                router.push('/dashboard')
             } else {
                 // Web: Use Supabase OAuth redirect flow
                 const redirectUrl = `${window.location.origin}/auth/callback`
@@ -406,7 +408,7 @@ export default function LoginPage() {
             }
 
             // Success - redirect to dashboard
-            window.location.href = '/dashboard'
+            router.push('/dashboard')
 
         } catch (err: any) {
             console.error('❌ Login failed:', err)
