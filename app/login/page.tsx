@@ -141,6 +141,19 @@ export default function LoginPage() {
             }
 
             // Auth data exists — verify session and redirect
+            //
+            // NATIVE: On Capacitor, getSession() awaits initializePromise which
+            // takes 3+ seconds (token refresh or timeout). If we race it with a
+            // shorter timeout and declare the session "stale", we destroy a valid
+            // session that just hasn't loaded yet. Instead, trust Preferences
+            // directly and redirect to dashboard. The dashboard's own init
+            // (waitForSession + native recovery) will verify and bootstrap the session.
+            if (isNative && hasStoredAuth) {
+                console.log('🔐 Login page: native has stored auth — redirecting to dashboard')
+                window.location.href = '/dashboard'
+                return
+            }
+
             const timeout = setTimeout(() => {
                 // If getSession() takes too long, show login form instead of
                 // blindly redirecting to dashboard (which causes infinite loading)
