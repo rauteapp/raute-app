@@ -116,6 +116,31 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
             return
         }
 
+        const isNativeApp = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+
+        // NATIVE: Skip ALL complex auth checking. On Capacitor, session is stored
+        // in Preferences and managed by the Supabase client. The auth-check's
+        // getSession/getUser calls cause lock contention and redirect loops.
+        // Simply check Preferences for stored session and let the user through.
+        if (isNativeApp && !isPublicRoute) {
+            (async () => {
+                try {
+                    const { capacitorStorage: cs } = await import('@/lib/capacitor-storage')
+                    const stored = await cs.getItem('sb-raute-auth')
+                    if (stored) {
+                        finishLoading()
+                        return
+                    }
+                } catch {}
+                // No stored session — show login
+                if (isMountedRef.current) {
+                    setIsLoading(false)
+                    window.location.href = '/login'
+                }
+            })()
+            return
+        }
+
         // If session was already confirmed (navigating between protected routes),
         // skip the loading state and full auth re-check. We still set up the
         // onAuthStateChange listener below to catch SIGNED_OUT events.
