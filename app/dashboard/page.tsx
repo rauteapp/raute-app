@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState, useRef, Suspense } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity, CheckCircle2, Clock, Package, Truck, AlertCircle, AlertTriangle, TrendingUp, MapPin, ArrowRight, Calendar as CalendarIcon, Filter, X, Sparkles, User } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { SetupGuide } from '@/components/setup-guide'
 import Link from 'next/link'
 import { DriverDashboardView } from '@/components/dashboard/driver-dashboard-view'
@@ -25,23 +25,21 @@ import { PushService } from "@/lib/push-service"
 import { NotificationBell } from "@/components/notification-bell"
 
 export default function DashboardPage() {
-    return (
-        <Suspense fallback={<DashboardSkeleton />}>
-            <DashboardContent />
-        </Suspense>
-    )
+    return <DashboardContent />
 }
 
 function DashboardContent() {
     const [isLoading, setIsLoading] = useState(true)
     const [orders, setOrders] = useState<any[]>([])
     const [filteredOrders, setFilteredOrders] = useState<any[]>([])
-    const searchParams = useSearchParams()
+
+    // Read URL params directly instead of useSearchParams (avoids Suspense on Capacitor)
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
 
     // Filter State — restore from URL if available, otherwise default to today
     const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-        const from = searchParams.get('from')
-        const to = searchParams.get('to')
+        const from = urlParams?.get('from') || null
+        const to = urlParams?.get('to') || null
         if (from && from !== 'undefined' && !isNaN(new Date(from).getTime())) {
             const parsedFrom = new Date(from)
             const parsedTo = (to && to !== 'undefined' && !isNaN(new Date(to).getTime())) ? new Date(to) : parsedFrom
@@ -75,7 +73,7 @@ function DashboardContent() {
 
     // Sync date range to URL so it persists on refresh
     useEffect(() => {
-        const params = new URLSearchParams(searchParams.toString())
+        const params = new URLSearchParams(window.location.search)
         if (dateRange?.from) {
             params.set('from', format(dateRange.from, 'yyyy-MM-dd'))
             params.set('to', format(dateRange.to || dateRange.from, 'yyyy-MM-dd'))
