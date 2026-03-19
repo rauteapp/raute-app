@@ -59,7 +59,11 @@ export async function authenticatedFetch(
     if (isNative && url.startsWith('/')) {
         const { CapacitorHttp } = await import('@capacitor/core')
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.raute.io'
-        const fullUrl = `${baseUrl}${url}`
+        // Ensure trailing slash — Vercel sends 308 redirects for API routes
+        // without trailing slashes, and CapacitorHttp may not follow POST
+        // redirects correctly (body gets dropped).
+        const normalizedUrl = url.endsWith('/') ? url : `${url}/`
+        const fullUrl = `${baseUrl}${normalizedUrl}`
 
         const headersObj: Record<string, string> = {}
         if (accessToken) headersObj['Authorization'] = `Bearer ${accessToken}`
