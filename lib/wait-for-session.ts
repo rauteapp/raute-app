@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { capacitorStorage } from '@/lib/capacitor-storage'
 import type { Session } from '@supabase/supabase-js'
 import { Capacitor } from '@capacitor/core'
 
@@ -26,6 +27,57 @@ export async function waitForSession(
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
+            // NATIVE FAST PATH: After 2 getSession timeouts, try getUser(jwt)
+            // with the stored access_token. getUser(jwt) bypasses initializePromise
+            // entirely (goes straight to the API call). If the stored token is valid,
+            // we confirm the user, then try refreshSession() to bootstrap the client.
+            if (isNative && timeoutCount >= 2) {
+                console.log('⏳ waitForSession: native getUser(jwt) bypass...')
+                try {
+                    const stored = await capacitorStorage.getItem('sb-raute-auth')
+                    if (stored) {
+                        const parsed = JSON.parse(stored)
+                        if (parsed?.access_token) {
+                            // getUser(jwt) does NOT await initializePromise — direct API call
+                            const { data: userData, error: userError } = await Promise.race([
+                                supabase.auth.getUser(parsed.access_token),
+                                new Promise<never>((_, reject) =>
+                                    setTimeout(() => reject(new Error('getUser(jwt) timeout')), 5000)
+                                ),
+                            ])
+                            if (!userError && userData.user) {
+                                console.log('✅ waitForSession: user verified via getUser(jwt)', {
+                                    userId: userData.user.id.substring(0, 8)
+                                })
+                                // Now try to bootstrap the full session
+                                if (parsed.refresh_token) {
+                                    const { data: refreshData } = await Promise.race([
+                                        supabase.auth.refreshSession({ refresh_token: parsed.refresh_token }),
+                                        new Promise<{ data: { session: null } }>((resolve) =>
+                                            setTimeout(() => resolve({ data: { session: null } }), 5000)
+                                        ),
+                                    ])
+                                    if (refreshData.session) {
+                                        console.log('✅ waitForSession: native full recovery via getUser(jwt) + refreshSession!')
+                                        return refreshData.session
+                                    }
+                                }
+                                // refreshSession failed but user is verified — try getSession one more time
+                                const { data } = await Promise.race([
+                                    supabase.auth.getSession(),
+                                    new Promise<{ data: { session: null } }>((resolve) =>
+                                        setTimeout(() => resolve({ data: { session: null } }), 2000)
+                                    ),
+                                ])
+                                if (data.session) return data.session
+                            }
+                        }
+                    }
+                } catch {
+                    // Continue with normal retry
+                }
+            }
+
             // After 2 getSession timeouts on web, try getUser() as fallback.
             // getUser() makes a direct API call to Supabase (bypasses navigator.locks)
             // and if successful, proves the user is authenticated.
@@ -112,6 +164,42 @@ export async function waitForSession(
                     attempt: attempt + 1
                 })
                 return data.session
+            }
+
+            // NATIVE RECOVERY: On Capacitor, if getSession() returns null, the
+            // client's _initialize() likely timed out (hung on token refresh).
+            // The session tokens are still in Preferences — read them and call
+            // refreshSession() to bootstrap the client's internal session.
+            //
+            // refreshSession() fires TOKEN_REFRESHED (NOT SIGNED_IN), so it
+            // won't trigger the auth-listener's redirect-to-dashboard loop.
+            if (isNative && attempt >= 1) {
+                try {
+                    const stored = await capacitorStorage.getItem('sb-raute-auth')
+                    if (stored) {
+                        const parsed = JSON.parse(stored)
+                        if (parsed?.refresh_token) {
+                            console.log('🔄 waitForSession: native recovery — refreshing from stored token...')
+                            const { data: refreshData, error: refreshError } = await Promise.race([
+                                supabase.auth.refreshSession({
+                                    refresh_token: parsed.refresh_token
+                                }),
+                                new Promise<never>((_, reject) =>
+                                    setTimeout(() => reject(new Error('refreshSession timeout')), 5000)
+                                ),
+                            ])
+                            if (!refreshError && refreshData.session) {
+                                console.log('✅ waitForSession: native recovery succeeded!', {
+                                    userId: refreshData.session.user.id.substring(0, 8)
+                                })
+                                return refreshData.session
+                            }
+                            console.warn('⚠️ waitForSession: native recovery failed:', refreshError?.message)
+                        }
+                    }
+                } catch (recoveryErr: any) {
+                    console.warn('⚠️ waitForSession: native recovery exception:', recoveryErr.message)
+                }
             }
 
             if (attempt < maxRetries) {
