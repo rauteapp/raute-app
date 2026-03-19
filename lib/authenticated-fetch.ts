@@ -35,6 +35,23 @@ export async function authenticatedFetch(
         // getSession() threw (AbortError, etc.) — proceed without token
     }
 
+    // NATIVE FALLBACK: If getSession() returned no token (initializePromise
+    // timed out or session not in client), read directly from Preferences.
+    // On native, the token is always in Preferences even when the Supabase
+    // client's internal session isn't initialized yet.
+    if (!accessToken && typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+        try {
+            const { capacitorStorage } = await import('@/lib/capacitor-storage')
+            const stored = await capacitorStorage.getItem('sb-raute-auth')
+            if (stored) {
+                const parsed = JSON.parse(stored)
+                accessToken = parsed?.access_token
+            }
+        } catch {
+            // Storage read failed — proceed without token
+        }
+    }
+
     // On native, API routes live on the production server, not locally.
     // Use CapacitorHttp to bypass WebView CORS restrictions.
     const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform()
