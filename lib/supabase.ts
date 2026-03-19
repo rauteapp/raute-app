@@ -124,6 +124,31 @@ function createSupabaseClient() {
             return await fn()
         }
 
+        // CRITICAL: Timeout initializePromise to prevent total client deadlock.
+        //
+        // _initialize() runs on client creation and reads the session from
+        // capacitorStorage. If the stored access_token is expired, it attempts
+        // an HTTP token refresh. On Capacitor iOS, this HTTP call can hang
+        // indefinitely. Since EVERY Supabase operation — getSession(), getUser(),
+        // refreshSession(), and even .from().select() via _getAccessToken() —
+        // awaits initializePromise before proceeding, a hung _initialize()
+        // deadlocks the entire client.
+        //
+        // Solution: Race initializePromise with a 3-second timeout. If init
+        // hasn't completed by then, unblock all operations. The waitForSession()
+        // helper will handle manual recovery (read tokens from Preferences +
+        // refreshSession) if the client has no session after the timeout.
+        const originalInitPromise = auth.initializePromise
+        if (originalInitPromise) {
+            auth.initializePromise = Promise.race([
+                originalInitPromise,
+                new Promise<void>((resolve) => setTimeout(() => {
+                    console.warn('⏱️ Supabase _initialize() timed out (3s) — unblocking auth operations')
+                    resolve()
+                }, 3000))
+            ])
+        }
+
         return client
     }
 
