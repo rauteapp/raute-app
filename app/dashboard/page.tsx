@@ -125,6 +125,15 @@ function DashboardContent() {
                                 currentUserId = parsed.user.id
                                 userMeta = parsed.user.user_metadata ?? {}
                             }
+                            // Also ensure Supabase client has active session for queries
+                            if (parsed?.access_token && parsed?.refresh_token) {
+                                try {
+                                    await supabase.auth.setSession({
+                                        access_token: parsed.access_token,
+                                        refresh_token: parsed.refresh_token,
+                                    })
+                                } catch {}
+                            }
                         }
                     } catch {}
                 }
