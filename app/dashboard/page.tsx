@@ -104,45 +104,66 @@ function DashboardContent() {
 
         // Session-aware init — try multiple approaches to get the session.
         // AuthCheck already verifies auth before rendering this page, so we
-        // just need to read the session for data fetching. Be patient with
-        // navigator.locks — the session IS there, it just takes time to read.
+        // Read session and initialize dashboard data
         const initDashboard = async (): Promise<void> => {
             try {
                 let currentUserId: string | null = null
                 let userMeta: Record<string, any> = {}
                 let session: any = null
 
-                // Attempt 1: Try getUser() first (bypasses navigator.locks, makes direct API call)
-                try {
-                    const { data: userData, error: userError } = await Promise.race([
-                        supabase.auth.getUser(),
-                        new Promise<{ data: { user: null }, error: { status: number, message: string } }>((resolve) =>
-                            setTimeout(() => resolve({ data: { user: null }, error: { status: 408, message: 'timeout' } }), 6000)
-                        ),
-                    ])
+                const isNativeApp = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
 
-                    if (userError && (userError.status === 403 || userError.status === 401)) {
-                        console.error('⛔ Dashboard: Session invalidated (403/401). Redirecting to login.')
-                        try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
-                        document.cookie.split(';').forEach(c => {
-                            const name = c.trim().split('=')[0]
-                            if (name.startsWith('sb-') && name.includes('auth-token')) {
-                                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
-                                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.raute.io;`
+                // NATIVE: Read user from stored session in Preferences directly
+                // getSession/getUser timeout on native due to lock contention
+                if (isNativeApp) {
+                    try {
+                        const { capacitorStorage } = await import('@/lib/capacitor-storage')
+                        const stored = await capacitorStorage.getItem('sb-raute-auth')
+                        if (stored) {
+                            const parsed = JSON.parse(stored)
+                            if (parsed?.user?.id) {
+                                currentUserId = parsed.user.id
+                                userMeta = parsed.user.user_metadata ?? {}
                             }
-                        })
-                        window.location.href = '/login'
-                        return
-                    }
+                        }
+                    } catch {}
+                }
 
-                    if (!userError && userData?.user?.id) {
-                        currentUserId = userData.user.id
-                        userMeta = userData.user.user_metadata ?? {}
-                    }
-                } catch {}
-
-                // Attempt 2: If getUser didn't work, try getSession (may be slower due to locks)
+                // WEB: Use getUser (bypasses navigator.locks, makes direct API call)
                 if (!currentUserId) {
+                    try {
+                        const { data: userData, error: userError } = await Promise.race([
+                            supabase.auth.getUser(),
+                            new Promise<{ data: { user: null }, error: { status: number, message: string } }>((resolve) =>
+                                setTimeout(() => resolve({ data: { user: null }, error: { status: 408, message: 'timeout' } }), 6000)
+                            ),
+                        ])
+
+                        if (userError && (userError.status === 403 || userError.status === 401)) {
+                            console.error('⛔ Dashboard: Session invalidated (403/401).')
+                            if (!isNativeApp) {
+                                try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+                                document.cookie.split(';').forEach(c => {
+                                    const name = c.trim().split('=')[0]
+                                    if (name.startsWith('sb-') && name.includes('auth-token')) {
+                                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
+                                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.raute.io;`
+                                    }
+                                })
+                                window.location.href = '/login'
+                            }
+                            return
+                        }
+
+                        if (!userError && userData?.user?.id) {
+                            currentUserId = userData.user.id
+                            userMeta = userData.user.user_metadata ?? {}
+                        }
+                    } catch {}
+                }
+
+                // Fallback: try getSession
+                if (!currentUserId && !isNativeApp) {
                     try {
                         const { data } = await Promise.race([
                             supabase.auth.getSession(),
@@ -158,8 +179,8 @@ function DashboardContent() {
                     } catch {}
                 }
 
-                // Attempt 3: Wait a bit and retry getUser (session may still be initializing)
-                if (!currentUserId) {
+                // Last resort retry (web only)
+                if (!currentUserId && !isNativeApp) {
                     await new Promise(resolve => setTimeout(resolve, 2000))
                     try {
                         const { data: retryData } = await Promise.race([
