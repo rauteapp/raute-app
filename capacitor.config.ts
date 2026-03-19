@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'out',
   plugins: {
     CapacitorHttp: {
-      enabled: false,
+      enabled: true,
     },
     GoogleAuth: {
       scopes: ['profile', 'email'],
@@ -35,7 +35,6 @@ const config: CapacitorConfig = {
   // Deep linking for OAuth redirects
   server: {
     androidScheme: 'https',
-    iosScheme: 'https',
   }
 };
 
