@@ -125,14 +125,12 @@ function DashboardContent() {
                                 currentUserId = parsed.user.id
                                 userMeta = parsed.user.user_metadata ?? {}
                             }
-                            // Also ensure Supabase client has active session for queries
-                            if (parsed?.access_token && parsed?.refresh_token) {
-                                try {
-                                    await supabase.auth.setSession({
-                                        access_token: parsed.access_token,
-                                        refresh_token: parsed.refresh_token,
-                                    })
-                                } catch {}
+                            // NOTE: Do NOT call setSession() here — it fires SIGNED_IN
+                            // which triggers auth-listener → router.push('/dashboard')
+                            // → WebView reload loop. The Supabase client's _initialize()
+                            // will eventually read from Preferences and set the session.
+                            // The nativeFetch (CapacitorHttp) handles API calls independently.
+                            if (false) {
                             }
                         }
                     } catch {}
