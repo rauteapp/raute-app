@@ -48,8 +48,9 @@ export default function RootLayout({
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
-          enableSystem
+          enableSystem={false}
           disableTransitionOnChange
+          forcedTheme="light"
         >
           <ClientOnly fallback={
             <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
