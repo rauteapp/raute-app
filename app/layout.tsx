@@ -12,6 +12,7 @@ import { StatusBarManager } from "@/components/status-bar-manager";
 import { TrialGate } from "@/components/trial-gate";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ConfirmProvider } from "@/hooks/use-confirm";
+import { ClientOnly } from "@/components/client-only";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -50,26 +51,32 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <PwaElementsLoader />
-          <StatusBarManager />
-          <NetworkStatusBanner />
-          <ToastProvider>
-            <ConfirmProvider>
-            <AuthListener />
-            <AuthCheck>
-              <ErrorBoundary>
-              <TrialGate>
-                <div className="min-h-screen flex flex-col pt-safe px-safe">
-                  <main className="flex-1 pb-32 mb-10 safe-area-pb">
-                    {children}
-                  </main>
-                  <MobileNav />
-                </div>
-              </TrialGate>
-              </ErrorBoundary>
-            </AuthCheck>
-          </ConfirmProvider>
-          </ToastProvider>
+          <ClientOnly fallback={
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin" />
+            </div>
+          }>
+            <PwaElementsLoader />
+            <StatusBarManager />
+            <NetworkStatusBanner />
+            <ToastProvider>
+              <ConfirmProvider>
+              <AuthListener />
+              <AuthCheck>
+                <ErrorBoundary>
+                <TrialGate>
+                  <div className="min-h-screen flex flex-col pt-safe px-safe">
+                    <main className="flex-1 pb-32 mb-10 safe-area-pb">
+                      {children}
+                    </main>
+                    <MobileNav />
+                  </div>
+                </TrialGate>
+                </ErrorBoundary>
+              </AuthCheck>
+            </ConfirmProvider>
+            </ToastProvider>
+          </ClientOnly>
         </ThemeProvider>
         <WebSpeedInsights />
         <script dangerouslySetInnerHTML={{ __html: `
