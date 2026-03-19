@@ -8,7 +8,8 @@ import { Capacitor } from '@capacitor/core'
  *
  * On native (Capacitor), API routes don't exist locally — they run on
  * the production server. So relative URLs like '/api/...' are prefixed
- * with the production base URL.
+ * with the production base URL. Uses CapacitorHttp for the actual request
+ * to bypass WebView CORS restrictions on cross-origin calls.
  *
  * Uses a timeout on getSession() to avoid hanging when navigator.locks
  * is blocked by a token refresh on web. Falls back to getUser() if needed.
@@ -34,6 +35,40 @@ export async function authenticatedFetch(
         // getSession() threw (AbortError, etc.) — proceed without token
     }
 
+    // On native, API routes live on the production server, not locally.
+    // Use CapacitorHttp to bypass WebView CORS restrictions.
+    const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+
+    if (isNative && url.startsWith('/')) {
+        const { CapacitorHttp } = await import('@capacitor/core')
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.raute.io'
+        const fullUrl = `${baseUrl}${url}`
+
+        const headersObj: Record<string, string> = {}
+        if (accessToken) headersObj['Authorization'] = `Bearer ${accessToken}`
+        if (options.body) headersObj['Content-Type'] = 'application/json'
+
+        // Merge any custom headers from options
+        if (options.headers) {
+            const h = new Headers(options.headers)
+            h.forEach((value, key) => { headersObj[key] = value })
+        }
+
+        const response = await CapacitorHttp.request({
+            url: fullUrl,
+            method: (options.method || 'GET').toUpperCase(),
+            headers: headersObj,
+            data: options.body ? JSON.parse(options.body as string) : undefined,
+        })
+
+        // Convert CapacitorHttp response to a fetch-compatible Response
+        return new Response(JSON.stringify(response.data), {
+            status: response.status,
+            headers: response.headers,
+        })
+    }
+
+    // Web: use standard fetch with cookies
     const headers = new Headers(options.headers)
     if (accessToken) {
         headers.set('Authorization', `Bearer ${accessToken}`)
@@ -42,13 +77,7 @@ export async function authenticatedFetch(
         headers.set('Content-Type', 'application/json')
     }
 
-    // On native, API routes live on the production server, not locally
-    const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform()
-    const baseUrl = isNative && url.startsWith('/')
-        ? (process.env.NEXT_PUBLIC_APP_URL || 'https://www.raute.io')
-        : ''
-
-    return fetch(`${baseUrl}${url}`, {
+    return fetch(url, {
         ...options,
         headers,
     })
