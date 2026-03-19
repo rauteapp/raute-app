@@ -134,9 +134,12 @@ export function AuthListener() {
                     const currentPath = window.location.pathname
                     const currentHref = window.location.href
                     // Static export may use /login.html, /login/, or /login
-                    const isOnLogin = currentPath === '/login' || currentPath === '/' ||
+                    // IMPORTANT: Do NOT include '/' — on Capacitor static export,
+                    // the dashboard path can appear as '/' which would cause
+                    // an infinite reload loop (SIGNED_IN → push /dashboard → reload → SIGNED_IN...)
+                    const isOnLogin = currentPath === '/login' ||
                         currentPath === '/login.html' || currentPath === '/login/' ||
-                        currentPath.startsWith('/login')
+                        currentPath.startsWith('/login/')
                     if (isOnLogin) {
                         setTimeout(() => {
                             router.push('/dashboard')
