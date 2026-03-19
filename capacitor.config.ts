@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'out',
   plugins: {
     CapacitorHttp: {
-      enabled: true,
+      enabled: false, // We use CapacitorHttp.request() directly in the Supabase client
     },
     GoogleAuth: {
       scopes: ['profile', 'email'],

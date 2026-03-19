@@ -29,6 +29,59 @@ function createSupabaseClient() {
     if (isNativePlatform) {
         // Native platform (iOS/Android) — use standard client with Capacitor storage
         // This avoids the cookie-based auth flow that createBrowserClient uses
+        //
+        // CRITICAL: Provide a custom fetch that uses CapacitorHttp on native.
+        // The automatic fetch patching from CapacitorHttp doesn't work reliably
+        // with Supabase's auth headers (Authorization, apikey) which trigger
+        // CORS preflight requests that the interceptor can't handle.
+        const nativeFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+            try {
+                const { CapacitorHttp } = await import('@capacitor/core')
+                const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+                const method = init?.method || 'GET'
+                const headers: Record<string, string> = {}
+
+                if (init?.headers) {
+                    if (init.headers instanceof Headers) {
+                        init.headers.forEach((value, key) => { headers[key] = value })
+                    } else if (Array.isArray(init.headers)) {
+                        init.headers.forEach(([key, value]) => { headers[key] = value })
+                    } else {
+                        Object.assign(headers, init.headers)
+                    }
+                }
+
+                let data: any = undefined
+                if (init?.body) {
+                    try {
+                        data = JSON.parse(init.body as string)
+                    } catch {
+                        data = init.body
+                    }
+                }
+
+                const response = await CapacitorHttp.request({
+                    url,
+                    method,
+                    headers,
+                    data,
+                })
+
+                // Convert CapacitorHttp response to standard Response
+                const responseBody = typeof response.data === 'string'
+                    ? response.data
+                    : JSON.stringify(response.data)
+
+                return new Response(responseBody, {
+                    status: response.status,
+                    headers: response.headers,
+                })
+            } catch (err) {
+                // Fallback to regular fetch if CapacitorHttp fails
+                return fetch(input, init)
+            }
+        }
+
         const client = createClient(supabaseUrl, supabaseAnonKey, {
             auth: {
                 storage: capacitorStorage,
@@ -40,11 +93,11 @@ function createSupabaseClient() {
                 // Add storage key to avoid conflicts
                 storageKey: 'sb-raute-auth',
             },
-            // Add global error handler
             global: {
                 headers: {
                     'x-client-info': 'raute-app-ios',
-                }
+                },
+                fetch: nativeFetch,
             }
         })
 
