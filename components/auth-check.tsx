@@ -384,10 +384,22 @@ export default function AuthCheck({ children }: { children: React.ReactNode }) {
                     return
                 }
 
-                // NO SESSION on web — no retries needed (cookies are instant)
-                // Give up and redirect to login
+                // NO SESSION — all retries exhausted
                 clearTimeout(maxTimeout)
                 if (!isPublicRoute) {
+                    // On native: check Preferences before giving up.
+                    // getSession() may timeout due to lock contention, but the
+                    // session IS stored in Preferences. Let the user through.
+                    if (isNative) {
+                        try {
+                            const { capacitorStorage: cs } = await import('@/lib/capacitor-storage')
+                            const stored = await cs.getItem('sb-raute-auth')
+                            if (stored) {
+                                finishLoading()
+                                return
+                            }
+                        } catch {}
+                    }
                     redirectToLogin('no_session')
                 } else {
                     finishLoading()
